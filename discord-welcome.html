@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>You're In, Operator — Aurevon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --black:       #0a0a0a;
+      --charcoal:    #111111;
+      --surface:     #1a1a1a;
+      --border:      #2a2a2a;
+      --gold:        #c8a96e;
+      --gold-light:  #e8c98e;
+      --white:       #f5f5f0;
+      --muted:       #888888;
+      --success:     #4ade80;
+      --discord:     #5865F2;
+      --discord-h:   #4752c4;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--black);
+      color: var(--white);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    /* ---- Layout ---- */
+    .page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 0 1.5rem 4rem;
+    }
+
+    /* ---- Header bar ---- */
+    .header {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.75rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .logo span { color: var(--white); }
+
+    .header-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* ---- Hero ---- */
+    .hero {
+      width: 100%;
+      max-width: 680px;
+      text-align: center;
+      margin-top: 5rem;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.35rem 1rem;
+      background: rgba(200, 169, 110, 0.1);
+      border: 1px solid rgba(200, 169, 110, 0.3);
+      border-radius: 100px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 2rem;
+    }
+
+    .hero-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(2.5rem, 6vw, 3.75rem);
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 1.25rem;
+    }
+
+    .hero-title .accent { color: var(--gold); }
+
+    .hero-sub {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 480px;
+      margin: 0 auto 2.5rem;
+    }
+
+    /* ---- Role chip ---- */
+    .role-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.6rem 1.4rem;
+      background: var(--surface);
+      border: 1px solid var(--gold);
+      border-radius: 8px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--gold-light);
+      margin-bottom: 3.5rem;
+    }
+
+    .role-chip .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      flex-shrink: 0;
+    }
+
+    /* ---- Channels grid ---- */
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1.25rem;
+    }
+
+    .channels-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+      width: 100%;
+      max-width: 680px;
+      margin: 0 auto 3.5rem;
+    }
+
+    .channel-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      transition: border-color 0.2s;
+    }
+
+    .channel-card:hover { border-color: rgba(200, 169, 110, 0.4); }
+
+    .channel-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--white);
+      margin-bottom: 0.25rem;
+    }
+
+    .channel-name::before {
+      content: '# ';
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    .channel-desc {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .channel-card.locked {
+      opacity: 0.45;
+      pointer-events: none;
+    }
+
+    /* ---- CTA ---- */
+    .cta-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .btn-discord {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.9rem 2.25rem;
+      background: var(--discord);
+      color: #fff;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      border: none;
+      border-radius: 8px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+    }
+
+    .btn-discord:hover {
+      background: var(--discord-h);
+      transform: translateY(-1px);
+    }
+
+    .btn-discord svg { flex-shrink: 0; }
+
+    .cta-note {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    /* ---- Error state ---- */
+    .error-box {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 10px;
+      padding: 1.5rem 2rem;
+      max-width: 480px;
+      margin: 3rem auto 0;
+      text-align: center;
+    }
+
+    .error-box h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.25rem;
+      color: #f87171;
+      margin-bottom: 0.5rem;
+    }
+
+    .error-box p { color: var(--muted); font-size: 0.9rem; }
+
+    /* ---- Footer ---- */
+    .footer {
+      width: 100%;
+      max-width: 900px;
+      margin-top: 5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    @media (max-width: 600px) {
+      .channels-grid { grid-template-columns: 1fr 1fr; }
+      .footer { flex-direction: column; gap: 0.5rem; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="logo"><svg width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:8px;flex-shrink:0;"><rect width="40" height="40" rx="8" fill="#1E3A8A"/><text x="20" y="28" text-anchor="middle" font-family='Archivo Black',sans-serif font-size="22" fill="white" font-weight="900">A</text></svg>Aurevon<span> Ventures</span></div>
+    <div class="header-label">Operator Portal</div>
+  </header>
+
+  <!-- Main content -->
+  <main id="main-content" class="hero" style="display:none">
+    <div class="badge">Access Granted</div>
+    <h1 class="hero-title">You're In,<br/><span class="accent">Operator.</span></h1>
+    <p class="hero-sub">
+      Your NFT has been verified and your Discord role has been assigned.
+      Welcome to the Aurevon private operator network.
+    </p>
+
+    <div class="role-chip">
+      <span class="dot"></span>
+      <span id="role-label">Loading…</span>
+    </div>
+
+    <div class="section-label">Channels you now have access to</div>
+    <div class="channels-grid" id="channels-grid">
+      <!-- Injected by JS -->
+    </div>
+
+    <div class="cta-wrap">
+      <a id="discord-link" href="https://discord.gg/GdYRZtdvNS" class="btn-discord" target="_blank" rel="noopener noreferrer">
+        <!-- Discord logo -->
+        <svg width="22" height="17" viewBox="0 0 71 55" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M60.1 4.8A58.5 58.5 0 0 0 45.6.5a.22.22 0 0 0-.23.11 40.8 40.8 0 0 0-1.8 3.7 54 54 0 0 0-16.2 0 37.4 37.4 0 0 0-1.83-3.7.23.23 0 0 0-.23-.11A58.3 58.3 0 0 0 10.8 4.8a.2.2 0 0 0-.1.08C1.58 18.25-.95 31.3.3 44.18a.24.24 0 0 0 .09.17 58.8 58.8 0 0 0 17.7 8.95.23.23 0 0 0 .26-.09 42 42 0 0 0 3.6-5.87.23.23 0 0 0-.12-.32 38.7 38.7 0 0 1-5.53-2.63.23.23 0 0 1-.02-.38c.37-.28.74-.57 1.1-.86a.22.22 0 0 1 .23-.03c11.6 5.3 24.17 5.3 35.63 0a.22.22 0 0 1 .23.03c.36.3.73.58 1.1.86a.23.23 0 0 1-.02.38 36.4 36.4 0 0 1-5.54 2.63.23.23 0 0 0-.12.32 47.1 47.1 0 0 0 3.6 5.87.22.22 0 0 0 .25.09 58.6 58.6 0 0 0 17.72-8.95.23.23 0 0 0 .09-.17c1.48-15.31-2.48-28.25-10.5-39.3a.18.18 0 0 0-.09-.08ZM23.73 36.49c-3.49 0-6.37-3.21-6.37-7.15s2.82-7.15 6.37-7.15c3.57 0 6.42 3.24 6.37 7.15 0 3.94-2.83 7.15-6.37 7.15Zm23.54 0c-3.49 0-6.37-3.21-6.37-7.15s2.82-7.15 6.37-7.15c3.57 0 6.42 3.24 6.37 7.15 0 3.94-2.8 7.15-6.37 7.15Z" fill="currentColor"/>
+        </svg>
+        Open Discord
+      </a>
+      <p class="cta-note">Discord will open in a new tab. Your role is already assigned.</p>
+    </div>
+  </main>
+
+  <!-- Error state -->
+  <div id="error-content" class="error-box" style="display:none">
+    <h2>Authorization Denied</h2>
+    <p>You cancelled the Discord authorization. You can try again from your NFT confirmation email.</p>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <span>Aurevon &copy; 2024</span>
+    <span>Confidential — Operator Access Only</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const role = params.get('role') || '';
+  const error = params.get('error') || '';
+  const inviteUrl = params.get('invite') || 'https://discord.gg/GdYRZtdvNS';
+
+  // Error path
+  if (error === 'denied') {
+    document.getElementById('error-content').style.display = 'block';
+    return;
+  }
+
+  // Success path
+  document.getElementById('main-content').style.display = 'block';
+  document.getElementById('discord-link').href = inviteUrl || 'https://discord.gg/GdYRZtdvNS';
+  document.getElementById('role-label').textContent = role || 'Aurevon Operator';
+
+  // Channel map per tier
+  const tierChannels = {
+    'Aurevon Insider': [
+      { name: 'welcome',        desc: 'Server announcements' },
+      { name: 'intros',         desc: 'Introduce yourself' },
+      { name: 'announcements',  desc: 'Aurevon deal updates' },
+      { name: 'insider-lounge', desc: 'Your private tier lounge' },
+    ],
+    'Aurevon Ember': [
+      { name: 'welcome',        desc: 'Server announcements' },
+      { name: 'intros',         desc: 'Introduce yourself' },
+      { name: 'announcements',  desc: 'Aurevon deal updates' },
+      { name: 'multifamily',    desc: 'MF deal flow (locked)' },
+      { name: 'ember-lounge',   desc: 'Your private tier lounge' },
+    ],
+    'Aurevon Obsidian Executive': [
+      { name: 'welcome',        desc: 'Server announcements' },
+      { name: 'intros',         desc: 'Introduce yourself' },
+      { name: 'announcements',  desc: 'Aurevon deal updates' },
+      { name: 'multifamily',    desc: 'MF deal flow' },
+      { name: 'mixed-use',      desc: 'Mixed-use deal flow' },
+      { name: 'self-storage',   desc: 'Self-storage deals' },
+      { name: 'lender-referrals', desc: 'Preferred lenders' },
+      { name: 'obsidian-lounge', desc: 'Your private tier lounge' },
+    ],
+    '001 Genesis': [
+      { name: 'welcome',          desc: 'Server announcements' },
+      { name: 'intros',           desc: 'Introduce yourself' },
+      { name: 'announcements',    desc: 'Aurevon deal updates' },
+      { name: 'multifamily',      desc: 'MF deal flow' },
+      { name: 'mixed-use',        desc: 'Mixed-use deal flow' },
+      { name: 'small-cre',        desc: 'Small CRE deals' },
+      { name: 'self-storage',     desc: 'Self-storage deals' },
+      { name: 'lender-referrals', desc: 'Preferred lenders' },
+      { name: 'broker-referrals', desc: 'Broker network' },
+      { name: 'genesis-lounge',   desc: 'Your private tier lounge' },
+    ],
+    '004 Chrome': [
+      { name: 'welcome',          desc: 'Server announcements' },
+      { name: 'intros',           desc: 'Introduce yourself' },
+      { name: 'announcements',    desc: 'Aurevon deal updates' },
+      { name: 'multifamily',      desc: 'MF deal flow' },
+      { name: 'mixed-use',        desc: 'Mixed-use deal flow' },
+      { name: 'small-cre',        desc: 'Small CRE deals' },
+      { name: 'self-storage',     desc: 'Self-storage deals' },
+      { name: 'lender-referrals', desc: 'Preferred lenders' },
+      { name: 'broker-referrals', desc: 'Broker network' },
+      { name: 'vendor-referrals', desc: 'Vendor marketplace' },
+      { name: 'chrome-lounge',    desc: 'Your private tier lounge' },
+    ],
+  };
+
+  const channels = tierChannels[role] || tierChannels['Aurevon Insider'];
+  const grid = document.getElementById('channels-grid');
+
+  channels.forEach(function (ch) {
+    const card = document.createElement('div');
+    card.className = 'channel-card';
+    card.innerHTML =
+      '<div class="channel-name">' + escapeHtml(ch.name) + '</div>' +
+      '<div class="channel-desc">' + escapeHtml(ch.desc) + '</div>';
+    grid.appendChild(card);
+  });
+
+  function escapeHtml(str) {
+    const el = document.createElement('span');
+    el.textContent = str;
+    return el.innerHTML;
+  }
+})();
+</script>
+</body>
+</html>

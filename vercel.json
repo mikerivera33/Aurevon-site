@@ -1,0 +1,116 @@
+{
+  "version": 2,
+  "framework": null,
+  "buildCommand": null,
+  "outputDirectory": ".",
+  "installCommand": "npm install",
+
+  "cleanUrls": true,
+
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.paypal.com https://www.paypalobjects.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.stripe.com https://api.airtable.com https://api.resend.com https://discord.com https://api.crossmint.com; frame-src https://js.stripe.com https://www.paypal.com; object-src 'none'; base-uri 'self'; form-action 'self';"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), payment=(self)"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://aurevongroup.com"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization, stripe-signature, x-airtable-token"
+        },
+        {
+          "key": "Access-Control-Max-Age",
+          "value": "86400"
+        }
+      ]
+    }
+  ],
+
+  "crons": [
+    {
+      "path": "/api/cron/retry-mints",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/discord/check-membership",
+      "schedule": "0 8 * * *"
+    }
+  ],
+
+  "functions": {
+    "api/webhooks/stripe.js": {
+      "maxDuration": 30,
+      "memory": 512
+    },
+    "api/webhooks/paypal.js": {
+      "maxDuration": 30,
+      "memory": 512
+    },
+    "api/cron/retry-mints.js": {
+      "maxDuration": 30,
+      "memory": 512
+    },
+    "api/crossmint/mint.js": {
+      "maxDuration": 30,
+      "memory": 512
+    },
+    "api/discord/check-membership.js": {
+      "maxDuration": 30,
+      "memory": 512
+    },
+    "api/discord/callback.js": {
+      "maxDuration": 10,
+      "memory": 256
+    },
+    "api/airtable/submit-lead.js": {
+      "maxDuration": 10,
+      "memory": 256
+    },
+    "api/health.js": {
+      "maxDuration": 5,
+      "memory": 128
+    }
+  }
+}

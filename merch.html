@@ -1,0 +1,1301 @@
+<!--
+  SNIPCART SETUP (5 minutes):
+  1. Sign up at snipcart.com (free up to $500/mo revenue)
+  2. Connect your Stripe account (Settings → Payment Gateway → Stripe)
+  3. Copy your PUBLIC API key from: Dashboard → API Keys
+  4. Replace "YOUR_SNIPCART_PUBLIC_API_KEY" in this file with your key
+  5. Add your domain to: Dashboard → Domains & URLs
+  6. Done — cart is live, checkout uses your existing Stripe account
+-->
+<!--
+  PRINTIFY SETUP (Print-on-Demand fulfillment):
+
+  1. Sign up at printify.com (free tier)
+  2. Connect your Shopify store or use Printify Pop-Up Store
+  3. For each product below, create in Printify:
+     - Upload the Aurevon artwork/mockup
+     - Select a print provider (cheapest with good reviews)
+     - Set retail price to match the prices below
+  4. Printify handles printing, packing, and shipping directly to customer
+  5. You never touch inventory — pure profit margin
+
+  Recommended Printify products (match to store items):
+  - XL Desk Mat → "Gaming Mouse Pad 36×18" by Printify provider
+  - Operator Mug → "Glossy Black Mug 15oz" by Printify provider
+  - Laptop Sleeve → "Laptop Sleeve" by Printify provider
+  - Hydro Bottle → "Insulated Stainless Steel Bottle 20oz"
+  - Operator's Log → "Hardcover Journal" by Printify provider
+  - Phone Case → "Tough Phone Case" — select all models
+  - Sticker Pack → "Kiss-Cut Sticker Sheet"
+  - Coaster Set → "Cork-Back Coaster Set of 4"
+  - Canvas Tote → "Heavy Tote Bag"
+  - Mousepad → "Round Mouse Pad"
+
+  Printify link: https://printify.com
+  Printify + Snipcart integration: use Printify API or manual fulfillment
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Suppress wallet extension errors (MetaMask, Coinbase Wallet) -->
+<script>
+window.addEventListener('error',function(e){if(e.filename&&e.filename.startsWith('chrome-extension://')){e.preventDefault();return;}if(e.message&&(e.message.includes('MetaMask')||e.message.includes('cross-origin')||e.message.includes('chrome-extension'))){e.preventDefault();return;}},true);
+window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reason.message||String(e.reason))||'';if(m.includes('MetaMask')||m.includes('cross-origin')||m.includes('chrome-extension')){e.preventDefault();return;}});
+(function(){try{localStorage.getItem('_t');}catch(e){var m={};window.localStorage={getItem:function(k){return m[k]||null;},setItem:function(k,v){m[k]=String(v);},removeItem:function(k){delete m[k];},clear:function(){m={};}};}}());
+</script>
+<meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aurevon Merch — Gear for Operators</title>
+  <meta name="description" content="Aurevon Merchandise — Premium apparel, accessories, and collector items. Built for the culture. First collection now live." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.snipcart.com/themes/v3.7.1/default/snipcart.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0A0A0A;
+      --card:      #111827;
+      --text:      #f0ede8;
+      --text-sec:  #b8b3ab;
+      --text-muted:#6b6760;
+      --accent-a:  #1E3A8A;
+      --accent-b:  #3B82F6;
+      --grad:      linear-gradient(135deg, #1E3A8A, #3B82F6);
+      --card-bg:   rgba(255,255,255,0.03);
+      --card-bdr:  rgba(255,255,255,0.07);
+      --radius:    14px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 400;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── NAV ─────────────────────────────────────────────────────── */
+    .nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 900;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      height: 64px;
+      background: rgba(12,12,14,0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--card-bdr);
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      text-decoration: none;
+    }
+    .nav-brand span {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 1.15rem;
+      color: var(--text);
+      letter-spacing: 0.04em;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-sec);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 500;
+      padding: 0.35rem 0.75rem;
+      border-radius: 8px;
+      transition: color .2s, background .2s;
+    }
+    .nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+    .nav-links a.active {
+      background-color: rgba(30,58,138,0.08);
+      border: 1px solid rgba(30,58,138,0.35);
+      color: var(--accent-a);
+    }
+    @media (max-width: 768px) {
+      .nav-links { gap: 0; }
+      .nav-links a { font-size: 0.78rem; padding: 0.3rem 0.5rem; }
+    }
+    @media (max-width: 540px) {
+      .nav-links li:nth-child(n+5) { display: none; }
+    }
+
+    /* ── HERO ─────────────────────────────────────────────────────── */
+    .hero {
+      min-height: 40vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 100px 2rem 3rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 70% 55% at 50% 0%, rgba(30,58,138,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-eyebrow {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .hero-title {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: clamp(2.8rem, 7vw, 5.5rem);
+      line-height: 1;
+      letter-spacing: -0.02em;
+      background: var(--grad);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 1rem;
+    }
+    .hero-sub {
+      font-size: clamp(1rem, 2.2vw, 1.3rem);
+      color: var(--text-sec);
+      font-weight: 300;
+      margin-bottom: 1.5rem;
+      max-width: 520px;
+    }
+    .coming-soon-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(30,58,138,0.1);
+      border: 1px solid rgba(30,58,138,0.4);
+      border-radius: 999px;
+      padding: 0.45rem 1.2rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent-b);
+      margin-bottom: 1.2rem;
+      animation: badge-pulse 2.4s ease-in-out infinite;
+    }
+    .coming-soon-badge .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--accent-a);
+      animation: dot-pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes badge-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(30,58,138,0); }
+      50%       { box-shadow: 0 0 14px 4px rgba(30,58,138,0.25); }
+    }
+    @keyframes dot-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.75); }
+    }
+    .hero-desc {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      max-width: 460px;
+      margin-bottom: 2rem;
+      line-height: 1.7;
+    }
+
+    /* ── SECTION WRAPPER ─────────────────────────────────────────── */
+    .section { padding: 4rem 2rem; max-width: 1240px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent-a);
+      margin-bottom: 0.6rem;
+    }
+    .section-title {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+      line-height: 1.1;
+      color: var(--text);
+      margin-bottom: 2.5rem;
+    }
+    .divider {
+      border: none;
+      border-top: 1px solid var(--card-bdr);
+      margin: 0;
+    }
+
+    /* ── PRODUCT GRID ─────────────────────────────────────────────── */
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.4rem;
+    }
+    @media (max-width: 1024px) { .product-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 540px)  { .product-grid { grid-template-columns: 1fr; } }
+
+    /* ── PRODUCT CARD STYLES ──────────────────────────────────────── */
+    .product-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;overflow:hidden;transition:transform .3s,border-color .3s,box-shadow .3s;opacity:0;transform:translateY(20px);}
+    .product-card.visible{opacity:1;transform:translateY(0);transition:opacity .5s ease,transform .5s ease,border-color .3s,box-shadow .3s;}
+    .product-card:hover{transform:translateY(-5px);border-color:rgba(30,58,138,0.35);box-shadow:0 20px 50px rgba(30,58,138,0.12);}
+    .product-img{aspect-ratio:1/1;overflow:hidden;background:#080810;display:flex;align-items:center;justify-content:center;}
+    .product-img img{width:100%;height:100%;object-fit:cover;transition:transform .5s;}
+    .product-card:hover .product-img img{transform:scale(1.05);}
+    .product-info{padding:1.1rem;}
+    .product-name{font-family:'Archivo Black',sans-serif;font-size:0.95rem;color:#f0ede8;margin:0 0 0.3rem;}
+    .product-desc{font-size:0.78rem;color:#b8b3ab;line-height:1.5;margin:0 0 0.7rem;}
+    .product-price{font-family:'Archivo Black',sans-serif;font-size:1.2rem;background:linear-gradient(135deg,#1E3A8A,#3B82F6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:0.7rem;}
+    .product-buy-btn{width:100%;padding:0.7rem;border:none;border-radius:8px;background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#0A0A0A;font-family:'Archivo Black',sans-serif;font-size:0.82rem;cursor:pointer;transition:transform .15s,box-shadow .15s;}
+    .product-buy-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(30,58,138,0.35);}
+
+    /* ── PLACEHOLDER CARDS (products 6-8) ─────────────────────────── */
+    .product-placeholder {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(160deg, #111113 0%, #0d0d10 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.7rem;
+      position: relative;
+      padding: 1rem;
+      text-align: center;
+    }
+    .product-placeholder::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 90'%3E%3Cpath d='M40 2 L74 16 L74 48 Q74 72 40 88 Q6 72 6 48 L6 16 Z' fill='none' stroke='rgba(255,255,255,0.06)' stroke-width='2.5'/%3E%3Ctext x='40' y='52' text-anchor='middle' font-family='Arial Black,sans-serif' font-size='13' font-weight='900' fill='rgba(255,255,255,0.05)' letter-spacing='1'%3EBLOCKT%3C/text%3E%3C/svg%3E") center / 55% no-repeat;
+      pointer-events: none;
+    }
+    .placeholder-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.22);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      padding: 0.2rem 0.55rem;
+      position: relative;
+      z-index: 1;
+    }
+    .placeholder-name {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.3);
+      letter-spacing: 0.06em;
+      position: relative;
+      z-index: 1;
+    }
+    /* NFT badge overlay */
+    .nft-badge-overlay {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: linear-gradient(135deg,#1E3A8A,#3B82F6);
+      color: #0A0A0A;
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      padding: 0.25rem 0.55rem;
+      border-radius: 4px;
+      z-index: 2;
+    }
+
+    /* ── CATEGORY CARDS ──────────────────────────────────────────── */
+    .cat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.4rem;
+    }
+    @media (max-width: 768px) { .cat-grid { grid-template-columns: 1fr; } }
+
+    .cat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-bdr);
+      border-radius: var(--radius);
+      padding: 1.8rem 1.6rem;
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    .cat-card.visible {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity .5s ease, transform .5s ease;
+    }
+    .cat-icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      background: rgba(30,58,138,0.1);
+      border: 1px solid rgba(30,58,138,0.2);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 1rem;
+      font-size: 1.4rem;
+    }
+    .cat-title {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 1.05rem;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+    .cat-desc {
+      font-size: 0.88rem;
+      color: var(--text-sec);
+      line-height: 1.65;
+      margin-bottom: 1rem;
+    }
+    .tag-cs {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent-a);
+      background: rgba(30,58,138,0.08);
+      border: 1px solid rgba(30,58,138,0.25);
+      border-radius: 4px;
+      padding: 0.2rem 0.55rem;
+    }
+
+    /* ── DROPS & COLLABS ─────────────────────────────────────────── */
+    .drops-section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-bdr);
+      border-radius: 20px;
+      padding: 3.5rem 3rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .drops-section::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 50% at 50% 100%, rgba(30,58,138,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .drops-eyebrow {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent-a);
+      margin-bottom: 0.8rem;
+    }
+    .drops-title {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+    .drops-body {
+      font-size: 1rem;
+      color: var(--text-sec);
+      max-width: 560px;
+      margin: 0 auto 2rem;
+      line-height: 1.7;
+    }
+    .drops-cta-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .btn-discord {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #5865F2;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 10px;
+      padding: 0.75rem 1.6rem;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.92rem;
+      font-weight: 600;
+      transition: opacity .2s, transform .15s;
+    }
+    .btn-discord:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-discord svg { width: 18px; height: 18px; }
+    .drop-date-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(59,130,246,0.08);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 999px;
+      padding: 0.55rem 1.2rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent-b);
+    }
+
+    /* ── FADE IN OBSERVER ─────────────────────────────────────────── */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity .55s ease, transform .55s ease;
+    }
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── FOOTER WRAPPER ──────────────────────────────────────────── */
+    .footer-wrap { margin-top: 5rem; }
+
+    /* ── MAIN PADDING ─────────────────────────────────────────────── */
+    main { padding-top: 64px; }
+  </style>
+</head>
+<body>
+
+<!-- ── NAVIGATION ──────────────────────────────────────────────────── -->
+<nav class="nav">
+  <a href="index.html" class="nav-brand">
+    <svg width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:8px;flex-shrink:0;"><rect width="40" height="40" rx="8" fill="#1E3A8A"/><text x="20" y="28" text-anchor="middle" font-family='Archivo Black',sans-serif font-size="22" fill="white" font-weight="900">A</text></svg>
+    <span>Aurevon</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="BLOCKT_RE_Final.html">RE</a></li>
+    <li><a href="BLOCKT_Web3.html">Web3</a></li>
+    <li><a href="BLOCKT_NFT_Collection.html">NFTs</a></li>
+    <li><a href="merch.html" class="active">Merch</a></li>
+    <li><a href="portal.html">Portal</a></li>
+  </ul>
+  <!-- Snipcart cart button -->
+  <button class="snipcart-checkout" style="background:none;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 12px;color:#f0ede8;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:'DM Sans',sans-serif;font-size:0.82rem;">
+    🛒 <span class="snipcart-items-count">0</span>
+  </button>
+</nav>
+
+<main>
+
+  <!-- ── HERO ────────────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="hero-eyebrow">Official Store</div>
+    <h1 class="hero-title">Aurevon MERCH</h1>
+    <p class="hero-sub">Gear for operators who stop everything.</p>
+    <div class="coming-soon-badge"><span class="dot"></span> Now Live</div>
+    <p class="hero-desc">First collection now live — more dropping Summer 2026. Premium apparel, accessories, and collector items. Built for the culture.</p>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ── PRODUCT GRID ─────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-label fade-in">The Collection</div>
+    <h2 class="section-title fade-in">Shop the Drop</h2>
+
+    <div class="product-grid" id="productGrid">
+
+      <!-- 1: Aurevon Shield Hoodie -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/67464ad3-5b99-4499-93bd-2e166f28e5e0.png" alt="Aurevon Shield Hoodie" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Shield Hoodie</h3>
+          <p class="product-desc">Premium black heavyweight hoodie with the Aurevon shield logo in orange-gold gradient. Orange accent lining.</p>
+          <div class="product-price">$65</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-shield-hoodie"
+            data-item-price="65"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Shield Hoodie"
+            data-item-description="Premium black heavyweight hoodie with the Aurevon shield logo in orange-gold gradient. Orange accent lining."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/67464ad3-5b99-4499-93bd-2e166f28e5e0.png"
+            data-item-custom1-name="Size"
+            data-item-custom1-options="S|M|L|XL|2XL">
+            Add to Cart — $65
+          </button>
+        </div>
+      </div>
+
+      <!-- 2: Operator Snapback -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/075bc46d-2ff3-45e0-a07d-f4bc526fd0e1.png" alt="Operator Snapback" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Operator Snapback</h3>
+          <p class="product-desc">Structured black snapback with embroidered Aurevon shield. "Systems. Capital. Infrastructure." side detail.</p>
+          <div class="product-price">$35</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="operator-snapback"
+            data-item-price="35"
+            data-item-url="/merch.html"
+            data-item-name="Operator Snapback"
+            data-item-description="Structured black snapback with embroidered Aurevon shield. Systems. Capital. Infrastructure. side detail."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/075bc46d-2ff3-45e0-a07d-f4bc526fd0e1.png"
+            data-item-custom1-name="Size"
+            data-item-custom1-options="S|M|L|XL|2XL">
+            Add to Cart — $35
+          </button>
+        </div>
+      </div>
+
+      <!-- 3: Catcher's Statement Tee -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/71d375e0-639a-44f3-ba91-b4d8767cb8ad.png" alt="Catcher's Statement Tee" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Catcher's Statement Tee</h3>
+          <p class="product-desc">Black heavyweight cotton tee. "SYSTEMS. CAPITAL. INFRASTRUCTURE.." in orange-gold gradient across chest.</p>
+          <div class="product-price">$40</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="catchers-statement-tee"
+            data-item-price="40"
+            data-item-url="/merch.html"
+            data-item-name="Catcher's Statement Tee"
+            data-item-description="Black heavyweight cotton tee. SYSTEMS. CAPITAL. INFRASTRUCTURE.. in orange-gold gradient across chest."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/71d375e0-639a-44f3-ba91-b4d8767cb8ad.png"
+            data-item-custom1-name="Size"
+            data-item-custom1-options="S|M|L|XL|2XL">
+            Add to Cart — $40
+          </button>
+        </div>
+      </div>
+
+      <!-- 4: The Obsidian Bomber -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/66f55182-1043-4f78-9958-bdbd3a6fb9fe.png" alt="The Obsidian Bomber" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">The Obsidian Bomber</h3>
+          <p class="product-desc">Premium black nylon bomber with gold Aurevon logo embroidery. Orange satin lining. Gold hardware.</p>
+          <div class="product-price">$120</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="obsidian-bomber"
+            data-item-price="120"
+            data-item-url="/merch.html"
+            data-item-name="The Obsidian Bomber"
+            data-item-description="Premium black nylon bomber with gold Aurevon logo embroidery. Orange satin lining. Gold hardware."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/66f55182-1043-4f78-9958-bdbd3a6fb9fe.png"
+            data-item-custom1-name="Size"
+            data-item-custom1-options="S|M|L|XL|2XL">
+            Add to Cart — $120
+          </button>
+        </div>
+      </div>
+
+      <!-- 5: Block Chain Crewneck -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/bbd683e1-3daa-48b8-a3c2-f0aec90331d8.png" alt="Block Chain Crewneck" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Block Chain Crewneck</h3>
+          <p class="product-desc">Black heavyweight fleece crewneck. "BLOCK·T" design with chain-link connection.</p>
+          <div class="product-price">$55</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="block-chain-crewneck"
+            data-item-price="55"
+            data-item-url="/merch.html"
+            data-item-name="Block Chain Crewneck"
+            data-item-description="Black heavyweight fleece crewneck. BLOCK-T design with chain-link connection."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/bbd683e1-3daa-48b8-a3c2-f0aec90331d8.png"
+            data-item-custom1-name="Size"
+            data-item-custom1-options="S|M|L|XL|2XL">
+            Add to Cart — $55
+          </button>
+        </div>
+      </div>
+
+      <!-- 6: Aurevon Dad Hat (CSS placeholder) -->
+      <div class="product-card">
+        <div class="product-img">
+          <div class="product-placeholder">
+            <div class="placeholder-label">Coming Soon</div>
+            <svg width="52" height="60" viewBox="0 0 80 90" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.18;">
+              <path d="M40 2 L74 16 L74 48 Q74 72 40 88 Q6 72 6 48 L6 16 Z" fill="none" stroke="#3B82F6" stroke-width="3"/>
+              <text x="40" y="52" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="12" font-weight="900" fill="#3B82F6" letter-spacing="1">Aurevon</text>
+            </svg>
+            <div class="placeholder-name">DAD HAT</div>
+          </div>
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Dad Hat</h3>
+          <p class="product-desc">Relaxed unstructured black dad hat with small embroidered Aurevon shield. Low-profile, adjustable strap.</p>
+          <div class="product-price">$30</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-dad-hat"
+            data-item-price="30"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Dad Hat"
+            data-item-description="Relaxed unstructured black dad hat with small embroidered Aurevon shield. Low-profile, adjustable strap."
+            data-item-image=""
+            data-item-custom1-name="Size"
+            data-item-custom1-options="S|M|L|XL|2XL">
+            Add to Cart — $30
+          </button>
+        </div>
+      </div>
+
+      <!-- 7: NFT Holder Exclusive Tee (CSS placeholder) -->
+      <div class="product-card">
+        <div class="product-img">
+          <div class="product-placeholder">
+            <span class="nft-badge-overlay">NFT HOLDERS ONLY</span>
+            <div class="placeholder-label">Exclusive</div>
+            <svg width="52" height="60" viewBox="0 0 80 90" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.18;">
+              <path d="M40 2 L74 16 L74 48 Q74 72 40 88 Q6 72 6 48 L6 16 Z" fill="none" stroke="#3B82F6" stroke-width="3"/>
+              <text x="40" y="52" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="12" font-weight="900" fill="#3B82F6" letter-spacing="1">Aurevon</text>
+            </svg>
+            <div class="placeholder-name">NFT EXCLUSIVE</div>
+          </div>
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">NFT Holder Exclusive Tee</h3>
+          <p class="product-desc">Limited edition tee for verified Aurevon NFT holders. Tier-locked drops. Must hold a Aurevon NFT to purchase.</p>
+          <div class="product-price">$45</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="nft-holder-tee"
+            data-item-price="45"
+            data-item-url="/merch.html"
+            data-item-name="NFT Holder Exclusive Tee"
+            data-item-description="Limited edition tee for verified Aurevon NFT holders. Tier-locked drops. Must hold a Aurevon NFT to purchase."
+            data-item-image=""
+            data-item-custom1-name="Size"
+            data-item-custom1-options="S|M|L|XL|2XL">
+            Add to Cart — $45
+          </button>
+        </div>
+      </div>
+
+      <!-- 8: Utility Player Joggers (CSS placeholder) -->
+      <div class="product-card">
+        <div class="product-img">
+          <div class="product-placeholder">
+            <div class="placeholder-label">Coming Soon</div>
+            <!-- Jogger silhouette outline -->
+            <svg width="50" height="60" viewBox="0 0 60 80" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.2;">
+              <rect x="10" y="2" width="40" height="18" rx="4" fill="none" stroke="#3B82F6" stroke-width="2"/>
+              <rect x="10" y="20" width="16" height="48" rx="4" fill="none" stroke="#3B82F6" stroke-width="2"/>
+              <rect x="34" y="20" width="16" height="48" rx="4" fill="none" stroke="#3B82F6" stroke-width="2"/>
+              <circle cx="14" cy="30" r="2" fill="#3B82F6"/>
+            </svg>
+            <div class="placeholder-name">UTILITY JOGGERS</div>
+          </div>
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Utility Player Joggers</h3>
+          <p class="product-desc">Premium black tech fleece joggers with Aurevon shield on left hip. Zippered pockets. Tapered fit.</p>
+          <div class="product-price">$60</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="utility-joggers"
+            data-item-price="60"
+            data-item-url="/merch.html"
+            data-item-name="Utility Player Joggers"
+            data-item-description="Premium black tech fleece joggers with Aurevon shield on left hip. Zippered pockets. Tapered fit."
+            data-item-image=""
+            data-item-custom1-name="Size"
+            data-item-custom1-options="S|M|L|XL|2XL">
+            Add to Cart — $60
+          </button>
+        </div>
+      </div>
+
+      <!-- 9: Aurevon XL Desk Mat -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/9db8814a-6979-4c0b-b694-dab978354eeb.png" alt="Aurevon XL Desk Mat" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon XL Desk Mat</h3>
+          <p class="product-desc">Oversized desk mat with Aurevon shield + stitched orange trim. Non-slip rubber base.</p>
+          <div class="product-price">$35</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-xl-desk-mat"
+            data-item-price="35"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon XL Desk Mat"
+            data-item-description="Oversized desk mat with Aurevon shield + stitched orange trim. Non-slip rubber base."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/9db8814a-6979-4c0b-b694-dab978354eeb.png">
+            Add to Cart — $35
+          </button>
+        </div>
+      </div>
+
+      <!-- 10: Aurevon Operator Mug -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/def76fef-0f9e-4d2f-abd0-9e3cb65cb90b.png" alt="Aurevon Operator Mug" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Operator Mug</h3>
+          <p class="product-desc">Matte black 15oz ceramic mug. Aurevon shield on front, tagline on back.</p>
+          <div class="product-price">$22</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-operator-mug"
+            data-item-price="22"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Operator Mug"
+            data-item-description="Matte black 15oz ceramic mug. Aurevon shield on front, tagline on back."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/def76fef-0f9e-4d2f-abd0-9e3cb65cb90b.png">
+            Add to Cart — $22
+          </button>
+        </div>
+      </div>
+
+      <!-- 11: Aurevon Laptop Sleeve -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/95a446ad-36af-46ac-90eb-34491ecbce84.png" alt="Aurevon Laptop Sleeve" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Laptop Sleeve</h3>
+          <p class="product-desc">Black neoprene sleeve with orange shield emblem. Fits 13"-15" laptops.</p>
+          <div class="product-price">$38</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-laptop-sleeve"
+            data-item-price="38"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Laptop Sleeve"
+            data-item-description="Black neoprene sleeve with orange shield emblem. Fits 13&quot;-15&quot; laptops."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/95a446ad-36af-46ac-90eb-34491ecbce84.png"
+            data-item-custom1-name="Size"
+            data-item-custom1-options="S|M|L|XL|2XL">
+            Add to Cart — $38
+          </button>
+        </div>
+      </div>
+
+      <!-- 12: Aurevon Hydro Bottle -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/7e1d5e3f-4500-46e6-a32e-d2f9831e7f99.png" alt="Aurevon Hydro Bottle" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Hydro Bottle</h3>
+          <p class="product-desc">Stainless steel insulated bottle with Aurevon logo. Hot 12h, cold 24h.</p>
+          <div class="product-price">$32</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-hydro-bottle"
+            data-item-price="32"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Hydro Bottle"
+            data-item-description="Stainless steel insulated bottle with Aurevon logo. Hot 12h, cold 24h."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/7e1d5e3f-4500-46e6-a32e-d2f9831e7f99.png">
+            Add to Cart — $32
+          </button>
+        </div>
+      </div>
+
+      <!-- 13: Operator's Log Journal -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/4e81bb38-101d-4b05-9710-56a1431bf0c2.png" alt="Operator's Log Journal" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Operator's Log Journal</h3>
+          <p class="product-desc">Black hardcover journal with Aurevon gold foil. 160 lined pages. "OPERATOR'S LOG" cover.</p>
+          <div class="product-price">$28</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-operators-log"
+            data-item-price="28"
+            data-item-url="/merch.html"
+            data-item-name="Operator's Log Journal"
+            data-item-description="Black hardcover journal with Aurevon gold foil. 160 lined pages. OPERATOR'S LOG cover."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/4e81bb38-101d-4b05-9710-56a1431bf0c2.png">
+            Add to Cart — $28
+          </button>
+        </div>
+      </div>
+
+      <!-- 14: Aurevon Shield Phone Case (CSS placeholder) -->
+      <div class="product-card">
+        <div class="product-img">
+          <div class="product-placeholder">
+            <div class="placeholder-label">Phone Case</div>
+            <svg width="44" height="72" viewBox="0 0 44 72" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.22;">
+              <rect x="2" y="2" width="40" height="68" rx="8" fill="none" stroke="#3B82F6" stroke-width="2"/>
+              <rect x="8" y="8" width="28" height="44" rx="4" fill="none" stroke="#3B82F6" stroke-width="1.5"/>
+              <circle cx="22" cy="62" r="3" fill="none" stroke="#3B82F6" stroke-width="1.5"/>
+              <path d="M16 30 L22 22 L28 30 L28 38 Q22 42 16 38 Z" fill="none" stroke="#3B82F6" stroke-width="1.5"/>
+            </svg>
+            <div class="placeholder-name">SHIELD CASE</div>
+          </div>
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Shield Phone Case</h3>
+          <p class="product-desc">Impact-resistant phone case with Aurevon shield. Available for iPhone 14-16 + Samsung S23-S25.</p>
+          <div class="product-price">$25</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-phone-case"
+            data-item-price="25"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Shield Phone Case"
+            data-item-description="Impact-resistant phone case with Aurevon shield. Available for iPhone 14-16 + Samsung S23-S25."
+            data-item-image=""
+            data-item-custom1-name="Model"
+            data-item-custom1-options="iPhone 16|iPhone 16 Pro|iPhone 15|iPhone 15 Pro|iPhone 14|Samsung S25|Samsung S24|Samsung S23">
+            Add to Cart — $25
+          </button>
+        </div>
+      </div>
+
+      <!-- 15: Aurevon Sticker Pack (CSS placeholder) -->
+      <div class="product-card">
+        <div class="product-img">
+          <div class="product-placeholder">
+            <div class="placeholder-label">Sticker Pack</div>
+            <svg width="64" height="56" viewBox="0 0 64 56" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.22;">
+              <rect x="2" y="8" width="26" height="18" rx="5" fill="none" stroke="#3B82F6" stroke-width="1.5"/>
+              <rect x="14" y="2" width="22" height="16" rx="5" fill="none" stroke="#1E3A8A" stroke-width="1.5"/>
+              <rect x="36" y="6" width="26" height="20" rx="5" fill="none" stroke="#3B82F6" stroke-width="1.5"/>
+              <rect x="4" y="30" width="20" height="22" rx="5" fill="none" stroke="#1E3A8A" stroke-width="1.5"/>
+              <rect x="28" y="28" width="24" height="26" rx="5" fill="none" stroke="#3B82F6" stroke-width="1.5"/>
+              <path d="M9 42 L12 37 L15 42 L15 46 Q12 48 9 46 Z" fill="none" stroke="#3B82F6" stroke-width="1.2"/>
+            </svg>
+            <div class="placeholder-name">10 STICKERS</div>
+          </div>
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Sticker Pack (10)</h3>
+          <p class="product-desc">10 die-cut vinyl stickers: shield logos, taglines, tier badges, blockchain icons. Waterproof.</p>
+          <div class="product-price">$12</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-sticker-pack"
+            data-item-price="12"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Sticker Pack (10)"
+            data-item-description="10 die-cut vinyl stickers: shield logos, taglines, tier badges, blockchain icons. Waterproof."
+            data-item-image="">
+            Add to Cart — $12
+          </button>
+        </div>
+      </div>
+
+      <!-- 16: Aurevon Coaster Set (CSS placeholder) -->
+      <div class="product-card">
+        <div class="product-img">
+          <div class="product-placeholder">
+            <div class="placeholder-label">Coaster Set</div>
+            <svg width="68" height="60" viewBox="0 0 68 60" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.22;">
+              <circle cx="18" cy="22" r="14" fill="none" stroke="#3B82F6" stroke-width="1.8"/>
+              <circle cx="38" cy="16" r="14" fill="none" stroke="#1E3A8A" stroke-width="1.8"/>
+              <circle cx="28" cy="38" r="14" fill="none" stroke="#3B82F6" stroke-width="1.8"/>
+              <circle cx="50" cy="32" r="14" fill="none" stroke="#1E3A8A" stroke-width="1.8"/>
+            </svg>
+            <div class="placeholder-name">SET OF 4</div>
+          </div>
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Coaster Set (4)</h3>
+          <p class="product-desc">Set of 4 cork-backed ceramic coasters. Each features a different Aurevon design.</p>
+          <div class="product-price">$20</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-coaster-set"
+            data-item-price="20"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Coaster Set (4)"
+            data-item-description="Set of 4 cork-backed ceramic coasters. Each features a different Aurevon design."
+            data-item-image="">
+            Add to Cart — $20
+          </button>
+        </div>
+      </div>
+
+      <!-- 17: Aurevon Canvas Tote (CSS placeholder) -->
+      <div class="product-card">
+        <div class="product-img">
+          <div class="product-placeholder">
+            <div class="placeholder-label">Canvas Tote</div>
+            <svg width="54" height="64" viewBox="0 0 54 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.22;">
+              <path d="M10 20 Q10 10 16 10 Q20 2 27 2 Q34 2 38 10 Q44 10 44 20 L48 58 Q48 62 44 62 L10 62 Q6 62 6 58 Z" fill="none" stroke="#3B82F6" stroke-width="1.8"/>
+              <path d="M18 10 Q18 18 27 18 Q36 18 36 10" fill="none" stroke="#3B82F6" stroke-width="1.8"/>
+              <path d="M20 36 L24 28 L27 34 L30 28 L34 36 L34 42 Q27 46 20 42 Z" fill="none" stroke="#3B82F6" stroke-width="1.4"/>
+            </svg>
+            <div class="placeholder-name">CANVAS TOTE</div>
+          </div>
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Canvas Tote</h3>
+          <p class="product-desc">Heavy-duty black canvas tote. Large Aurevon shield print. 15"x15". Carry the empire.</p>
+          <div class="product-price">$24</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-canvas-tote"
+            data-item-price="24"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Canvas Tote"
+            data-item-description="Heavy-duty black canvas tote. Large Aurevon shield print. 15x15. Carry the empire."
+            data-item-image="">
+            Add to Cart — $24
+          </button>
+        </div>
+      </div>
+
+      <!-- 18: Aurevon Shield Mousepad (CSS placeholder) -->
+      <div class="product-card">
+        <div class="product-img">
+          <div class="product-placeholder">
+            <div class="placeholder-label">Mousepad</div>
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.22;">
+              <circle cx="32" cy="32" r="28" fill="none" stroke="#3B82F6" stroke-width="1.8"/>
+              <path d="M32 10 L50 18 L50 36 Q50 52 32 60 Q14 52 14 36 L14 18 Z" fill="none" stroke="#3B82F6" stroke-width="1.5"/>
+              <text x="32" y="36" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="8" font-weight="900" fill="#3B82F6" letter-spacing="1" opacity="0.7">Aurevon</text>
+            </svg>
+            <div class="placeholder-name">SHIELD MOUSEPAD</div>
+          </div>
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Shield Mousepad</h3>
+          <p class="product-desc">Standard round mousepad with Aurevon shield centered on black. Non-slip rubber base.</p>
+          <div class="product-price">$18</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-mousepad-std"
+            data-item-price="18"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Shield Mousepad"
+            data-item-description="Standard round mousepad with Aurevon shield centered on black. Non-slip rubber base."
+            data-item-image="">
+            Add to Cart — $18
+          </button>
+        </div>
+      </div>
+
+      <!-- PRODUCT 19: Aurevon Operator Backpack — Slim Pro -->
+      <div class="product-card" style="border-color:rgba(59,130,246,0.25);background:linear-gradient(180deg,rgba(59,130,246,0.04),rgba(255,255,255,0.03));">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/abc3854e-2609-42a9-ae7b-195e25445a4f.png" alt="Aurevon Operator Backpack" loading="lazy">
+          <span style="position:absolute;top:10px;right:10px;background:linear-gradient(135deg,#3B82F6,#1E3A8A);color:#0A0A0A;font-family:'Archivo Black',sans-serif;font-size:0.6rem;padding:4px 10px;border-radius:6px;letter-spacing:0.1em;">FLAGSHIP</span>
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Operator Backpack — Slim Pro</h3>
+          <p class="product-desc" style="font-size:0.75rem;line-height:1.55;">Premium slim-profile professional backpack. Waterproof ballistic nylon, padded 16" laptop compartment, USB-C charging port, hidden anti-theft back pocket, RFID-blocking inner pocket, luggage pass-through strap, water bottle pocket, orange Aurevon shield logo, orange zipper pulls, padded mesh back panel, YKK zippers. Built for the operator who carries the empire.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin:0.5rem 0 0.7rem;">
+            <span style="background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:600;">16" Laptop</span>
+            <span style="background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:600;">USB-C Port</span>
+            <span style="background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:600;">Anti-Theft</span>
+            <span style="background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:600;">RFID Block</span>
+            <span style="background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:600;">Waterproof</span>
+            <span style="background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:600;">YKK Zips</span>
+            <span style="background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:600;">Luggage Strap</span>
+          </div>
+          <div class="product-price">$48</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-operator-backpack"
+            data-item-price="48"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Operator Backpack — Slim Pro"
+            data-item-description="Premium slim-profile professional backpack. Waterproof, USB-C, anti-theft, RFID-blocking, 16 inch laptop, YKK zips, luggage strap. Aurevon shield logo."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/abc3854e-2609-42a9-ae7b-195e25445a4f.png">
+            Add to Cart — $48
+          </button>
+        </div>
+      </div>
+
+      <!-- PRODUCT 20: Aurevon Phone Case Collection -->
+      <div class="product-card">
+        <div class="product-img" style="position:relative;">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/27d9994e-1ec6-4832-9837-1e8943a4450b.png" alt="Aurevon Phone Case Collection" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Shield Phone Case</h3>
+          <p class="product-desc">Impact-resistant matte black case with Aurevon shield in orange-gold. Raised camera ring, slim profile. All major models.</p>
+          <div class="product-price">$28</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-phone-case-collection"
+            data-item-price="28"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Shield Phone Case"
+            data-item-description="Impact-resistant matte black phone case with Aurevon shield logo in orange-gold."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/27d9994e-1ec6-4832-9837-1e8943a4450b.png"
+            data-item-custom1-name="Model"
+            data-item-custom1-options="iPhone 16 Pro Max|iPhone 16 Pro|iPhone 16|iPhone 15 Pro Max|iPhone 15 Pro|iPhone 15|iPhone 14 Pro|iPhone 14|Samsung S25 Ultra|Samsung S25|Samsung S24 Ultra|Samsung S24|Samsung S23">
+            Add to Cart — $28
+          </button>
+        </div>
+      </div>
+
+      <!-- PRODUCT 21: Aurevon Waterproof Speaker -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/2231725b-da66-4d3c-92f5-bfd722b264a2.png" alt="Aurevon Waterproof Speaker" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Waterproof Speaker</h3>
+          <p class="product-desc">Rugged IPX7 waterproof Bluetooth speaker with Aurevon shield grille. 10W output, 12-hour battery, orange carabiner clip. Pool, shower, jobsite ready.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin:0.4rem 0 0.6rem;">
+            <span style="background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:600;">IPX7</span>
+            <span style="background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:600;">Bluetooth 5.3</span>
+            <span style="background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:600;">12hr Battery</span>
+          </div>
+          <div class="product-price">$35</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-waterproof-speaker"
+            data-item-price="35"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Waterproof Speaker"
+            data-item-description="IPX7 waterproof Bluetooth speaker, 10W, 12hr battery, Aurevon shield logo, carabiner clip."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/2231725b-da66-4d3c-92f5-bfd722b264a2.png">
+            Add to Cart — $35
+          </button>
+        </div>
+      </div>
+
+      <!-- PRODUCT 22: Aurevon Bottle Opener -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/f3ca95fd-9953-410f-9108-6cfd4338eaf9.png" alt="Aurevon Bottle Opener" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Bottle Opener Keychain</h3>
+          <p class="product-desc">Brushed black stainless steel bottle opener with laser-engraved Aurevon shield. Leather loop with orange stitching. EDC essential.</p>
+          <div class="product-price">$15</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-bottle-opener"
+            data-item-price="15"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Bottle Opener Keychain"
+            data-item-description="Black stainless steel bottle opener with Aurevon shield laser engraving. Leather loop."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/f3ca95fd-9953-410f-9108-6cfd4338eaf9.png">
+            Add to Cart — $15
+          </button>
+        </div>
+      </div>
+
+      <!-- PRODUCT 23: Aurevon Golf Marker Clip -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/b34efae0-e2b3-4abe-a334-ca446a7b81a3.png" alt="Aurevon Golf Marker Clip" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Golf Marker Hat Clip</h3>
+          <p class="product-desc">Magnetic golf ball marker with Aurevon shield in orange enamel. Brushed black hat clip with strong neodymium magnet. Detachable marker, gold rim finish.</p>
+          <div class="product-price">$18</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-golf-marker"
+            data-item-price="18"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Golf Marker Hat Clip"
+            data-item-description="Magnetic golf ball marker with Aurevon shield. Brushed black clip, neodymium magnet, gold rim."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/b34efae0-e2b3-4abe-a334-ca446a7b81a3.png">
+            Add to Cart — $18
+          </button>
+        </div>
+      </div>
+
+      <!-- PRODUCT 24: Aurevon Portable Charger -->
+      <div class="product-card">
+        <div class="product-img">
+          <img src="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/1d945390-602e-41ac-b1bc-13776d7c89dd.png" alt="Aurevon Portable Charger" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h3 class="product-name">Aurevon Portable Charger</h3>
+          <p class="product-desc">Slim 10,000mAh power bank with Aurevon shield logo. USB-C + USB-A dual output, LED battery indicator in orange. Pocket-sized, charges iPhone 3x.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin:0.4rem 0 0.6rem;">
+            <span style="background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:600;">10,000mAh</span>
+            <span style="background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:600;">USB-C + USB-A</span>
+            <span style="background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-weight:600;">Fast Charge</span>
+          </div>
+          <div class="product-price">$32</div>
+          <button class="snipcart-add-item product-buy-btn"
+            data-item-id="blockt-portable-charger"
+            data-item-price="32"
+            data-item-url="/merch.html"
+            data-item-name="Aurevon Portable Charger"
+            data-item-description="Slim 10,000mAh power bank, USB-C + USB-A, LED indicator, Aurevon shield logo. Pocket-sized."
+            data-item-image="https://hyperagent.com/api/files/usergenerated/threads/cmokuz84z02o607adaqu03h5a/images/1d945390-602e-41ac-b1bc-13776d7c89dd.png">
+            Add to Cart — $32
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /product-grid -->
+
+  <!-- ── MARGIN CALCULATOR (Owner) ──────────────────────────────────── -->
+  <details style="margin-top:2rem;">
+    <summary style="cursor:pointer;color:#3B82F6;font-family:'Archivo Black';font-size:0.85rem;">&#128202; Owner: View Margin Calculator</summary>
+    <div style="margin-top:1rem;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+        <thead><tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+          <th style="text-align:left;padding:8px;color:#3B82F6;">Product</th>
+          <th style="text-align:right;padding:8px;color:#3B82F6;">Retail</th>
+          <th style="text-align:right;padding:8px;color:#3B82F6;">POD Cost</th>
+          <th style="text-align:right;padding:8px;color:#3B82F6;">Margin</th>
+          <th style="text-align:right;padding:8px;color:#3B82F6;">Margin %</th>
+        </tr></thead>
+        <tbody style="color:#b8b3ab;">
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:8px;">Aurevon Shield Hoodie</td><td style="text-align:right;padding:8px;">$65</td><td style="text-align:right;padding:8px;">~$22</td><td style="text-align:right;padding:8px;color:#4ade80;">$43</td><td style="text-align:right;padding:8px;color:#4ade80;">66%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:8px;">Operator Snapback</td><td style="text-align:right;padding:8px;">$35</td><td style="text-align:right;padding:8px;">~$10</td><td style="text-align:right;padding:8px;color:#4ade80;">$25</td><td style="text-align:right;padding:8px;color:#4ade80;">71%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:8px;">Catcher's Statement Tee</td><td style="text-align:right;padding:8px;">$40</td><td style="text-align:right;padding:8px;">~$12</td><td style="text-align:right;padding:8px;color:#4ade80;">$28</td><td style="text-align:right;padding:8px;color:#4ade80;">70%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:8px;">The Obsidian Bomber</td><td style="text-align:right;padding:8px;">$120</td><td style="text-align:right;padding:8px;">~$40</td><td style="text-align:right;padding:8px;color:#4ade80;">$80</td><td style="text-align:right;padding:8px;color:#4ade80;">67%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:8px;">Block Chain Crewneck</td><td style="text-align:right;padding:8px;">$55</td><td style="text-align:right;padding:8px;">~$18</td><td style="text-align:right;padding:8px;color:#4ade80;">$37</td><td style="text-align:right;padding:8px;color:#4ade80;">67%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:8px;">Aurevon Dad Hat</td><td style="text-align:right;padding:8px;">$30</td><td style="text-align:right;padding:8px;">~$8</td><td style="text-align:right;padding:8px;color:#4ade80;">$22</td><td style="text-align:right;padding:8px;color:#4ade80;">73%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:8px;">NFT Holder Exclusive Tee</td><td style="text-align:right;padding:8px;">$45</td><td style="text-align:right;padding:8px;">~$14</td><td style="text-align:right;padding:8px;color:#4ade80;">$31</td><td style="text-align:right;padding:8px;color:#4ade80;">69%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:8px;">Utility Player Joggers</td><td style="text-align:right;padding:8px;">$60</td><td style="text-align:right;padding:8px;">~$20</td><td style="text-align:right;padding:8px;color:#4ade80;">$40</td><td style="text-align:right;padding:8px;color:#4ade80;">67%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(59,130,246,0.03);"><td style="padding:8px;">Aurevon XL Desk Mat</td><td style="text-align:right;padding:8px;">$35</td><td style="text-align:right;padding:8px;">~$12</td><td style="text-align:right;padding:8px;color:#4ade80;">$23</td><td style="text-align:right;padding:8px;color:#4ade80;">66%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(59,130,246,0.03);"><td style="padding:8px;">Aurevon Operator Mug</td><td style="text-align:right;padding:8px;">$22</td><td style="text-align:right;padding:8px;">~$6</td><td style="text-align:right;padding:8px;color:#4ade80;">$16</td><td style="text-align:right;padding:8px;color:#4ade80;">73%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(59,130,246,0.03);"><td style="padding:8px;">Aurevon Laptop Sleeve</td><td style="text-align:right;padding:8px;">$38</td><td style="text-align:right;padding:8px;">~$14</td><td style="text-align:right;padding:8px;color:#4ade80;">$24</td><td style="text-align:right;padding:8px;color:#4ade80;">63%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(59,130,246,0.03);"><td style="padding:8px;">Aurevon Hydro Bottle</td><td style="text-align:right;padding:8px;">$32</td><td style="text-align:right;padding:8px;">~$13</td><td style="text-align:right;padding:8px;color:#4ade80;">$19</td><td style="text-align:right;padding:8px;color:#4ade80;">59%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(59,130,246,0.03);"><td style="padding:8px;">Operator's Log Journal</td><td style="text-align:right;padding:8px;">$28</td><td style="text-align:right;padding:8px;">~$9</td><td style="text-align:right;padding:8px;color:#4ade80;">$19</td><td style="text-align:right;padding:8px;color:#4ade80;">68%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(59,130,246,0.03);"><td style="padding:8px;">Aurevon Shield Phone Case</td><td style="text-align:right;padding:8px;">$25</td><td style="text-align:right;padding:8px;">~$7</td><td style="text-align:right;padding:8px;color:#4ade80;">$18</td><td style="text-align:right;padding:8px;color:#4ade80;">72%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(59,130,246,0.03);"><td style="padding:8px;">Aurevon Sticker Pack (10)</td><td style="text-align:right;padding:8px;">$12</td><td style="text-align:right;padding:8px;">~$3</td><td style="text-align:right;padding:8px;color:#4ade80;">$9</td><td style="text-align:right;padding:8px;color:#4ade80;">75%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(59,130,246,0.03);"><td style="padding:8px;">Aurevon Coaster Set (4)</td><td style="text-align:right;padding:8px;">$20</td><td style="text-align:right;padding:8px;">~$7</td><td style="text-align:right;padding:8px;color:#4ade80;">$13</td><td style="text-align:right;padding:8px;color:#4ade80;">65%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(59,130,246,0.03);"><td style="padding:8px;">Aurevon Canvas Tote</td><td style="text-align:right;padding:8px;">$24</td><td style="text-align:right;padding:8px;">~$9</td><td style="text-align:right;padding:8px;color:#4ade80;">$15</td><td style="text-align:right;padding:8px;color:#4ade80;">63%</td></tr>
+          <tr style="background:rgba(59,130,246,0.03);"><td style="padding:8px;">Aurevon Shield Mousepad</td><td style="text-align:right;padding:8px;">$18</td><td style="text-align:right;padding:8px;">~$5</td><td style="text-align:right;padding:8px;color:#4ade80;">$13</td><td style="text-align:right;padding:8px;color:#4ade80;">72%</td></tr>
+          <tr style="border-top:2px solid rgba(59,130,246,0.3);background:rgba(59,130,246,0.06);"><td style="padding:8px;font-weight:700;color:#3B82F6;">⭐ Operator Backpack — Slim Pro</td><td style="text-align:right;padding:8px;font-weight:700;">$48</td><td style="text-align:right;padding:8px;">~$18</td><td style="text-align:right;padding:8px;color:#4ade80;font-weight:700;">$30</td><td style="text-align:right;padding:8px;color:#4ade80;font-weight:700;">63%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(100,200,255,0.03);"><td style="padding:8px;">Aurevon Shield Phone Case</td><td style="text-align:right;padding:8px;">$28</td><td style="text-align:right;padding:8px;">~$8</td><td style="text-align:right;padding:8px;color:#4ade80;">$20</td><td style="text-align:right;padding:8px;color:#4ade80;">71%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(100,200,255,0.03);"><td style="padding:8px;">Aurevon Waterproof Speaker</td><td style="text-align:right;padding:8px;">$35</td><td style="text-align:right;padding:8px;">~$14</td><td style="text-align:right;padding:8px;color:#4ade80;">$21</td><td style="text-align:right;padding:8px;color:#4ade80;">60%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(100,200,255,0.03);"><td style="padding:8px;">Aurevon Bottle Opener Keychain</td><td style="text-align:right;padding:8px;">$15</td><td style="text-align:right;padding:8px;">~$4</td><td style="text-align:right;padding:8px;color:#4ade80;">$11</td><td style="text-align:right;padding:8px;color:#4ade80;">73%</td></tr>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(100,200,255,0.03);"><td style="padding:8px;">Aurevon Golf Marker Hat Clip</td><td style="text-align:right;padding:8px;">$18</td><td style="text-align:right;padding:8px;">~$5</td><td style="text-align:right;padding:8px;color:#4ade80;">$13</td><td style="text-align:right;padding:8px;color:#4ade80;">72%</td></tr>
+          <tr style="background:rgba(100,200,255,0.03);"><td style="padding:8px;">Aurevon Portable Charger</td><td style="text-align:right;padding:8px;">$32</td><td style="text-align:right;padding:8px;">~$12</td><td style="text-align:right;padding:8px;color:#4ade80;">$20</td><td style="text-align:right;padding:8px;color:#4ade80;">63%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── CATEGORIES ───────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-label fade-in">Browse by Type</div>
+    <h2 class="section-title fade-in">Collection Categories</h2>
+    <div class="cat-grid">
+      <div class="cat-card">
+        <div class="cat-icon">&#128085;</div>
+        <div class="cat-title">APPAREL</div>
+        <p class="cat-desc">Hoodies, tees, joggers, crewnecks. Built for comfort, designed for operators. Every piece carries the shield.</p>
+        <span class="tag-cs">Now Live</span>
+      </div>
+      <div class="cat-card">
+        <div class="cat-icon">&#127945;</div>
+        <div class="cat-title">HEADWEAR</div>
+        <p class="cat-desc">Snapbacks, dad hats, beanies. Rep the shield every day, on the field, at the block, or in the boardroom.</p>
+        <span class="tag-cs">Now Live</span>
+      </div>
+      <div class="cat-card">
+        <div class="cat-icon">&#128142;</div>
+        <div class="cat-title">COLLECTOR</div>
+        <p class="cat-desc">NFT holder exclusives, limited drops, signed items. Only for the community. Earned, not bought.</p>
+        <span class="tag-cs">Coming Soon</span>
+      </div>
+      <div class="cat-card">
+        <div class="cat-icon">&#128421;&#65039;</div>
+        <h3>OFFICE &amp; DESK</h3>
+        <p class="cat-desc">Desk mats, mugs, bottles, journals, mousepads, phone cases, and stickers. Outfit your workspace with Aurevon gear.</p>
+        <span class="tag-cs">Print-on-Demand &middot; Printify</span>
+      </div>
+      <div class="cat-card">
+        <div class="cat-icon">🔌</div>
+        <h3>TECH &amp; LIFESTYLE</h3>
+        <p class="cat-desc">Waterproof speakers, portable chargers, bottle openers, golf markers, phone cases. BLOCKT-branded gear for every occasion.</p>
+        <span class="tag-cs">Custom Branded &middot; White-Label</span>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- ── DROPS & COLLABS ──────────────────────────────────────────── -->
+  <div class="section">
+    <div class="drops-section fade-in">
+      <div class="drops-eyebrow">Limited Releases</div>
+      <h2 class="drops-title">DROPS &amp; COLLABS</h2>
+      <p class="drops-body">Every season, Aurevon releases limited-edition drops and brand collaborations. NFT holders get first access. Join the Discord to stay in the loop.</p>
+      <div class="drops-cta-row">
+        <a href="https://discord.gg/GdYRZtdvNS" target="_blank" rel="noopener noreferrer" class="btn-discord">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+          </svg>
+          Join Discord
+        </a>
+        <div class="drop-date-pill">
+          &#9654; Next Drop: Summer 2026
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── FOOTER ────────────────────────────────────────────────────── -->
+<div class="footer-wrap">
+
+<style>
+.bkt-global-foot{margin-top:0;padding:1.6rem 1rem;border-top:1px solid rgba(255,255,255,0.07);background:#050510;color:#6b6760;font-size:0.78rem;font-family:'DM Sans',sans-serif;}
+.bkt-global-foot .row{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;}
+.bkt-global-foot .links{display:flex;gap:1.2rem;flex-wrap:wrap;}
+.bkt-global-foot a{color:#b8b3ab;text-decoration:none;transition:color .2s;}
+.bkt-global-foot a:hover{color:#1E3A8A;}
+</style>
+<footer class="bkt-global-foot">
+  <div class="row">
+    <div>&#169; <span id="bktYr">2026</span> Aurevon Group LLC &middot; Systems. Capital. Infrastructure..</div>
+    <div class="links">
+      <a href="index.html">Home</a>
+      <a href="BLOCKT_RE_Final.html">RE Underwriting</a>
+      <a href="BLOCKT_Web3.html">Web3</a>
+      <a href="BLOCKT_NFT_Collection.html">NFTs</a>
+      <a href="operator.html">Operator Hub</a>
+      <a href="blockt-crm.html">CRM</a>
+      <a href="merch.html">Merch</a>
+    </div>
+  </div>
+  <script>(function(){var y=document.getElementById('bktYr');if(y)y.textContent=new Date().getFullYear();})();</script>
+</footer>
+
+</div>
+
+<!-- ── SNIPCART ───────────────────────────────────────────────────── -->
+<div hidden id="snipcart" data-api-key="YOUR_SNIPCART_PUBLIC_API_KEY" data-config-modal-style="side"></div>
+<script async src="https://cdn.snipcart.com/themes/v3.7.1/default/snipcart.js"></script>
+
+<!-- ── SCRIPTS ───────────────────────────────────────────────────── -->
+<script>
+  // ── IntersectionObserver: product cards
+  (function() {
+    var cards = document.querySelectorAll('.product-card');
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          var el = entry.target;
+          var delay = (Array.from(cards).indexOf(el) % 4) * 80;
+          setTimeout(function() { el.classList.add('visible'); }, delay);
+          observer.unobserve(el);
+        }
+      });
+    }, { threshold: 0.1 });
+    cards.forEach(function(c) { observer.observe(c); });
+
+    // ── IntersectionObserver: generic fade-in
+    var fadeEls = document.querySelectorAll('.fade-in, .cat-card');
+    var fadeObs = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          fadeObs.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    fadeEls.forEach(function(el) { fadeObs.observe(el); });
+  })();
+</script>
+
+</body>
+</html>

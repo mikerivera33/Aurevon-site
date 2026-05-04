@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<title>Aurevon NFT | 004 Chrome</title>
+<style>
+  body { margin: 0; background: #050510; min-height: 100vh; overflow-y: auto; background: linear-gradient(180deg, #0A0A0A 0%, #050510 100%); font-family: 'DM Sans', sans-serif; }
+  .nft-wrapper { position: relative; width: 400px; height: 400px; border-radius: 20px; box-shadow: 0 25px 60px rgba(30,58,138,0.15); transform-style: preserve-3d; transition: transform 0.1s ease-out; border: 1px solid rgba(255,255,255,0.05); background: #080810; }
+  .art-layer { position: absolute; inset: 0; border-radius: 20px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 20px; z-index: 1; }
+  svg, img.logo-layer { position: relative; z-index: 5; width: 65%; height: 65%; filter: drop-shadow(0 0 20px rgba(30,58,138,0.4)); transform: translateZ(40px); object-fit: contain; border-radius: 12px; }
+
+  /* ── Aurevon brand additions ────────────────────────────────────────── */
+  .bkt-top-nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(12,12,14,0.85);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,0.06);padding:0.7rem 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;}
+  .bkt-logo{display:flex;align-items:center;gap:8px;color:#f0ede8;text-decoration:none;font-family:'Archivo Black',sans-serif;font-size:1rem;}
+  .bkt-crumb{display:flex;gap:6px;align-items:center;font-size:0.78rem;color:#6b6760;}
+  .bkt-crumb a{color:#b8b3ab;text-decoration:none;}
+  .bkt-crumb a:hover{color:#1E3A8A;}
+  .bkt-crumb .cur{color:#3B82F6;}
+  .bkt-back{color:#b8b3ab;text-decoration:none;font-size:0.85rem;font-weight:600;}
+  .bkt-back:hover{color:#1E3A8A;}
+  @media(max-width:760px){.bkt-crumb{display:none;}}
+  .bkt-info{max-width:720px;margin:0 auto;padding:1.5rem 2rem 4rem;text-align:center;color:#f0ede8;font-family:'DM Sans',sans-serif;}
+  .bkt-info h1{font-family:'Archivo Black',sans-serif;font-size:clamp(2rem,5vw,3rem);background:linear-gradient(135deg,#1E3A8A,#3B82F6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:0 0 0.4rem;}
+  .bkt-edition{font-size:0.78rem;color:#3B82F6;letter-spacing:0.16em;text-transform:uppercase;margin-bottom:1rem;font-weight:700;}
+  .bkt-info p{color:#b8b3ab;line-height:1.65;font-size:0.95rem;margin:0 0 1.4rem;}
+  .bkt-traits{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:1rem 0 1.5rem;}
+  .bkt-trait{background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.18);color:#3B82F6;padding:4px 10px;border-radius:999px;font-size:0.7rem;font-weight:600;letter-spacing:0.05em;}
+  .bkt-mint-cta{display:inline-flex;align-items:center;gap:8px;padding:0.95rem 2rem;border-radius:10px;background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#0A0A0A;font-family:'Archivo Black',sans-serif;text-decoration:none;font-size:0.95rem;letter-spacing:0.02em;box-shadow:0 8px 24px rgba(30,58,138,0.32);transition:transform .2s,box-shadow .2s;}
+  .bkt-mint-cta:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(30,58,138,0.45);color:#0A0A0A;}
+  .bkt-helper{font-size:0.78rem;color:#6b6760;margin-top:1rem;}
+
+</style>
+</head>
+<body>
+<nav class="bkt-top-nav">
+    <a href="index.html" class="bkt-logo">
+      <svg width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:8px;flex-shrink:0;"><rect width="40" height="40" rx="8" fill="#1E3A8A"/><text x="20" y="28" text-anchor="middle" font-family='Archivo Black',sans-serif font-size="22" fill="white" font-weight="900">A</text></svg>
+      <span>Aurevon</span>
+    </a>
+    <div class="bkt-crumb">
+      <a href="index.html">Home</a> <span>&#8250;</span>
+      <a href="BLOCKT_NFT_Collection.html">NFT Collection</a> <span>&#8250;</span>
+      <span class="cur">004 Chrome</span>
+    </div>
+    <a href="BLOCKT_NFT_Collection.html" class="bkt-back">&#8592; Collection</a>
+  </nav>
+  <main style="padding-top:60px;display:flex;align-items:center;justify-content:center;min-height:80vh;">
+    <div class="nft-wrapper" id="card">
+    <div class="art-layer">
+      <canvas id="c"></canvas><svg class="shield logo-layer" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g4bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2a2a2e"/><stop offset="50%" stop-color="#3d3d42"/><stop offset="100%" stop-color="#1e1e22"/></linearGradient><linearGradient id="g4chrome" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e8e8ec"/><stop offset="25%" stop-color="#a8a8b0"/><stop offset="50%" stop-color="#f0f0f4"/><stop offset="75%" stop-color="#888890"/><stop offset="100%" stop-color="#c8c8d0"/></linearGradient></defs><rect x="10" y="10" width="180" height="180" rx="36" fill="url(#g4bg)"/><rect x="12" y="12" width="176" height="176" rx="34" fill="none" stroke="rgba(200,200,210,0.5)" stroke-width="2"/><path d="M50 42 L90 42 L90 92 L140 92 L140 138 L50 138 Z" fill="url(#g4chrome)" opacity="0.9"/><rect x="100" y="42" width="45" height="36" rx="8" fill="url(#g4chrome)" opacity="0.55"/><text x="100" y="168" text-anchor="middle" font-family="Arial Black,sans-serif" font-size="11" fill="rgba(200,200,210,0.8)" letter-spacing="2">AUREVON</text></svg>
+    </div>
+  </div>
+  </main>
+  <section class="bkt-info">
+    <h1>004 Chrome</h1>
+    <div class="bkt-edition">#004 of &#x221E; &middot; Lifetime</div>
+    <p>Polished chrome finish. The lifetime edition &mdash; minted once per lifetime member at $349.99 one-time.</p>
+    <div class="bkt-traits">
+      <span class="bkt-trait">Lifetime</span>
+    <span class="bkt-trait">Community</span>
+    <span class="bkt-trait">Chrome Finish</span>
+    <span class="bkt-trait">1-of-1 per holder</span>
+    </div>
+    <a href="BLOCKT_Web3.html?mint=comm_lifetime" class="bkt-mint-cta">Mint Lifetime $349.99 &rarr;</a>
+    <p class="bkt-helper">Payment via Stripe / PayPal / Cash App / Afterpay. After payment, your NFT is minted to your wallet (or held in your Aurevon account if you don't have one).</p>
+  </section>
+
+  <script>
+    const card = document.getElementById('card');
+    document.addEventListener('mousemove', (e) => {
+      const xAxis = (window.innerWidth / 2 - e.pageX) / 20;
+      const yAxis = (window.innerHeight / 2 - e.pageY) / 20;
+      card.style.transform = 'rotateY(' + (-xAxis) + 'deg) rotateX(' + yAxis + 'deg)';
+    });
+    
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const W = 400, H = 400;
+    canvas.width = W; canvas.height = H;
+    let t=0; const type = '4';
+    const particles = Array.from({length:40},()=>({
+      x:Math.random()*W, y:Math.random()*H,
+      vx:(Math.random()-0.5)*0.3, vy:(Math.random()-0.5)*0.3,
+      s:Math.random()*1.8+0.4, a:Math.random()*0.3+0.05
+    }));
+    const colors = { '1':['30,58,138','59,130,246'], '2':['30,64,175','59,130,246'], '3':['50,180,255','30,58,138'], '4':['180,180,200','30,58,138'], '5':['30,58,138','59,130,246'] }[type];
+    
+    function frame(){
+      t+=0.01;
+      if(type==='1') ctx.fillStyle='#080810'; else if(type==='2') ctx.fillStyle='rgba(10,6,4,0.95)'; else if(type==='3') ctx.fillStyle='#050510'; else if(type==='4') ctx.fillStyle='#0a0a0c'; else ctx.fillStyle='#050510';
+      ctx.fillRect(0,0,W,H);
+
+      if(type==='2'){
+        for(let i=0;i<8;i++){
+          const x=W*0.2+i*(W*0.6/8); const y=H-i*10-Math.sin(t*2+i)*20;
+          const g=ctx.createRadialGradient(x,y,0,x,y,40+Math.sin(t+i)*15);
+          g.addColorStop(0,'rgba('+colors[0]+','+(0.04+Math.sin(t*3+i)*0.02)+')'); g.addColorStop(1,'transparent');
+          ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+        }
+      }
+      if(type==='3'){
+        ctx.strokeStyle='rgba(50,180,255,0.025)'; ctx.lineWidth=0.5;
+        for(let x=0;x<W;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+        for(let y=0;y<H;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+      }
+      if(type==='4'){
+        const sx=W*(0.5+Math.sin(t*0.7)*0.6); const g=ctx.createRadialGradient(sx,H*0.5,0,sx,H*0.5,100);
+        g.addColorStop(0,'rgba(200,200,220,0.03)'); g.addColorStop(1,'transparent');
+        ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+      }
+      if(type==='5'){
+        const g=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,W*0.4);
+        g.addColorStop(0,'rgba(30,58,138,'+(0.03+Math.sin(t)*0.015)+')'); g.addColorStop(1,'transparent');
+        ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+      }
+
+      particles.forEach(p=>{
+        p.vx*=0.99; p.vy*=0.99; p.x+=p.vx; p.y+=p.vy;
+        if(p.x<0)p.x=W; if(p.x>W)p.x=0; if(p.y<0)p.y=H; if(p.y>H)p.y=0;
+        const pulse = 0.5+Math.sin(t*2+p.x*0.02)*0.5;
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.s,0,Math.PI*2);
+        ctx.fillStyle='rgba('+colors[0]+','+(p.a*pulse)+')'; ctx.fill();
+      });
+      for(let i=0;i<particles.length;i++){
+        for(let j=i+1;j<particles.length;j++){
+          const dx=particles[i].x-particles[j].x, dy=particles[i].y-particles[j].y, d=Math.sqrt(dx*dx+dy*dy);
+          if(d<50){ ctx.beginPath(); ctx.moveTo(particles[i].x,particles[i].y); ctx.lineTo(particles[j].x,particles[j].y); ctx.strokeStyle='rgba('+colors[1]+','+((1-d/50)*0.06)+')'; ctx.lineWidth=0.4; ctx.stroke(); }
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+    frame();
+
+  </script>
+
+
+<style>
+.bkt-global-foot{margin-top:0;padding:1.6rem 1rem;border-top:1px solid rgba(255,255,255,0.07);background:#050510;color:#6b6760;font-size:0.78rem;font-family:'DM Sans',sans-serif;}
+.bkt-global-foot .row{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;}
+.bkt-global-foot .links{display:flex;gap:1.2rem;flex-wrap:wrap;}
+.bkt-global-foot a{color:#b8b3ab;text-decoration:none;transition:color .2s;}
+.bkt-global-foot a:hover{color:#1E3A8A;}
+</style>
+<footer class="bkt-global-foot">
+  <div class="row">
+    <div>© <span id="bktYr">2026</span> Aurevon Group LLC · Systems. Capital. Infrastructure..</div>
+    <div class="links">
+      <a href="index.html">Home</a>
+      <a href="BLOCKT_RE_Final.html">RE Underwriting</a>
+      <a href="BLOCKT_Web3.html">Web3</a>
+      <a href="BLOCKT_NFT_Collection.html">NFTs</a>
+      <a href="operator.html">Operator Hub</a>
+      <a href="blockt-crm.html">CRM</a>
+      <a href="portal.html">My Dashboard</a>
+      <a href="merch.html">Merch</a>
+    </div>
+  </div>
+  <script>(function(){var y=document.getElementById('bktYr');if(y)y.textContent=new Date().getFullYear();})();</script>
+</footer>
+
+</body>
+</html>

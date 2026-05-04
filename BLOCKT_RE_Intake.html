@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aurevon Capital — Submit Your Deal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<script>
+window.BLOCKT_CONFIG = {
+  FORMSPREE_URL: "https://formspree.io/f/xykokyqe",
+  CONTACT_EMAIL: "hello@aurevongroup.com"
+};
+</script>
+
+<style>
+:root {
+  --bg:#0A0A0A;--surface:#111827;--text:#f0ede8;--text-2:#b8b3ab;--text-muted:#6b6760;
+  --o1:#1E3A8A;--o2:#3B82F6;--o3:#1E40AF;
+  --glass:rgba(255,255,255,0.05);--glass-b:rgba(255,255,255,0.09);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;background:var(--bg);}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);min-height:100vh;-webkit-font-smoothing:antialiased;}
+.logo-text{font-family:'Archivo Black',sans-serif;letter-spacing:-0.02em;}
+
+/* Layout */
+.wrap{max-width:720px;margin:0 auto;padding:0 1.5rem;}
+
+/* Header */
+.header{text-align:center;padding:3rem 1.5rem 2rem;padding-top:calc(3rem + 60px);border-bottom:1px solid rgba(255,255,255,0.06);position:relative;}
+.header::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(30,58,138,0.06),transparent);pointer-events:none;}
+.header .logo-row{display:inline-flex;align-items:center;gap:10px;margin-bottom:1.2rem;}
+.header .logo-row svg{flex-shrink:0;}
+.header h1{font-family:'Archivo Black',sans-serif;font-size:clamp(1.4rem,4vw,2rem);background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.15;margin-bottom:0.5rem;}
+.header p{color:var(--text-muted);font-size:0.92rem;line-height:1.5;max-width:560px;margin:0 auto;}
+.success-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(46,204,113,0.12);border:1px solid rgba(46,204,113,0.3);padding:6px 16px;border-radius:999px;font-size:0.78rem;color:#2ecc71;font-weight:600;letter-spacing:0.04em;margin-bottom:1rem;}
+.success-badge svg{flex-shrink:0;}
+
+/* Form */
+.form-section{padding:2rem 0 4rem;}
+.form-card{background:var(--surface);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:2rem;position:relative;overflow:hidden;}
+.form-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--o1),var(--o2),transparent);border-radius:18px 18px 0 0;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;}
+.form-row.triple{grid-template-columns:1fr 1fr 1fr;}
+@media(max-width:600px){.form-row,.form-row.triple{grid-template-columns:1fr;}}
+.field{display:flex;flex-direction:column;gap:0.35rem;}
+.field label{font-size:0.78rem;font-weight:600;color:var(--text-2);}
+.field .req{color:var(--o1);}
+.field input,.field select,.field textarea{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:0.7rem 1rem;color:var(--text);font-family:inherit;font-size:0.88rem;outline:none;transition:border-color .2s;}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--o1);}
+.field textarea{min-height:100px;resize:vertical;}
+.field select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b6760' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;}
+.field select option{background:var(--surface);color:var(--text);}
+
+/* File upload */
+.file-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed rgba(255,255,255,0.1);border-radius:12px;padding:1.8rem 1rem;cursor:pointer;transition:border-color .2s;text-align:center;}
+.file-drop:hover,.file-drop.drag{border-color:var(--o1);background:rgba(30,58,138,0.04);}
+.file-drop input[type="file"]{display:none;}
+.hint{font-size:0.72rem;color:var(--text-muted);}
+.file-list{display:flex;flex-direction:column;gap:0.3rem;margin-top:0.5rem;}
+.file-list .f{display:flex;justify-content:space-between;padding:0.35rem 0.6rem;background:rgba(255,255,255,0.03);border-radius:6px;font-size:0.78rem;}
+
+/* Consent + submit */
+.consent{display:flex;gap:0.6rem;align-items:flex-start;font-size:0.78rem;color:var(--text-muted);margin:1.2rem 0 0.8rem;cursor:pointer;line-height:1.5;}
+.consent input{margin-top:3px;accent-color:var(--o1);}
+.form-footer{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.06);}
+.form-footer .muted{font-size:0.75rem;color:var(--text-muted);}
+.btn-cta{display:inline-flex;align-items:center;gap:8px;padding:0.75rem 2rem;border-radius:10px;font-weight:700;font-size:0.9rem;border:none;cursor:pointer;transition:transform .15s,box-shadow .15s;font-family:inherit;background:linear-gradient(135deg,var(--o1),var(--o2));color:#fff;text-decoration:none;}
+.btn-cta:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(30,58,138,0.3);}
+.btn-cta:disabled{opacity:0.5;cursor:not-allowed;transform:none;box-shadow:none;}
+.form-status{margin-top:0.8rem;font-size:0.85rem;border-radius:8px;padding:0.6rem 1rem;display:none;}
+.form-status.ok{display:block;background:rgba(46,204,113,0.1);border:1px solid rgba(46,204,113,0.25);color:#2ecc71;}
+.form-status.err{display:block;background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.25);color:#e74c3c;}
+.form-status.info{display:block;background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.25);color:var(--o2);}
+
+/* Footer */
+footer{padding:2rem 0;border-top:1px solid rgba(255,255,255,0.06);text-align:center;color:var(--text-muted);font-size:0.78rem;}
+footer a{color:var(--o2);text-decoration:none;}
+</style>
+<script>
+(function(){
+  var p = new URLSearchParams(window.location.search);
+  var token = p.get('paid') || sessionStorage.getItem('bkt_paid_token') || '';
+  var tier = p.get('tier') || sessionStorage.getItem('bkt_paid_tier') || '';
+  var amount = p.get('amount') || sessionStorage.getItem('bkt_paid_amount') || '';
+  var valid = token && token.indexOf('paid_') === 0 && token.length > 10;
+  if(!valid){
+    // show gate, hide everything else
+    document.addEventListener('DOMContentLoaded', function(){
+      var gate = document.getElementById('bktGate');
+      if(gate) gate.style.display = 'flex';
+      // hide form section + header for clean gate
+      document.querySelectorAll('.header, .form-section, footer').forEach(function(el){ el.style.display = 'none'; });
+    });
+    return;
+  }
+  // token valid — set up confirmation badge with tier/amount details
+  window.BKT_PAID_INFO = { token: token, tier: tier, amount: amount };
+  document.addEventListener('DOMContentLoaded', function(){
+    var badge = document.querySelector('.success-badge');
+    if(badge && tier){
+      var tierMap = {bogo:'First-Timer BOGO', single:'Second Opinion', full:'Full Package', retainer:'Pro Retainer', enterprise:'Enterprise'};
+      var label = tierMap[tier] || tier;
+      badge.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6.5" stroke="#2ecc71" stroke-width="1"/><path d="M4 7l2 2 4-4" stroke="#2ecc71" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Payment Confirmed · ' + label + (amount ? ' · $' + amount : '');
+    }
+    // pre-fill hidden tier field
+    var tierInput = document.querySelector('input[name="tier"], input[name="package"]');
+    if(tierInput && tier){ tierInput.value = tier; }
+    // pre-fill payment_token and amount hidden fields
+    var tokenInput = document.querySelector('input[name=payment_token]');
+    if(tokenInput){ tokenInput.value = token; }
+    var amountInput = document.querySelector('input[name="amount"]');
+    if(amountInput && amount){ amountInput.value = amount; }
+  });
+})();
+</script>
+</head>
+<body>
+<div id="bktGate" class="bkt-gate" style="display:none;">
+  <div class="bkt-gate-card">
+    <div class="bkt-gate-icon">🔒</div>
+    <h1>Payment Required</h1>
+    <p>The deal intake form opens automatically after your payment is confirmed. Please return to Aurevon Capital and complete checkout to access this page.</p>
+    <a href="BLOCKT_RE_Final.html#pricing" class="bkt-gate-cta">← Return to Pricing</a>
+    <p class="bkt-gate-foot">Already paid but landed here by accident? <a href="BLOCKT_RE_Final.html#faq">See FAQ</a> or email <a href="mailto:hello@aurevongroup.com">hello@aurevongroup.com</a>.</p>
+  </div>
+</div>
+<style>
+.bkt-gate{position:fixed;inset:0;background:#0A0A0A;display:flex;align-items:center;justify-content:center;z-index:9999;padding:1.5rem;font-family:'DM Sans',sans-serif;color:#f0ede8;}
+.bkt-gate-card{max-width:480px;text-align:center;background:linear-gradient(180deg,#111827,#0A0A0A);border:1px solid rgba(30,58,138,0.18);border-radius:18px;padding:2.5rem 2rem;box-shadow:0 30px 80px rgba(30,58,138,0.18);}
+.bkt-gate-icon{font-size:3rem;margin-bottom:1rem;}
+.bkt-gate h1{font-family:'Archivo Black',sans-serif;font-size:1.6rem;background:linear-gradient(135deg,#1E3A8A,#3B82F6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:0 0 0.7rem;}
+.bkt-gate p{color:#b8b3ab;font-size:0.95rem;line-height:1.6;margin:0 0 1.4rem;}
+.bkt-gate-cta{display:inline-flex;align-items:center;gap:8px;padding:0.85rem 1.8rem;border-radius:10px;background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#0A0A0A;font-family:'Archivo Black',sans-serif;text-decoration:none;font-size:0.92rem;letter-spacing:0.02em;box-shadow:0 8px 24px rgba(30,58,138,0.3);}
+.bkt-gate-cta:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(30,58,138,0.45);}
+.bkt-gate-foot{font-size:0.78rem;color:#6b6760;margin-top:1.5rem;}
+.bkt-gate-foot a{color:#3B82F6;}
+</style>
+<nav style="position:fixed;top:0;left:0;right:0;z-index:60;background:rgba(12,12,14,0.72);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,0.06);padding:0.7rem 1.5rem;display:flex;align-items:center;justify-content:space-between;">
+  <a href="index.html" style="display:flex;align-items:center;gap:8px;color:#f0ede8;text-decoration:none;font-family:'Archivo Black',sans-serif;font-size:1rem;">
+    <svg width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:8px;flex-shrink:0;"><rect width="40" height="40" rx="8" fill="#1E3A8A"/><text x="20" y="28" text-anchor="middle" font-family='Archivo Black',sans-serif font-size="22" fill="white" font-weight="900">A</text></svg>
+    Aurevon
+  </a>
+  <a href="BLOCKT_RE_Final.html" style="color:#b8b3ab;text-decoration:none;font-size:0.85rem;">← Back to RE</a>
+</nav>
+
+
+<div class="header">
+  <div class="success-badge">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6.5" stroke="#2ecc71" stroke-width="1"/><path d="M4 7l2 2 4-4" stroke="#2ecc71" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Payment Confirmed
+  </div>
+  <div class="logo-row">
+    <svg width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:8px;flex-shrink:0;"><rect width="40" height="40" rx="8" fill="#1E3A8A"/><text x="20" y="28" text-anchor="middle" font-family='Archivo Black',sans-serif font-size="22" fill="white" font-weight="900">A</text></svg>
+    <span class="logo-text" style="font-size:1.3rem;color:var(--text);">Aurevon</span>
+  </div>
+  <h1>Submit your deal details.</h1>
+  <p>Your payment has been received. Fill out the form below and attach your documents — we'll begin underwriting immediately. <b style="color:var(--text);">Delivery in 24–48 hours</b> (or 12 hours if rush is included in your tier).</p>
+</div>
+
+<div class="form-section">
+  <div class="wrap">
+    <form id="intakeForm" class="form-card" novalidate>
+      <div class="form-row">
+        <div class="field">
+          <label>Full Name <span class="req">*</span></label>
+          <input type="text" name="full_name" required placeholder="Jane Investor">
+        </div>
+        <div class="field">
+          <label>Email <span class="req">*</span></label>
+          <input type="email" name="email" required placeholder="you@company.com">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Phone</label>
+          <input type="tel" name="phone" placeholder="(555) 555-1234">
+        </div>
+        <div class="field">
+          <label>Company / Entity</label>
+          <input type="text" name="company" placeholder="Acme Capital LLC">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label>Plan Purchased <span class="req">*</span></label>
+          <select name="plan" required>
+            <option value="">Select your plan…</option>
+            <option value="First-Timer BOGO ($299.99)">First-Timer BOGO — $299.99 (2 Full Package deals)</option>
+            <option value="Second Opinion ($189.99)">Second Opinion — $189.99 (2 documents)</option>
+            <option value="Full Package ($250)">Full Package — $250 (all 3 documents + Tier 1 NFT)</option>
+            <option value="Pro Retainer ($1,499/mo)">Pro Retainer — $1,499/mo (6 Full Package deals + Tier 2 NFT)</option>
+            <option value="Enterprise ($2,499/mo)">Enterprise — $2,499/mo (unlimited + Tier 3 NFT)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Promo Code Used</label>
+          <input type="text" name="promo_code" id="promoField" placeholder="e.g. AUREVONFAM" style="text-transform:uppercase;letter-spacing:0.06em;">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label>Asset Type <span class="req">*</span></label>
+          <select name="asset_type" required>
+            <option value="">Select asset type…</option>
+            <option>Multifamily</option>
+            <option>Small mixed-use</option>
+            <option>Small office</option>
+            <option>Retail strip</option>
+            <option>Self-storage</option>
+            <option>Industrial / flex</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row triple">
+        <div class="field">
+          <label>Property Address <span class="req">*</span></label>
+          <input type="text" name="property_address" required placeholder="123 Main St, Yeadon, PA 19050">
+        </div>
+        <div class="field">
+          <label>Purchase Price</label>
+          <input type="text" name="purchase_price" placeholder="$1,250,000">
+        </div>
+        <div class="field">
+          <label>Target Hold</label>
+          <input type="text" name="hold_period" placeholder="5–7 years">
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:1rem;">
+        <label>Deal Summary / Questions</label>
+        <textarea name="deal_summary" placeholder="Units, rent roll snapshot, NOI assumptions, debt terms, timing pressure, anything unusual…"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Add-Ons Purchased (if any)</label>
+        <div class="form-row" style="margin-bottom:0;">
+          <label class="consent" style="margin:0;"><input type="checkbox" name="addon_rush" value="12-Hour Rush ($99)"><span>12-Hour Rush — $99</span></label>
+          <label class="consent" style="margin:0;"><input type="checkbox" name="addon_memo" value="Investor Memo ($149)"><span>Investor Memo — $149</span></label>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+          <label class="consent" style="margin:0;"><input type="checkbox" name="addon_lender" value="Lender Presentation ($199)"><span>Lender Presentation — $199</span></label>
+          <label class="consent" style="margin:0;"><input type="checkbox" name="addon_sensitivity" value="Sensitivity Modeling ($125)"><span>Sensitivity Modeling — $125</span></label>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+          <label class="consent" style="margin:0;"><input type="checkbox" name="addon_portfolio" value="Portfolio Review ($499)"><span>Portfolio Review Bundle — $499</span></label>
+          <label class="consent" style="margin:0;"><input type="checkbox" name="addon_whitelabel" value="White-Label ($175)"><span>White-Label Report — $175</span></label>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:1rem;">
+        <label>Attach Documents (OM · Rent Roll · T12 · Debt Terms)</label>
+        <label class="file-drop" id="fileDrop">
+          <input type="file" id="fileInput" name="attachments" multiple accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.png,.jpg,.jpeg">
+          <div style="font-size:0.92rem;color:var(--text);"><b>Click to upload</b> or drag & drop</div>
+          <div class="hint" style="margin-top:0.3rem;">PDF · XLSX · CSV · DOC · images. Up to 10MB per file.</div>
+        </label>
+        <div class="file-list" id="fileList"></div>
+      </div>
+
+      <label class="consent">
+        <input type="checkbox" name="consent" required>
+        <span>I understand Aurevon Capital provides analysis support only, not guaranteed investment advice. All reports are based on client-provided and publicly available information.</span>
+      </label>
+
+      <input type="hidden" name="tier" value="">
+      <input type="hidden" name="payment_token" value="">
+      <input type="hidden" name="amount" value="">
+      <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off">
+
+      <div class="form-footer">
+        <div class="muted">Your underwriting begins as soon as we receive this form. Delivery in 24–48 hours (12h if rush included).</div>
+        <button type="submit" class="btn-cta submit-btn" id="submitBtn">Submit Deal Details →</button>
+      </div>
+      <div class="form-status" id="formStatus" role="status" aria-live="polite"></div>
+    </form>
+  </div>
+</div>
+
+<style>
+.bkt-global-foot{margin-top:0;padding:1.6rem 1rem;border-top:1px solid rgba(255,255,255,0.07);background:#050510;color:#6b6760;font-size:0.78rem;font-family:'DM Sans',sans-serif;}
+.bkt-global-foot .row{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;}
+.bkt-global-foot .links{display:flex;gap:1.2rem;flex-wrap:wrap;}
+.bkt-global-foot a{color:#b8b3ab;text-decoration:none;transition:color .2s;}
+.bkt-global-foot a:hover{color:#1E3A8A;}
+</style>
+<footer class="bkt-global-foot">
+  <div class="row">
+    <div>© <span id="bktYr">2026</span> Aurevon Group LLC · Systems. Capital. Infrastructure..</div>
+    <div class="links">
+      <a href="index.html">Home</a>
+      <a href="BLOCKT_RE_Final.html">RE Underwriting</a>
+      <a href="BLOCKT_Web3.html">Web3</a>
+      <a href="BLOCKT_NFT_Collection.html">NFTs</a>
+      <a href="operator.html">Operator Hub</a>
+      <a href="blockt-crm.html">CRM</a>
+      <a href="portal.html">My Dashboard</a>
+      <a href="merch.html">Merch</a>
+    </div>
+  </div>
+  <script>(function(){var y=document.getElementById('bktYr');if(y)y.textContent=new Date().getFullYear();})();</script>
+</footer>
+
+<script>
+const CFG = window.BLOCKT_CONFIG || {};
+document.getElementById('yr').textContent = new Date().getFullYear();
+const mail = document.getElementById('mailLink');
+if (mail && CFG.CONTACT_EMAIL) mail.href = 'mailto:' + CFG.CONTACT_EMAIL;
+
+/* ---------- Auto-fill promo code from URL ---------- */
+const urlParams = new URLSearchParams(window.location.search);
+const promoFromUrl = urlParams.get('promo') || urlParams.get('prefilled_promo_code') || '';
+const promoField = document.getElementById('promoField');
+if(promoField && promoFromUrl) promoField.value = promoFromUrl.toUpperCase();
+
+/* ---------- File upload UX ---------- */
+const fileInput = document.getElementById('fileInput');
+const fileDrop  = document.getElementById('fileDrop');
+const fileList  = document.getElementById('fileList');
+let pickedFiles = [];
+
+function renderFiles(){
+  fileList.innerHTML = '';
+  pickedFiles.forEach((f) => {
+    const row = document.createElement('div');
+    row.className = 'f';
+    const kb = (f.size/1024).toFixed(0);
+    row.innerHTML = '<span>📎 ' + f.name + '</span><span style="color:var(--text-muted)">' + kb + ' KB</span>';
+    fileList.appendChild(row);
+  });
+}
+fileInput.addEventListener('change', e => {
+  pickedFiles = Array.from(e.target.files).slice(0,10);
+  renderFiles();
+});
+['dragenter','dragover'].forEach(ev => fileDrop.addEventListener(ev, e => { e.preventDefault(); fileDrop.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => fileDrop.addEventListener(ev, e => { e.preventDefault(); fileDrop.classList.remove('drag'); }));
+fileDrop.addEventListener('drop', e => {
+  const dt = e.dataTransfer;
+  if (dt && dt.files) {
+    pickedFiles = Array.from(dt.files).slice(0,10);
+    const dtList = new DataTransfer();
+    pickedFiles.forEach(f => dtList.items.add(f));
+    fileInput.files = dtList.files;
+    renderFiles();
+  }
+});
+
+/* ---------- Form submit → Formspree ---------- */
+const form = document.getElementById('intakeForm');
+const statusEl = document.getElementById('formStatus');
+const submitBtn = document.getElementById('submitBtn');
+
+function setStatus(kind, msg){
+  statusEl.className = 'form-status ' + kind;
+  statusEl.textContent = msg;
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setStatus('', '');
+
+  const required = form.querySelectorAll('[required]');
+  for (const el of required){
+    if (!el.value || (el.type === 'checkbox' && !el.checked)){
+      setStatus('err', 'Please complete all required fields (marked *).');
+      el.focus();
+      return;
+    }
+  }
+
+  if (!CFG.FORMSPREE_URL || CFG.FORMSPREE_URL.includes('REPLACE_')){
+    setStatus('info', "Submissions aren't live yet. Owner: paste your Formspree endpoint into BLOCKT_CONFIG.");
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Submitting…';
+
+  const data = new FormData(form);
+  try {
+    const res = await fetch(CFG.FORMSPREE_URL, {
+      method: 'POST',
+      body: data,
+      headers: { 'Accept': 'application/json' }
+    });
+    if (res.ok){
+      form.reset();
+      pickedFiles = []; renderFiles();
+      setStatus('ok', '✓ Deal submitted successfully. Your underwriting is now in progress — expect delivery in 24–48 hours.');
+      submitBtn.textContent = 'Submitted ✓';
+    } else {
+      const j = await res.json().catch(() => ({}));
+      setStatus('err', (j.errors && j.errors[0] && j.errors[0].message) || 'Submission failed. Please email us directly.');
+      submitBtn.disabled = false; submitBtn.textContent = 'Submit Deal Details →';
+    }
+  } catch(err){
+    setStatus('err', 'Network error. Please email us directly at ' + (CFG.CONTACT_EMAIL || 'hello@aurevongroup.com') + '.');
+    submitBtn.disabled = false; submitBtn.textContent = 'Submit Deal Details →';
+  }
+});
+</script>
+</body>
+</html>

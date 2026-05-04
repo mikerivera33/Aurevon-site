@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Suppress wallet extension errors (MetaMask, Coinbase Wallet) -->
+<script>
+window.addEventListener('error',function(e){if(e.filename&&e.filename.startsWith('chrome-extension://')){e.preventDefault();return;}if(e.message&&(e.message.includes('MetaMask')||e.message.includes('cross-origin')||e.message.includes('chrome-extension'))){e.preventDefault();return;}},true);
+window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reason.message||String(e.reason))||'';if(m.includes('MetaMask')||m.includes('cross-origin')||m.includes('chrome-extension')){e.preventDefault();return;}});
+(function(){try{localStorage.getItem('_t');}catch(e){var m={};window.localStorage={getItem:function(k){return m[k]||null;},setItem:function(k,v){m[k]=String(v);},removeItem:function(k){delete m[k];},clear:function(){m={};}};}}());
+</script>
+<meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aurevon — Membership Confirmed</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body {
+      background: #0A0A0A;
+      color: #f0ede8;
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    a { color: #1E3A8A; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Gate ── */
+    .bkt-gate {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .bkt-gate-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 14px;
+      padding: 3rem 2.5rem;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+    }
+    .bkt-gate-card h2 {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 1.6rem;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg,#1E3A8A,#3B82F6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .bkt-gate-card p { color: #b8b3ab; margin-bottom: 1.8rem; }
+    .bkt-gate-card .btn-primary {
+      display: inline-block;
+      padding: 0.8rem 1.8rem;
+      background: linear-gradient(135deg,#1E3A8A,#3B82F6);
+      color: #fff;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-decoration: none;
+    }
+    .bkt-gate-card .btn-primary:hover { opacity: 0.88; text-decoration: none; }
+
+    /* ── Nav ── */
+    .top-nav {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.2rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .top-nav .logo {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 1.35rem;
+      background: linear-gradient(135deg,#1E3A8A,#3B82F6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-decoration: none;
+    }
+    .top-nav .back-link {
+      font-size: 0.88rem;
+      color: #b8b3ab;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      text-decoration: none;
+      transition: color .2s;
+    }
+    .top-nav .back-link:hover { color: #f0ede8; text-decoration: none; }
+
+    /* ── Page shell ── */
+    .page-content {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 4rem;
+    }
+
+    /* ── Hero ── */
+    .hero { text-align: center; margin-bottom: 3rem; }
+
+    /* Animated checkmark */
+    .check-circle {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg,#1E3A8A,#3B82F6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.4rem;
+      box-shadow: 0 12px 40px rgba(30,58,138,0.35);
+      animation: check-pulse 2.5s ease-in-out infinite;
+    }
+    .check-circle svg { width: 42px; height: 42px; }
+    .check-circle path {
+      stroke-dasharray: 48;
+      stroke-dashoffset: 48;
+      animation: draw 0.8s 0.3s ease-out forwards;
+    }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    @keyframes check-pulse {
+      0%,100% { transform: scale(1); box-shadow: 0 12px 40px rgba(30,58,138,0.35); }
+      50%      { transform: scale(1.04); box-shadow: 0 14px 50px rgba(30,58,138,0.5); }
+    }
+
+    .hero h1 {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg,#1E3A8A,#3B82F6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero .subtitle { color: #b8b3ab; font-size: 1.05rem; max-width: 520px; margin: 0 auto; }
+
+    /* ── Cards ── */
+    .card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 14px;
+      padding: 1.8rem 2rem;
+      margin-bottom: 1.6rem;
+    }
+    .card h3 {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 1.05rem;
+      margin-bottom: 1.2rem;
+      letter-spacing: 0.02em;
+    }
+    .card .label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #1E3A8A;
+      margin-bottom: 0.5rem;
+    }
+
+    /* ── NFT Preview ── */
+    .nft-preview {
+      text-align: center;
+      padding: 2.2rem 2rem;
+    }
+    .nft-preview .nft-shield-wrap {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 1.4rem;
+    }
+    .shield-svg {
+      width: 140px;
+      height: auto;
+      filter: drop-shadow(0 8px 32px rgba(30,58,138,0.4));
+      animation: shield-spin 18s linear infinite;
+    }
+    .shield-svg.chrome {
+      filter: drop-shadow(0 8px 32px rgba(180,200,220,0.45));
+    }
+    @keyframes shield-spin {
+      0%   { transform: perspective(600px) rotateY(0deg); }
+      100% { transform: perspective(600px) rotateY(360deg); }
+    }
+    .nft-preview .nft-caption {
+      color: #b8b3ab;
+      font-size: 0.92rem;
+      max-width: 380px;
+      margin: 0 auto;
+    }
+    .nft-preview .nft-tag {
+      display: inline-block;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg,#1E3A8A,#3B82F6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 0.88rem;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Checklist ── */
+    .checklist { list-style: none; display: flex; flex-direction: column; gap: 0.85rem; }
+    .checklist li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.9rem;
+      font-size: 0.95rem;
+      color: #d4cfc8;
+    }
+    .checklist li .step-icon { font-size: 1.25rem; flex-shrink: 0; line-height: 1.4; }
+    .checklist li.done { color: #f0ede8; }
+    .checklist li.done .step-icon { opacity: 1; }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.85rem 2rem;
+      background: linear-gradient(135deg,#1E3A8A,#3B82F6);
+      color: #fff !important;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 1rem;
+      text-decoration: none;
+      transition: opacity .2s, transform .15s;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); text-decoration: none; }
+
+    .discord-cta { text-align: center; margin: 0.4rem 0 1.2rem; }
+
+    /* ── Receipt card ── */
+    .receipt-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem 1.5rem;
+    }
+    @media (max-width: 500px) { .receipt-grid { grid-template-columns: 1fr; } }
+    .receipt-row .rc-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: #6b6760;
+      margin-bottom: 0.2rem;
+    }
+    .receipt-row .rc-val { font-size: 0.95rem; color: #f0ede8; font-weight: 600; }
+
+    /* ── Benefits list ── */
+    .benefits-list { list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
+    .benefits-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.7rem;
+      font-size: 0.93rem;
+      color: #d4cfc8;
+    }
+    .benefits-list li::before {
+      content: "▸";
+      color: #1E3A8A;
+      flex-shrink: 0;
+      margin-top: 0.05em;
+    }
+
+    /* ── Cross-sell ── */
+    .crosssell-card {
+      background: rgba(30,58,138,0.06);
+      border: 1px solid rgba(30,58,138,0.18);
+      border-radius: 14px;
+      padding: 1.8rem 2rem;
+      margin-bottom: 1.6rem;
+    }
+    .crosssell-card .label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #1E3A8A;
+      margin-bottom: 0.5rem;
+    }
+    .crosssell-card h3 {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 1.05rem;
+      margin-bottom: 0.6rem;
+    }
+    .crosssell-card p { color: #b8b3ab; font-size: 0.92rem; margin-bottom: 1.2rem; }
+
+    /* ── Support footer ── */
+    .support-note {
+      text-align: center;
+      color: #6b6760;
+      font-size: 0.85rem;
+      margin-top: 2rem;
+    }
+    .support-note a { color: #b8b3ab; }
+    .support-note a:hover { color: #1E3A8A; }
+
+    /* ── Section spacing ── */
+    .section-heading {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #1E3A8A;
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ============================================================
+     GATE — shown when no valid paid token is present
+     ============================================================ -->
+<div id="gate" class="bkt-gate" style="display:none;">
+  <div class="bkt-gate-card">
+    <h2>Payment Required</h2>
+    <p>This page is only accessible after completing a community membership purchase. Please return to the membership page and complete checkout.</p>
+    <a href="BLOCKT_Web3.html" class="btn-primary">View Membership Options →</a>
+  </div>
+</div>
+
+<!-- ============================================================
+     CONFIRMATION — shown on valid token
+     ============================================================ -->
+<div id="app" style="display:none;">
+
+  <!-- Nav -->
+  <nav>
+    <div class="top-nav">
+      <a href="index.html" class="logo"><svg width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:8px;flex-shrink:0;"><rect width="40" height="40" rx="8" fill="#1E3A8A"/><text x="20" y="28" text-anchor="middle" font-family='Archivo Black',sans-serif font-size="22" fill="white" font-weight="900">A</text></svg> Aurevon</a>
+      <a href="BLOCKT_Web3.html" class="back-link">&#8592; Back to Web3</a>
+    </div>
+  </nav>
+
+  <main class="page-content">
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="check-circle" aria-hidden="true">
+        <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 27 L22 35 L38 18" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h1>Welcome to Aurevon, Operator.</h1>
+      <p class="subtitle">Your payment is confirmed. Your community NFT is being minted.</p>
+    </section>
+
+    <!-- NFT Preview — injected by JS based on tier -->
+    <div class="card nft-preview" id="nft-preview-card">
+      <!-- populated by renderPage() -->
+    </div>
+
+    <!-- What happens next -->
+    <div class="card">
+      <div class="label">What Happens Next</div>
+      <h3>Four steps to community access</h3>
+      <ul class="checklist">
+        <li class="done">
+          <span class="step-icon">&#10003;</span>
+          <span><strong>Payment confirmed</strong> — you're here.</span>
+        </li>
+        <li>
+          <span class="step-icon">&#128232;</span>
+          <span>Your <strong>NFT delivery email</strong> arrives in 5–10 minutes. Check your spam folder if you don't see it.</span>
+        </li>
+        <li>
+          <span class="step-icon">&#127919;</span>
+          <span><strong>Click the Discord invite link</strong> inside that email to claim your tier-locked role.</span>
+        </li>
+        <li>
+          <span class="step-icon">&#129306;</span>
+          <span><strong>Introduce yourself in #intros</strong> and meet the community.</span>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Discord + Email CTAs -->
+    <div class="card discord-cta">
+      <div class="label">Ready Now?</div>
+      <h3 style="font-family:'Archivo Black',sans-serif;font-size:1.05rem;margin-bottom:0.6rem;">Your next steps</h3>
+      <p style="color:#b8b3ab;font-size:0.92rem;margin-bottom:1.2rem;">Your Shield NFT is being delivered to the email you used at checkout. Jump into Discord now or check your inbox for your NFT delivery.</p>
+      <div style="display:flex;gap:0.8rem;flex-wrap:wrap;justify-content:center;">
+        <a href="https://discord.gg/GdYRZtdvNS" target="_blank" rel="noopener noreferrer" class="btn-primary" style="display:inline-flex;align-items:center;gap:8px;background:#5865F2;">
+          <svg width="18" height="14" viewBox="0 0 71 55" fill="none"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z" fill="white"/></svg>
+          Join Discord &#8594;
+        </a>
+        <a href="https://mail.google.com" target="_blank" rel="noopener noreferrer" class="btn-primary" style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);">
+          <svg width="18" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          Check Your Email &#8594;
+        </a>
+      </div>
+    </div>
+
+    <!-- Receipt -->
+    <div class="card">
+      <div class="label">Payment Receipt</div>
+      <h3>Transaction Summary</h3>
+      <div class="receipt-grid" id="receipt-grid">
+        <!-- populated by renderPage() -->
+      </div>
+    </div>
+
+    <!-- What you get -->
+    <div class="card" id="benefits-card">
+      <div class="label">Your Membership Includes</div>
+      <h3>Community member benefits</h3>
+      <ul class="benefits-list" id="benefits-list">
+        <!-- populated by renderPage() -->
+      </ul>
+    </div>
+
+    <!-- Cross-sell -->
+    <div class="crosssell-card">
+      <div class="label">Level Up</div>
+      <h3>Need underwriting too?</h3>
+      <p>You already get community access — add the Aurevon Capital underwriting service to get full deal analysis from senior underwriters. Deals screened in 24–48 hours.</p>
+      <a href="BLOCKT_RE_Final.html#pricing" class="btn-primary">Browse RE Pricing &#8594;</a>
+    </div>
+
+    <!-- Support -->
+    <p class="support-note">
+      Questions? Email <a href="mailto:hello@aurevongroup.com">hello@aurevongroup.com</a> or DM us in Discord.
+    </p>
+
+  </main>
+
+  <!-- Footer injected below -->
+</div>
+
+<!-- ============================================================
+     Global Footer
+     ============================================================ -->
+
+<style>
+.bkt-global-foot{margin-top:0;padding:1.6rem 1rem;border-top:1px solid rgba(255,255,255,0.07);background:#050510;color:#6b6760;font-size:0.78rem;font-family:'DM Sans',sans-serif;}
+.bkt-global-foot .row{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;}
+.bkt-global-foot .links{display:flex;gap:1.2rem;flex-wrap:wrap;}
+.bkt-global-foot a{color:#b8b3ab;text-decoration:none;transition:color .2s;}
+.bkt-global-foot a:hover{color:#1E3A8A;}
+</style>
+<footer class="bkt-global-foot">
+  <div class="row">
+    <div>© <span id="bktYr">2026</span> Aurevon Group LLC · Systems. Capital. Infrastructure..</div>
+    <div class="links">
+      <a href="index.html">Home</a>
+      <a href="BLOCKT_RE_Final.html">RE Underwriting</a>
+      <a href="BLOCKT_Web3.html">Web3</a>
+      <a href="BLOCKT_NFT_Collection.html">NFTs</a>
+      <a href="operator.html">Operator Hub</a>
+      <a href="blockt-crm.html">CRM</a>
+      <a href="portal.html">My Dashboard</a>
+      <a href="merch.html">Merch</a>
+    </div>
+  </div>
+  <script>(function(){var y=document.getElementById('bktYr');if(y)y.textContent=new Date().getFullYear();})();</script>
+</footer>
+
+
+<!-- ============================================================
+     JavaScript — token gate + page render
+     ============================================================ -->
+<script>
+(function () {
+  "use strict";
+
+  /* ── Helpers ── */
+  function qs(sel) { return document.querySelector(sel); }
+
+  function getParams() {
+    var sp = new URLSearchParams(window.location.search);
+    return {
+      paid:   sp.get("paid")   || "",
+      tier:   sp.get("tier")   || "",
+      amount: sp.get("amount") || ""
+    };
+  }
+
+  function maskToken(t) {
+    if (!t || t.length < 8) return "****";
+    return t.slice(0, 8) + "…" + t.slice(-4);
+  }
+
+  function formatDate(d) {
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  }
+
+  /* ── SVGs ── */
+  // 001 Genesis — orange shield
+  var SVG_GENESIS = '<svg class="shield-svg" viewBox="0 0 200 240" xmlns="http://www.w3.org/2000/svg">' +
+    '<defs>' +
+      '<linearGradient id="gen-grad" x1="0%" y1="0%" x2="100%" y2="100%">' +
+        '<stop offset="0%" stop-color="#1E3A8A"/>' +
+        '<stop offset="100%" stop-color="#3B82F6"/>' +
+      '</linearGradient>' +
+      '<filter id="gen-glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
+    '</defs>' +
+    '<path d="M100 10 L185 45 L185 130 Q185 190 100 230 Q15 190 15 130 L15 45 Z" fill="url(#gen-grad)" filter="url(#gen-glow)" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>' +
+    '<path d="M100 30 L168 58 L168 128 Q168 178 100 210 Q32 178 32 128 L32 58 Z" fill="rgba(0,0,0,0.18)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>' +
+    '<text x="100" y="105" text-anchor="middle" font-family="Archivo Black,sans-serif" font-size="38" fill="#fff" opacity="0.95">001</text>' +
+    '<text x="100" y="133" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="13" fill="rgba(255,255,255,0.75)" letter-spacing="3">GENESIS</text>' +
+    '<text x="100" y="152" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="8" fill="rgba(255,255,255,0.45)" letter-spacing="2">AUREVON</text>' +
+    '<circle cx="100" cy="68" r="16" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>' +
+    '<text x="100" y="74" text-anchor="middle" font-family="Archivo Black,sans-serif" font-size="12" fill="#fff">BV</text>' +
+  '</svg>';
+
+  // 004 Chrome — metallic shield
+  var SVG_CHROME = '<svg class="shield-svg chrome" viewBox="0 0 200 240" xmlns="http://www.w3.org/2000/svg">' +
+    '<defs>' +
+      '<linearGradient id="chr-grad" x1="0%" y1="0%" x2="100%" y2="100%">' +
+        '<stop offset="0%" stop-color="#c8d8e8"/>' +
+        '<stop offset="35%" stop-color="#e8ecf0"/>' +
+        '<stop offset="65%" stop-color="#a0b4c8"/>' +
+        '<stop offset="100%" stop-color="#d0dce8"/>' +
+      '</linearGradient>' +
+      '<linearGradient id="chr-inner" x1="0%" y1="0%" x2="100%" y2="100%">' +
+        '<stop offset="0%" stop-color="rgba(220,235,248,0.25)"/>' +
+        '<stop offset="100%" stop-color="rgba(160,185,210,0.1)"/>' +
+      '</linearGradient>' +
+      '<filter id="chr-glow"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
+    '</defs>' +
+    '<path d="M100 10 L185 45 L185 130 Q185 190 100 230 Q15 190 15 130 L15 45 Z" fill="url(#chr-grad)" filter="url(#chr-glow)" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>' +
+    '<path d="M100 30 L168 58 L168 128 Q168 178 100 210 Q32 178 32 128 L32 58 Z" fill="url(#chr-inner)" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>' +
+    '<text x="100" y="105" text-anchor="middle" font-family="Archivo Black,sans-serif" font-size="38" fill="#1a2a3a" opacity="0.85">004</text>' +
+    '<text x="100" y="133" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="13" fill="rgba(20,40,60,0.7)" letter-spacing="3">CHROME</text>' +
+    '<text x="100" y="152" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="8" fill="rgba(20,40,60,0.4)" letter-spacing="2">AUREVON</text>' +
+    '<circle cx="100" cy="68" r="16" fill="rgba(255,255,255,0.2)" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>' +
+    '<text x="100" y="74" text-anchor="middle" font-family="Archivo Black,sans-serif" font-size="12" fill="#1a2a3a" opacity="0.8">BV</text>' +
+  '</svg>';
+
+  /* ── Tier config ── */
+  var TIERS = {
+    comm_monthly: {
+      label:      "001 GENESIS — Community Monthly",
+      amountFmt:  "$29.99/mo",
+      nftSvg:     SVG_GENESIS,
+      nftTag:     "001 GENESIS NFT",
+      nftCaption: "Your 001 GENESIS NFT — minted to your account, delivered to your email within minutes.",
+      benefits: [
+        "Private Discord access with tier-locked Genesis role",
+        "Deal-flow channels: Multifamily, Mixed-Use, Small CRE, Self-Storage",
+        "Vetted lender, broker, and vendor referrals",
+        "Live AMA sessions with senior underwriters",
+        "Member-only deal alerts",
+        "Cancel anytime — your NFT stays with you"
+      ]
+    },
+    comm_lifetime: {
+      label:      "004 CHROME — Community Lifetime",
+      amountFmt:  "$349.99 one-time",
+      nftSvg:     SVG_CHROME,
+      nftTag:     "004 CHROME NFT",
+      nftCaption: "Your 004 CHROME NFT — Lifetime edition. 1-of-1 per holder. Permanent.",
+      benefits: [
+        "Private Discord access with permanent Chrome tier-locked role",
+        "Deal-flow channels: Multifamily, Mixed-Use, Small CRE, Self-Storage",
+        "Vetted lender, broker, and vendor referrals",
+        "Live AMA sessions with senior underwriters",
+        "Member-only deal alerts",
+        "Permanent role — all future drops included at no extra cost",
+        "Priority access to new Aurevon product launches"
+      ]
+    }
+  };
+
+  /* ── Gate check ── */
+  function isValidToken(t) {
+    return typeof t === "string" && t.indexOf("paid_") === 0;
+  }
+
+  /* ── Render ── */
+  function renderPage(params, tierCfg) {
+    // NFT preview
+    var nftCard = document.getElementById("nft-preview-card");
+    if (nftCard) {
+      nftCard.innerHTML =
+        '<div class="nft-shield-wrap">' + tierCfg.nftSvg + '</div>' +
+        '<div class="nft-tag">' + tierCfg.nftTag + '</div>' +
+        '<p class="nft-caption">' + tierCfg.nftCaption + '</p>';
+    }
+
+    // Receipt
+    var rg = document.getElementById("receipt-grid");
+    if (rg) {
+      var amtDisplay = params.amount ? ("$" + parseFloat(params.amount).toFixed(2)) : tierCfg.amountFmt;
+      rg.innerHTML =
+        '<div class="receipt-row"><div class="rc-label">Tier</div><div class="rc-val">' + tierCfg.label + '</div></div>' +
+        '<div class="receipt-row"><div class="rc-label">Amount</div><div class="rc-val">' + amtDisplay + '</div></div>' +
+        '<div class="receipt-row"><div class="rc-label">Payment Token</div><div class="rc-val">' + maskToken(params.paid) + '</div></div>' +
+        '<div class="receipt-row"><div class="rc-label">Date</div><div class="rc-val">' + formatDate(new Date()) + '</div></div>';
+    }
+
+    // Benefits
+    var bl = document.getElementById("benefits-list");
+    if (bl) {
+      bl.innerHTML = tierCfg.benefits.map(function (b) {
+        return '<li>' + b + '</li>';
+      }).join("");
+    }
+  }
+
+  /* ── Boot ── */
+  function boot() {
+    var params  = getParams();
+    var tierCfg = TIERS[params.tier];
+
+    if (!isValidToken(params.paid) || !tierCfg) {
+      // Show gate
+      var gate = document.getElementById("gate");
+      if (gate) gate.style.display = "flex";
+      return;
+    }
+
+    // Stash in sessionStorage for resilience
+    try {
+      sessionStorage.setItem("bkt_paid_token", params.paid);
+      sessionStorage.setItem("bkt_paid_tier",  params.tier);
+      sessionStorage.setItem("bkt_paid_amount", params.amount);
+    } catch (e) {}
+
+    // Show app
+    var app = document.getElementById("app");
+    if (app) app.style.display = "block";
+
+    renderPage(params, tierCfg);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+
+</body>
+</html>

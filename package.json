@@ -1,0 +1,30 @@
+{
+  "name": "blockt-ventures-site",
+  "version": "1.0.0",
+  "description": "Aurevon — autonomous investment backend + membership portal",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "bash scripts/deploy.sh",
+    "test:qa": "bash qa-test.sh",
+    "test:pipeline": "bash qa-test.sh --full-pipeline"
+  },
+  "devDependencies": {
+    "vercel": "^37.0.0"
+  },
+  "keywords": [
+    "blockt",
+    "ventures",
+    "web3",
+    "nft",
+    "membership",
+    "vercel",
+    "serverless"
+  ],
+  "author": "Aurevon",
+  "license": "UNLICENSED",
+  "private": true
+}

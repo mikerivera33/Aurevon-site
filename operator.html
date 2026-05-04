@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Suppress wallet extension errors (MetaMask, Coinbase Wallet) -->
+<script>
+window.addEventListener('error',function(e){if(e.filename&&e.filename.startsWith('chrome-extension://')){e.preventDefault();return;}if(e.message&&(e.message.includes('MetaMask')||e.message.includes('cross-origin')||e.message.includes('chrome-extension'))){e.preventDefault();return;}},true);
+window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reason.message||String(e.reason))||'';if(m.includes('MetaMask')||m.includes('cross-origin')||m.includes('chrome-extension')){e.preventDefault();return;}});
+(function(){try{localStorage.getItem('_t');}catch(e){var m={};window.localStorage={getItem:function(k){return m[k]||null;},setItem:function(k,v){m[k]=String(v);},removeItem:function(k){delete m[k];},clear:function(){m={};}};}}());
+</script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Aurevon Operator Hub — Owner Dashboard</title>
+<meta name="robots" content="noindex,nofollow"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet"/>
+<style>
+/* ── Reset & base ─────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0A0A0A;--bg-panel:#050510;--bg-card:rgba(255,255,255,0.03);
+  --border:rgba(255,255,255,0.07);--border-gold:rgba(59,130,246,0.18);
+  --txt:#f0ede8;--txt2:#b8b3ab;--txt3:#6b6760;
+  --gold:#3B82F6;--orange:#1E3A8A;
+  --grad:linear-gradient(135deg,#1E3A8A,#3B82F6);
+  --radius:14px;--tab-h:44px;
+}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--txt);font-family:'DM Sans',sans-serif;font-weight:400;line-height:1.6;padding-top:114px;}
+a{color:var(--gold);text-decoration:none;}a:hover{text-decoration:underline;}
+h1,h2,h3,h4{font-family:'Archivo Black',sans-serif;line-height:1.2;}
+button{cursor:pointer;font-family:'DM Sans',sans-serif;}
+
+/* ── Top nav ──────────────────────────────────────────────────── */
+.bkt-top-nav{position:fixed;top:0;left:0;right:0;z-index:200;background:rgba(12,12,14,0.9);backdrop-filter:blur(14px);border-bottom:1px solid var(--border-gold);padding:.7rem 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;}
+.bkt-top-nav .logo{display:flex;align-items:center;gap:8px;color:var(--txt);text-decoration:none;font-family:'Archivo Black',sans-serif;font-size:1rem;}
+.bkt-top-nav .owner-badge{font-size:.7rem;color:var(--gold);background:rgba(59,130,246,.1);border:1px solid var(--border-gold);padding:4px 10px;border-radius:6px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;white-space:nowrap;}
+
+/* ── Sticky tab bar ───────────────────────────────────────────── */
+.tab-bar{position:fixed;top:60px;left:0;right:0;z-index:150;background:rgba(6,6,10,0.97);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);height:var(--tab-h);display:flex;align-items:center;padding:0 1rem;gap:4px;overflow-x:auto;scrollbar-width:none;}
+.tab-bar::-webkit-scrollbar{display:none;}
+.tab-btn{flex-shrink:0;background:transparent;border:none;color:var(--txt2);font-size:.78rem;font-weight:600;padding:6px 12px;border-radius:8px;transition:background .2s,color .2s;letter-spacing:.03em;}
+.tab-btn:hover,.tab-btn.active{background:rgba(59,130,246,.12);color:var(--gold);}
+
+/* ── Layout wrapper ───────────────────────────────────────────── */
+.wrap{max-width:1280px;margin:0 auto;padding:0 1.5rem 4rem;}
+
+/* ── Hero / cockpit header ────────────────────────────────────── */
+.hero{padding:2rem 0 1.5rem;border-bottom:1px solid var(--border);margin-bottom:2rem;}
+.hero-title{font-size:clamp(1.6rem,4vw,2.6rem);background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;display:inline-block;}
+.hero-sub{color:var(--txt2);font-size:.95rem;margin:.4rem 0 1.2rem;}
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-top:1.2rem;}
+.kpi-tile{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.3rem;position:relative;}
+.kpi-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--txt3);margin-bottom:.3rem;}
+.kpi-val{font-family:'Archivo Black',sans-serif;font-size:2rem;color:var(--gold);}
+.kpi-link{display:block;font-size:.68rem;color:var(--orange);margin-top:.4rem;}
+.private-badge{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;background:rgba(30,58,138,.08);border:1px solid rgba(30,58,138,.22);color:#1E3A8A;padding:5px 12px;border-radius:20px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-top:1rem;}
+
+/* ── Collapsible sections ─────────────────────────────────────── */
+.section{margin-bottom:2.2rem;}
+.section-header{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.3rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;user-select:none;transition:background .2s;}
+.section-header:hover{background:rgba(255,255,255,0.05);}
+.section-title{font-family:'Archivo Black',sans-serif;font-size:1.05rem;color:var(--txt);display:flex;align-items:center;gap:.6rem;}
+.section-icon{font-size:1.1rem;}
+.section-anchor{display:block;height:1px;margin-top:-104px;padding-top:104px;pointer-events:none;visibility:hidden;}
+.chevron{color:var(--txt3);transition:transform .25s;font-size:.85rem;}
+.section-body{padding-top:1rem;display:none;}
+.section-body.open{display:block;}
+
+/* ── Cards ────────────────────────────────────────────────────── */
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.3rem;}
+.card+.card{margin-top:1rem;}
+.card-note{font-size:.8rem;color:var(--txt3);margin-top:.8rem;line-height:1.5;}
+.card-title{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--gold);font-weight:700;margin-bottom:.6rem;}
+
+/* ── Tables ───────────────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto;margin-top:1rem;border-radius:10px;border:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;font-size:.82rem;}
+thead tr{background:rgba(59,130,246,.06);}
+th{text-align:left;padding:.7rem 1rem;color:var(--txt3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:.7rem;white-space:nowrap;}
+td{padding:.7rem 1rem;border-top:1px solid var(--border);color:var(--txt2);vertical-align:middle;}
+tr:hover td{background:rgba(255,255,255,0.02);}
+
+/* ── Pills ────────────────────────────────────────────────────── */
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.69rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;}
+.pill-new{background:rgba(30,58,138,.15);color:#1E3A8A;border:1px solid rgba(30,58,138,.3);}
+.pill-prog{background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.25);}
+.pill-done{background:rgba(34,197,94,.1);color:#4ade80;border:1px solid rgba(34,197,94,.25);}
+.pill-hold{background:rgba(107,103,96,.15);color:#6b6760;border:1px solid rgba(107,103,96,.3);}
+.pill-queued{background:rgba(59,130,246,.12);color:var(--gold);border:1px solid rgba(59,130,246,.25);}
+.pill-sent{background:rgba(168,85,247,.12);color:#c084fc;border:1px solid rgba(168,85,247,.25);}
+.pill-minted{background:rgba(34,197,94,.1);color:#4ade80;border:1px solid rgba(34,197,94,.25);}
+
+/* ── Action buttons ───────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;border-radius:8px;font-size:.78rem;font-weight:600;border:1px solid var(--border-gold);background:rgba(59,130,246,.08);color:var(--gold);transition:background .2s,border-color .2s;cursor:pointer;}
+.btn:hover{background:rgba(59,130,246,.16);border-color:rgba(59,130,246,.4);}
+.btn-orange{background:rgba(30,58,138,.1);border-color:rgba(30,58,138,.3);color:#1E3A8A;}
+.btn-orange:hover{background:rgba(30,58,138,.18);}
+.btn-grad{background:var(--grad);border:none;color:#0A0A0A;font-weight:700;padding:7px 18px;border-radius:9px;}
+.btn-grad:hover{opacity:.88;}
+.tbl-btn{padding:3px 9px;font-size:.7rem;border-radius:6px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--txt2);cursor:pointer;transition:background .15s;}
+.tbl-btn:hover{background:rgba(255,255,255,.09);}
+
+/* ── Kanban ───────────────────────────────────────────────────── */
+.kanban{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.2rem;margin-top:1rem;}
+.kanban-col{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:12px;padding:1rem;}
+.kanban-col-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem;display:flex;align-items:center;gap:6px;}
+.kc-new .kanban-col-title{color:var(--gold);}
+.kc-prog .kanban-col-title{color:#60a5fa;}
+.kc-done .kanban-col-title{color:#4ade80;}
+.kanban-ticket{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:.75rem;margin-bottom:.7rem;}
+.kt-addr{font-size:.8rem;color:var(--txt);font-weight:600;}
+.kt-meta{font-size:.7rem;color:var(--txt3);margin-top:.25rem;}
+
+/* ── Automation grid ──────────────────────────────────────────── */
+.auto-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;margin-top:1rem;}
+.auto-tile{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem;display:flex;flex-direction:column;gap:.5rem;}
+.auto-icon{font-size:1.6rem;}
+.auto-title{font-family:'Archivo Black',sans-serif;font-size:.9rem;color:var(--txt);}
+.auto-desc{font-size:.78rem;color:var(--txt2);line-height:1.5;flex:1;}
+.auto-footer{display:flex;align-items:center;justify-content:space-between;margin-top:.4rem;}
+.auto-tag{font-size:.65rem;color:var(--txt3);background:rgba(255,255,255,.04);border-radius:4px;padding:2px 7px;}
+
+/* ── Content calendar ─────────────────────────────────────────── */
+.cal-list{display:flex;flex-direction:column;gap:.6rem;margin-top:1rem;}
+.cal-item{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:.8rem 1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;}
+.cal-date{font-family:'Archivo Black',sans-serif;font-size:.8rem;color:var(--gold);min-width:88px;}
+.cal-platform{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--txt3);min-width:70px;}
+.cal-topic{font-size:.83rem;color:var(--txt);flex:1;}
+
+/* ── AI panel ─────────────────────────────────────────────────── */
+.ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem;}
+@media(max-width:640px){.ai-grid{grid-template-columns:1fr;}}
+.ai-iframe-stub{width:100%;height:180px;background:rgba(255,255,255,.02);border:1px dashed rgba(59,130,246,.25);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--txt3);font-size:.82rem;text-align:center;padding:1rem;}
+.ai-input{width:100%;margin-top:.6rem;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:8px;padding:.5rem .8rem;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:.82rem;}
+.ai-input:focus{outline:none;border-color:var(--border-gold);}
+
+/* ── Setup checklist ──────────────────────────────────────────── */
+.checklist{display:flex;flex-direction:column;gap:.55rem;margin-top:1rem;}
+.check-item{display:flex;align-items:flex-start;gap:.75rem;padding:.65rem 1rem;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:background .15s;}
+.check-item:hover{background:rgba(255,255,255,.05);}
+.check-item.done{border-color:rgba(34,197,94,.2);background:rgba(34,197,94,.04);}
+.check-item.done .check-label{color:var(--txt3);text-decoration:line-through;}
+.check-box{width:18px;height:18px;flex-shrink:0;border:2px solid var(--border);border-radius:4px;margin-top:2px;display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s;}
+.check-item.done .check-box{background:rgba(34,197,94,.25);border-color:#4ade80;}
+.check-label{font-size:.83rem;color:var(--txt2);line-height:1.5;}
+
+/* ── Quick links ──────────────────────────────────────────────── */
+.links-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.8rem;margin-top:1rem;}
+.link-tile{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;display:flex;flex-direction:column;gap:.4rem;transition:border-color .2s,background .2s;}
+.link-tile:hover{border-color:var(--border-gold);background:rgba(59,130,246,.04);}
+.link-tile .lt-icon{font-size:1.4rem;}
+.link-tile .lt-name{font-size:.82rem;font-weight:700;color:var(--txt);}
+.link-tile .lt-tag{font-size:.68rem;color:var(--txt3);}
+.link-section-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--txt3);font-weight:700;margin:1.2rem 0 .4rem;}
+
+/* ── Collapsible detail (payments setup) ─────────────────────── */
+.detail-toggle{font-size:.78rem;color:var(--gold);cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-top:.8rem;}
+.detail-body{display:none;margin-top:.8rem;font-size:.8rem;color:var(--txt2);line-height:1.7;}
+.detail-body.open{display:block;}
+.detail-body li{margin-left:1.2rem;}
+.detail-body code{background:rgba(255,255,255,.07);border-radius:4px;padding:1px 5px;font-size:.76rem;color:var(--gold);}
+
+/* ── Misc ─────────────────────────────────────────────────────── */
+.divider{height:1px;background:var(--border);margin:1.2rem 0;}
+.setup-progress{margin-top:.8rem;font-size:.78rem;color:var(--txt3);}
+.setup-progress span{color:var(--gold);font-weight:700;}
+.tbl-footer{padding:.8rem 1rem;background:rgba(59,130,246,.05);border-top:1px solid var(--border);font-size:.78rem;color:var(--txt2);display:flex;flex-wrap:wrap;gap:1rem;}
+</style>
+
+<style id="airtable-css">
+.airtable-status{padding:0.7rem 1rem;border-radius:10px;font-size:.85rem;font-weight:600;border:1px solid;}
+.airtable-status[data-state="ok"]{background:rgba(46,204,113,0.08);border-color:rgba(46,204,113,0.3);color:#2ecc71;}
+.airtable-status[data-state="error"]{background:rgba(231,76,60,0.08);border-color:rgba(231,76,60,0.3);color:#e74c3c;}
+.airtable-status[data-state="loading"]{background:rgba(59,130,246,0.08);border-color:rgba(59,130,246,0.3);color:var(--gold);}
+.btn-primary{display:inline-flex;align-items:center;gap:6px;padding:0.6rem 1.2rem;border-radius:8px;background:linear-gradient(135deg,var(--orange),var(--gold));color:#0A0A0A;font-family:'Archivo Black',sans-serif;font-size:.8rem;border:none;cursor:pointer;letter-spacing:0.02em;box-shadow:0 6px 20px rgba(30,58,138,0.25);transition:transform .15s,box-shadow .15s;}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(30,58,138,0.4);}
+.btn-secondary{display:inline-flex;align-items:center;gap:6px;padding:0.6rem 1rem;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--txt);font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s;}
+.btn-secondary:hover{background:rgba(255,255,255,0.08);border-color:rgba(30,58,138,0.3);}
+.refresh-btn{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:6px;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.18);color:var(--gold);font-size:.7rem;cursor:pointer;font-family:inherit;font-weight:600;letter-spacing:0.04em;transition:background .15s;margin-left:0.5rem;}
+.refresh-btn:hover{background:rgba(59,130,246,0.14);}
+.live-pill{display:inline-block;background:rgba(46,204,113,0.1);border:1px solid rgba(46,204,113,0.25);color:#2ecc71;padding:1px 7px;border-radius:6px;font-size:.62rem;font-weight:700;letter-spacing:0.06em;margin-left:0.6rem;}
+.mock-pill{display:inline-block;background:rgba(108,108,108,0.1);border:1px solid rgba(108,108,108,0.25);color:var(--txt3);padding:1px 7px;border-radius:6px;font-size:.62rem;font-weight:700;letter-spacing:0.06em;margin-left:0.6rem;}
+.empty-row{padding:1.2rem;text-align:center;color:var(--txt3);font-size:.85rem;}
+</style>
+</head>
+<body>
+
+<!-- ══ TOP NAV ══════════════════════════════════════════════════ -->
+<nav class="bkt-top-nav">
+  <a href="index.html" class="logo">
+    <svg width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:8px;flex-shrink:0;"><rect width="40" height="40" rx="8" fill="#1E3A8A"/><text x="20" y="28" text-anchor="middle" font-family='Archivo Black',sans-serif font-size="22" fill="white" font-weight="900">A</text></svg>
+    <span>Aurevon · Operator Hub</span>
+  </a>
+  <div class="owner-badge">🔒 Owner Only</div>
+</nav>
+
+<!-- ══ STICKY TAB BAR ══════════════════════════════════════════ -->
+<div class="tab-bar" id="tabBar">
+  <button class="tab-btn" data-target="leads">Leads</button>
+  <button class="tab-btn" data-target="payments">Payments</button>
+  <button class="tab-btn" data-target="mint">NFT Mint</button>
+  <button class="tab-btn" data-target="deliverables">Deliverables</button>
+  <button class="tab-btn" data-target="automations">Automations</button>
+  <button class="tab-btn" data-target="calendar">Content Cal</button>
+  <button class="tab-btn" data-target="ai">AI Assistant</button>
+  <button class="tab-btn" data-target="setup">Setup</button>
+  <button class="tab-btn" data-target="links">Quick Links</button>
+</div>
+
+<!-- ══ MAIN CONTENT ═════════════════════════════════════════════ -->
+<div class="wrap">
+<!-- ============ AIRTABLE LIVE DATA — CONNECT PANEL ============ -->
+
+<!-- ============ AUTOMATION BACKEND STATUS ============ -->
+<section class="section" id="automation-backend-section">
+  <span id="automation-backend" class="section-anchor"></span>
+  <div class="section-header" data-toggle="automation-backend-body">
+    <span class="section-title"><span class="section-icon">⚙️</span> Automation Backend Status <span id="automation-backend-livepill" class="mock-pill">PRE-DEPLOY</span><button class="refresh-btn" onclick="event.stopPropagation();bktCheckBackend()" type="button">↻ Re-check</button></span>
+    <span class="chevron">▼</span>
+  </div>
+  <div class="section-body" id="automation-backend-body">
+    <div class="card">
+      <div class="card-title">Backend Health</div>
+      <div class="card-note">Once deployed to Vercel, this panel pings <code style="background:rgba(59,130,246,0.08);padding:1px 5px;border-radius:3px;color:var(--gold);">/api/health</code> and shows live status of every service in the autonomous pipeline. Pre-deploy it shows the wiring map.</div>
+      <div style="display:grid;grid-template-columns:1fr;gap:0.6rem;margin-top:1rem;" id="backendStatusGrid">
+        <div class="bkt-svc-row" data-svc="airtable">
+          <div class="svc-name">📋 Airtable (data layer)</div>
+          <div class="svc-state" data-state="pending">Checking...</div>
+        </div>
+        <div class="bkt-svc-row" data-svc="stripe">
+          <div class="svc-name">💳 Stripe (Card · Cash App · Afterpay)</div>
+          <div class="svc-state" data-state="pending">Checking...</div>
+        </div>
+        <div class="bkt-svc-row" data-svc="paypal">
+          <div class="svc-name">🅿️ PayPal Business</div>
+          <div class="svc-state" data-state="pending">Checking...</div>
+        </div>
+        <div class="bkt-svc-row" data-svc="crossmint">
+          <div class="svc-name">🎴 Crossmint (NFT minting)</div>
+          <div class="svc-state" data-state="pending">Checking...</div>
+        </div>
+        <div class="bkt-svc-row" data-svc="resend">
+          <div class="svc-name">📧 Resend (transactional email)</div>
+          <div class="svc-state" data-state="pending">Checking...</div>
+        </div>
+        <div class="bkt-svc-row" data-svc="discord">
+          <div class="svc-name">💬 Discord Bot + OAuth</div>
+          <div class="svc-state" data-state="pending">Checking...</div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:1rem;">
+      <div class="card-title">Pipeline Endpoints</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.6rem;">
+        <a class="link-tile" id="ep-stripe" href="/api/webhooks/stripe" style="text-decoration:none;"><div class="lt-title">↪ Stripe Webhook</div><div class="lt-tag">/api/webhooks/stripe</div></a>
+        <a class="link-tile" id="ep-paypal" href="/api/webhooks/paypal" style="text-decoration:none;"><div class="lt-title">↪ PayPal IPN</div><div class="lt-tag">/api/webhooks/paypal</div></a>
+        <a class="link-tile" id="ep-discord-auth" href="/api/discord/auth" style="text-decoration:none;"><div class="lt-title">🔗 Discord OAuth Start</div><div class="lt-tag">/api/discord/auth</div></a>
+        <a class="link-tile" id="ep-discord-cb" href="/api/discord/callback" style="text-decoration:none;"><div class="lt-title">↩ Discord OAuth Callback</div><div class="lt-tag">/api/discord/callback</div></a>
+        <a class="link-tile" id="ep-cron-mints" href="/api/cron/retry-mints" style="text-decoration:none;"><div class="lt-title">⏰ Cron · Retry Mints</div><div class="lt-tag">hourly · /api/cron/retry-mints</div></a>
+        <a class="link-tile" id="ep-cron-discord" href="/api/discord/check-membership" style="text-decoration:none;"><div class="lt-title">⏰ Cron · Discord Check</div><div class="lt-tag">daily 8am UTC</div></a>
+        <a class="link-tile" id="ep-health" href="/api/health" style="text-decoration:none;"><div class="lt-title">❤️ Health Endpoint</div><div class="lt-tag">/api/health</div></a>
+        <a class="link-tile" href="discord-welcome.html" style="text-decoration:none;"><div class="lt-title">🎯 Discord Welcome Page</div><div class="lt-tag">/discord-welcome.html</div></a>
+      </div>
+    </div>
+    <div class="card" style="margin-top:1rem;">
+      <div class="card-title">End-to-End Flow</div>
+      <pre style="background:rgba(255,255,255,0.03);padding:1rem;border-radius:8px;font-family:'DM Sans',monospace;font-size:.78rem;line-height:1.7;color:var(--txt2);overflow-x:auto;margin:0;">
+1. Customer clicks Buy on RE Final or Web3 → unified payment terminal opens
+2. Payment via Stripe Checkout (Card / Cash App / Afterpay) OR PayPal
+3. On success: webhook hits /api/webhooks/stripe (or /api/webhooks/paypal)
+4. Webhook → Airtable.createPayment() → row in Payments table
+5. Webhook → Crossmint.mintToEmail() → NFT minted to customer email (no wallet)
+6. Webhook → Airtable.createNftMint() → row in NFT_Mints table (status: Sent)
+7. Webhook → Resend.sendNftDelivery() → branded email with NFT image + Discord invite
+8. Customer clicks Discord invite link → /api/discord/auth (OAuth start)
+9. Discord redirects to /api/discord/callback → role assigned by NFT type
+10. Customer lands on /discord-welcome.html → tier-specific welcome shown
+11. NFT_Mints row updated: Discord linked (Status → Minted)
+
+Cron jobs:
+- /api/cron/retry-mints (hourly): retries any Queued/Failed mints
+- /api/discord/check-membership (daily): nudges customers who haven't joined Discord yet
+      </pre>
+    </div>
+    <div class="card" style="margin-top:1rem;border-color:rgba(59,130,246,0.18);">
+      <div class="card-title" style="color:var(--gold);">📚 Setup Documentation</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.6rem;margin-top:0.6rem;">
+        <a class="link-tile" href="README.md" target="_blank" rel="noopener" style="text-decoration:none;"><div class="lt-title">📖 README.md</div><div class="lt-tag">Full operator playbook</div></a>
+        <a class="link-tile" href="DEPLOYMENT_CHECKLIST.md" target="_blank" rel="noopener" style="text-decoration:none;"><div class="lt-title">🚀 DEPLOYMENT_CHECKLIST.md</div><div class="lt-tag">Pre-launch 30-item list</div></a>
+        <a class="link-tile" href="QUALITY_CHECKLIST.md" target="_blank" rel="noopener" style="text-decoration:none;"><div class="lt-title">✅ QUALITY_CHECKLIST.md</div><div class="lt-tag">80-item QA list</div></a>
+        <a class="link-tile" href="AUTOMATION_PLAYBOOKS.md" target="_blank" rel="noopener" style="text-decoration:none;"><div class="lt-title">🤖 AUTOMATION_PLAYBOOKS.md</div><div class="lt-tag">8 Zapier/Make recipes</div></a>
+        <a class="link-tile" href="api/discord/SERVER_SETUP.md" target="_blank" rel="noopener" style="text-decoration:none;"><div class="lt-title">💬 Discord SERVER_SETUP.md</div><div class="lt-tag">Roles · channels · OAuth</div></a>
+        <a class="link-tile" href=".env.example" target="_blank" rel="noopener" style="text-decoration:none;"><div class="lt-title">🔐 .env.example</div><div class="lt-tag">All env vars listed</div></a>
+      </div>
+    </div>
+  </div>
+</section>
+<style>
+.bkt-svc-row{display:flex;justify-content:space-between;align-items:center;padding:0.7rem 1rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;}
+.bkt-svc-row .svc-name{font-size:.88rem;color:var(--txt);font-weight:600;}
+.bkt-svc-row .svc-state{font-size:.7rem;font-weight:700;letter-spacing:.06em;padding:3px 9px;border-radius:6px;}
+.bkt-svc-row .svc-state[data-state="pending"]{background:rgba(120,120,120,0.1);color:#888;}
+.bkt-svc-row .svc-state[data-state="ok"]{background:rgba(46,204,113,0.12);color:#2ecc71;}
+.bkt-svc-row .svc-state[data-state="error"]{background:rgba(231,76,60,0.12);color:#e74c3c;}
+.bkt-svc-row .svc-state[data-state="not-configured"]{background:rgba(59,130,246,0.12);color:var(--gold);}
+</style>
+<script>
+window.bktCheckBackend = async function(){
+  const grid = document.getElementById('backendStatusGrid');
+  if(!grid) return;
+  const rows = grid.querySelectorAll('.bkt-svc-row');
+  rows.forEach(r => { r.querySelector('.svc-state').setAttribute('data-state','pending'); r.querySelector('.svc-state').textContent='Checking...'; });
+  try {
+    const r = await fetch('/api/health', { cache: 'no-store' });
+    if(!r.ok){ throw new Error('HTTP ' + r.status); }
+    const data = await r.json();
+    const env = (data && data.env_check) || {};
+    function setRow(svc, ok, msg){
+      const row = grid.querySelector('[data-svc="'+svc+'"]');
+      if(!row) return;
+      const el = row.querySelector('.svc-state');
+      el.setAttribute('data-state', ok ? 'ok' : 'not-configured');
+      el.textContent = ok ? '✓ Configured' : (msg || '⚠ Set env vars');
+    }
+    setRow('airtable', env.airtable === true || env.AIRTABLE_PAT === true);
+    setRow('stripe', env.stripe === true || env.STRIPE_SECRET_KEY === true);
+    setRow('paypal', env.paypal === true || env.PAYPAL_BUSINESS_EMAIL === true);
+    setRow('crossmint', env.crossmint === true || env.CROSSMINT_API_KEY === true);
+    setRow('resend', env.resend === true || env.RESEND_API_KEY === true);
+    setRow('discord', env.discord === true || env.DISCORD_BOT_TOKEN === true);
+    const pill = document.getElementById('automation-backend-livepill');
+    if(pill){ pill.className = 'live-pill'; pill.textContent = 'LIVE'; }
+  } catch(e){
+    rows.forEach(r => {
+      const el = r.querySelector('.svc-state');
+      el.setAttribute('data-state','not-configured');
+      el.textContent = '⚠ Backend not deployed yet';
+    });
+    const pill = document.getElementById('automation-backend-livepill');
+    if(pill){ pill.className = 'mock-pill'; pill.textContent = 'PRE-DEPLOY'; }
+  }
+};
+// auto-run on load
+document.addEventListener('DOMContentLoaded', function(){
+  setTimeout(bktCheckBackend, 800);
+});
+</script>
+<!-- ============ END AUTOMATION BACKEND STATUS ============ -->
+
+<section class="section" id="connect-section">
+  <div class="section-anchor" id="connect"></div>
+  <div class="section-header" data-toggle="connect-body">
+    <div class="section-title"><span class="section-icon">🔌</span> Live Data — Airtable Connection</div>
+    <span class="chevron">▼</span>
+  </div>
+  <div class="section-body open" id="connect-body">
+    <div class="card">
+      <div class="card-title">Status</div>
+      <div id="airtableStatus" class="airtable-status">⚠ Not connected — paste your Airtable PAT below to load live data.</div>
+      <div style="margin-top:1rem;display:grid;grid-template-columns:1fr;gap:0.75rem;max-width:560px;">
+        <label style="font-size:.78rem;color:var(--txt2);font-weight:600;">Airtable Personal Access Token (PAT)</label>
+        <input type="password" id="airtablePat" placeholder="patXXXXXXXXXXXXX..." style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.7rem 1rem;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:0.85rem;outline:none;" autocomplete="off" spellcheck="false">
+        <label style="font-size:.78rem;color:var(--txt2);font-weight:600;margin-top:0.4rem;">Base ID (pre-filled — Aurevon Operations)</label>
+        <input type="text" id="airtableBaseId" value="app00c03021ILsOrv" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.7rem 1rem;color:var(--txt);font-family:'DM Sans',monospace;font-size:0.85rem;outline:none;" readonly>
+        <div style="display:flex;gap:0.6rem;margin-top:0.4rem;flex-wrap:wrap;">
+          <button class="btn-primary" type="button" onclick="bktAirtableSave()">💾 Save & Connect</button>
+          <button class="btn-secondary" type="button" onclick="bktAirtableTest()">🔍 Test Connection</button>
+          <button class="btn-secondary" type="button" onclick="bktAirtableClear()" style="border-color:rgba(231,76,60,0.3);color:#e74c3c;">🗑 Clear PAT</button>
+          <a class="btn-secondary" href="https://airtable.com/create/tokens" target="_blank" rel="noopener" style="text-decoration:none;">↗ Create Airtable PAT</a>
+        </div>
+      </div>
+      <div class="card-note" style="margin-top:1rem;line-height:1.6;">
+        <strong>How to get your Personal Access Token (PAT):</strong>
+        <ol style="margin:0.5rem 0 0 1.2rem;padding:0;color:var(--txt3);font-size:.78rem;">
+          <li>Click "↗ Create Airtable PAT" above (opens airtable.com/create/tokens)</li>
+          <li>Click <strong>+ Create new token</strong></li>
+          <li>Name: "Aurevon Operator Hub"</li>
+          <li>Add scopes: <code style="background:rgba(59,130,246,0.08);padding:1px 5px;border-radius:3px;color:var(--gold);">data.records:read</code> and <code style="background:rgba(59,130,246,0.08);padding:1px 5px;border-radius:3px;color:var(--gold);">data.records:write</code></li>
+          <li>Add access to <strong>Aurevon Operations</strong> base only</li>
+          <li>Click Create token, copy the <code>pat...</code> string</li>
+          <li>Paste above and click <strong>Save & Connect</strong></li>
+        </ol>
+        <p style="margin-top:0.6rem;font-size:.74rem;color:var(--txt3);">⚠️ The PAT is stored in your browser's localStorage (only on this device). Never share it. Use Clear PAT to remove. For production, rotate tokens regularly.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:1rem;">
+      <div class="card-title">Connected Base — Quick Links</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.6rem;">
+        <a href="https://airtable.com/app00c03021ILsOrv/tblDuezyOsxy7sNES" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
+          <div class="lt-title">📋 Leads Table</div>
+          <div class="lt-tag" style="font-family:'DM Sans',monospace;font-size:.7rem;">tblDuezyOsxy7sNES</div>
+        </a>
+        <a href="https://airtable.com/app00c03021ILsOrv/tblMPOjy7os3FyO3Q" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
+          <div class="lt-title">💰 Payments Table</div>
+          <div class="lt-tag" style="font-family:'DM Sans',monospace;font-size:.7rem;">tblMPOjy7os3FyO3Q</div>
+        </a>
+        <a href="https://airtable.com/app00c03021ILsOrv/tblBi4wqjOeWpHAMI" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
+          <div class="lt-title">🎴 NFT Mints Table</div>
+          <div class="lt-tag" style="font-family:'DM Sans',monospace;font-size:.7rem;">tblBi4wqjOeWpHAMI</div>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ============ END CONNECT PANEL ============ -->
+
+
+  <!-- HERO -->
+  <div class="hero">
+    <h1 class="hero-title">Aurevon OPERATOR HUB</h1>
+    <p class="hero-sub">The cockpit for running Aurevon. Owner access only. <br/><em style="color:var(--txt3);font-size:.8rem;">KPI tiles show — until Airtable is wired. See <a href="#setup">Setup Checklist</a>.</em></p>
+    <div class="kpi-strip">
+      <div class="kpi-tile">
+        <div class="kpi-label">Active Leads (This Week)</div>
+        <div class="kpi-val" id="kpi-leads">—</div>
+        <a class="kpi-link" href="#leads">Connect Live Data →</a>
+      </div>
+      <div class="kpi-tile">
+        <div class="kpi-label">Revenue (MTD)</div>
+        <div class="kpi-val" id="kpi-rev">—</div>
+        <a class="kpi-link" href="#payments">Connect Live Data →</a>
+      </div>
+      <div class="kpi-tile">
+        <div class="kpi-label">Deliverables in Queue</div>
+        <div class="kpi-val" id="kpi-queue">—</div>
+        <a class="kpi-link" href="#deliverables">Connect Live Data →</a>
+      </div>
+      <div class="kpi-tile">
+        <div class="kpi-label">NFT Mints Pending</div>
+        <div class="kpi-val" id="kpi-nft">—</div>
+        <a class="kpi-link" href="#mint">Connect Live Data →</a>
+      </div>
+    </div>
+    <div class="private-badge">🔒 Private — for Owner/Operator only</div>
+  </div>
+
+  <!-- ── SECTION 1: LEAD INTAKE LOG ───────────────────────────── -->
+  <span id="leads" class="section-anchor"></span>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-title"><span class="section-icon">📥</span> Lead Intake Log <span id="leads-livepill" class="mock-pill">MOCK</span><button class="refresh-btn" onclick="event.stopPropagation();bktRefreshSection('leads')" type="button">↻ Refresh</button></span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="section-body open">
+      <div class="card">
+        <div class="card-title">Airtable Integration</div>
+        <p style="font-size:.83rem;color:var(--txt2);">All deal submissions from <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">BLOCKT_RE_Intake.html</code> are logged here. Connect <strong>Airtable Base ID</strong> <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">appBLOCKTRE</code> Table <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">Leads</code> to populate this view.</p>
+        <div class="card-note">Setup → <strong>Airtable</strong> → <code>BLOCKT_CONFIG.AIRTABLE_LEADS_BASE_ID</code>. Webhook from Formspree → Airtable supported via Zapier or Make.com.</div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Submitted</th><th>Name</th><th>Email</th><th>Property</th><th>Tier</th><th>Status</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="leads-tbody">
+            <tr><td>Apr 28, 2026</td><td>Marcus T.</td><td>marcus@example.com</td><td>1842 Oak Ave, Atlanta GA</td><td>Standard ($299)</td><td><span class="pill pill-new">New</span></td><td><button class="tbl-btn">View</button> <button class="tbl-btn">Assign</button></td></tr>
+            <tr><td>Apr 27, 2026</td><td>Priya S.</td><td>priya@realty.io</td><td>7703 Palm Blvd, Miami FL</td><td>Rush ($599)</td><td><span class="pill pill-prog">In Progress</span></td><td><button class="tbl-btn">View</button> <button class="tbl-btn">Assign</button></td></tr>
+            <tr><td>Apr 26, 2026</td><td>Devon K.</td><td>devon@kappinvest.com</td><td>304 Market St, Detroit MI</td><td>Deep Dive ($799)</td><td><span class="pill pill-prog">In Progress</span></td><td><button class="tbl-btn">View</button> <button class="tbl-btn">Assign</button></td></tr>
+            <tr><td>Apr 25, 2026</td><td>Fatima N.</td><td>fatiman@propco.net</td><td>22 Birch Ln, Chicago IL</td><td>Standard ($299)</td><td><span class="pill pill-done">Delivered</span></td><td><button class="tbl-btn">View</button> <button class="tbl-btn">Assign</button></td></tr>
+            <tr><td>Apr 24, 2026</td><td>Jae-won C.</td><td>jae@blocktclient.com</td><td>555 Harbor Dr, Houston TX</td><td>Portfolio ($1,499)</td><td><span class="pill pill-hold">On Hold</span></td><td><button class="tbl-btn">View</button> <button class="tbl-btn">Assign</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 2: PAYMENT LEDGER ───────────────────────────── -->
+  <span id="payments" class="section-anchor"></span>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-title"><span class="section-icon">💳</span> Payment Ledger <span id="payments-livepill" class="mock-pill">MOCK</span><button class="refresh-btn" onclick="event.stopPropagation();bktRefreshSection('payments')" type="button">↻ Refresh</button></span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="section-body open">
+      <div class="card">
+        <div class="card-title">Payment Aggregator</div>
+        <p style="font-size:.83rem;color:var(--txt2);">All Stripe / PayPal / Cash App / Afterpay payments aggregate here. Stripe webhook + PayPal IPN + Cash App for Business webhook required for live data.</p>
+        <div class="card-note">Without webhooks, rely on dashboard exports — these can be CSV-imported into the Airtable <code>Payments</code> table.</div>
+        <span class="detail-toggle" onclick="toggleDetail(this)">▶ Webhook Setup Checklist</span>
+        <div class="detail-body">
+          <ul>
+            <li><strong>Stripe Webhook URL:</strong> <code>/api/webhooks/stripe</code> — listen for <code>checkout.session.completed</code>, <code>payment_intent.succeeded</code></li>
+            <li><strong>PayPal IPN URL:</strong> <code>/api/webhooks/paypal</code> — enable IPN in PayPal Business → Account Settings</li>
+            <li><strong>Cash App for Business:</strong> Configure webhook in Square Dashboard (Cash App Pay uses Square's backend)</li>
+            <li><strong>Afterpay:</strong> Set Afterpay Merchant Key in Stripe Dashboard → Payment Methods → Afterpay/Clearpay</li>
+            <li><strong>Manual fallback:</strong> Export CSV from each processor monthly and import to Airtable <code>Payments</code> table</li>
+          </ul>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Method</th><th>Tier</th><th>Amount</th><th>Customer</th><th>Status</th><th>Token</th><th>Action</th>
+          </tr></thead>
+          <tbody id="payments-tbody">
+            <tr><td>Apr 28, 2026</td><td>💳 Stripe</td><td>Rush</td><td>$599</td><td>Priya S.</td><td><span class="pill pill-done">Paid</span></td><td><code style="font-size:.68rem;color:var(--txt3);">cs_3PxQ…</code></td><td><button class="tbl-btn">Refund</button> <button class="tbl-btn">Resend</button></td></tr>
+            <tr><td>Apr 27, 2026</td><td>🅿️ PayPal</td><td>Standard</td><td>$299</td><td>Marcus T.</td><td><span class="pill pill-done">Paid</span></td><td><code style="font-size:.68rem;color:var(--txt3);">PAY-9Kx…</code></td><td><button class="tbl-btn">Refund</button> <button class="tbl-btn">Resend</button></td></tr>
+            <tr><td>Apr 26, 2026</td><td>💵 Cash App</td><td>Deep Dive</td><td>$799</td><td>Devon K.</td><td><span class="pill pill-done">Paid</span></td><td><code style="font-size:.68rem;color:var(--txt3);">CA-7Rz…</code></td><td><button class="tbl-btn">Refund</button> <button class="tbl-btn">Resend</button></td></tr>
+            <tr><td>Apr 25, 2026</td><td>🔄 Afterpay</td><td>Portfolio</td><td>$1,499</td><td>James L.</td><td><span class="pill pill-prog">Installment</span></td><td><code style="font-size:.68rem;color:var(--txt3);">AP-2Mn…</code></td><td><button class="tbl-btn">Refund</button> <button class="tbl-btn">Resend</button></td></tr>
+            <tr><td>Apr 24, 2026</td><td>💳 Stripe</td><td>Standard</td><td>$299</td><td>Fatima N.</td><td><span class="pill pill-done">Paid</span></td><td><code style="font-size:.68rem;color:var(--txt3);">cs_1Aw4…</code></td><td><button class="tbl-btn">Refund</button> <button class="tbl-btn">Resend</button></td></tr>
+            <tr><td>Apr 23, 2026</td><td>🅿️ PayPal</td><td>Rush</td><td>$599</td><td>Aiden W.</td><td><span class="pill pill-hold">Disputed</span></td><td><code style="font-size:.68rem;color:var(--txt3);">PAY-6Fk…</code></td><td><button class="tbl-btn">Refund</button> <button class="tbl-btn">Resend</button></td></tr>
+          </tbody>
+        </table>
+        <div class="tbl-footer">
+          <span><strong style="color:var(--gold);">MTD Total: $4,094</strong></span>
+          <span>Stripe: $898 &nbsp;|&nbsp; PayPal: $898 &nbsp;|&nbsp; Cash App: $799 &nbsp;|&nbsp; Afterpay: $1,499</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 3: NFT MINT QUEUE ────────────────────────────── -->
+  <span id="mint" class="section-anchor"></span>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-title"><span class="section-icon">🎴</span> NFT Mint Queue <span id="mint-livepill" class="mock-pill">MOCK</span><button class="refresh-btn" onclick="event.stopPropagation();bktRefreshSection('mints')" type="button">↻ Refresh</button></span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="section-body open">
+      <div class="card">
+        <div class="card-title">NFT Delivery Tracker</div>
+        <p style="font-size:.83rem;color:var(--txt2);">Each paid customer receives a tier-locked NFT. This queue tracks email-delivered NFT artifacts and on-chain mints if/when wallets are connected.</p>
+        <div class="card-note"><strong>Wallet-less mode:</strong> NFT delivered as email PDF artifact. <strong>Wallet mode:</strong> requires Web3 integration (e.g., Crossmint or thirdweb).</div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Customer</th><th>Tier</th><th>NFT Name</th><th>Status</th><th>Mint Tx</th>
+          </tr></thead>
+          <tbody id="mint-tbody">
+            <tr><td>Priya S.</td><td>Rush</td><td>🔥 Ember Pass</td><td><span class="pill pill-sent">Sent</span></td><td>Email-only</td></tr>
+            <tr><td>Devon K.</td><td>Deep Dive</td><td>🖤 Obsidian Key</td><td><span class="pill pill-queued">Queued</span></td><td>Email-only</td></tr>
+            <tr><td>Marcus T.</td><td>Standard</td><td>🏠 Insider Card</td><td><span class="pill pill-queued">Queued</span></td><td>Email-only</td></tr>
+            <tr><td>James L.</td><td>Portfolio</td><td>✨ Genesis Token</td><td><span class="pill pill-minted">Minted</span></td><td><code style="font-size:.69rem;color:var(--gold);">0x4f8a…c3e1</code></td></tr>
+            <tr><td>Fatima N.</td><td>Standard</td><td>🏠 Insider Card</td><td><span class="pill pill-sent">Sent</span></td><td>Email-only</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:1rem;">
+        <button class="btn btn-orange" onclick="alert('Mint flow requires Crossmint or thirdweb integration. See Setup Checklist.')">🎴 Mint a Test NFT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 4: DELIVERABLE STATUS ────────────────────────── -->
+  <span id="deliverables" class="section-anchor"></span>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-title"><span class="section-icon">📋</span> Deliverable Status</span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="section-body open">
+      <div class="card">
+        <div class="card-title">Underwriting Report Pipeline</div>
+        <p style="font-size:.83rem;color:var(--txt2);">Track underwriting reports in production. SLA targets: <strong style="color:var(--orange);">12h rush</strong>, <strong style="color:var(--gold);">24–48h standard</strong>.</p>
+      </div>
+      <div class="kanban">
+        <div class="kanban-col kc-new">
+          <div class="kanban-col-title">📬 NEW — Queued <span style="color:var(--txt3);font-weight:400;">(2)</span></div>
+          <div class="kanban-ticket">
+            <div class="kt-addr">1842 Oak Ave, Atlanta GA</div>
+            <div class="kt-meta">Standard · Due Apr 30 · Analyst: TBD</div>
+          </div>
+          <div class="kanban-ticket">
+            <div class="kt-addr">555 Harbor Dr, Houston TX</div>
+            <div class="kt-meta">Portfolio · Due May 2 · Analyst: TBD</div>
+          </div>
+          <div class="kanban-ticket">
+            <div class="kt-addr">88 River Rd, Nashville TN</div>
+            <div class="kt-meta">Rush · Due Apr 29 12:00 · Analyst: TBD</div>
+          </div>
+        </div>
+        <div class="kanban-col kc-prog">
+          <div class="kanban-col-title">⚙️ IN PROGRESS <span style="color:var(--txt3);font-weight:400;">(2)</span></div>
+          <div class="kanban-ticket">
+            <div class="kt-addr">7703 Palm Blvd, Miami FL</div>
+            <div class="kt-meta">Rush · Due Apr 29 · Analyst: JR</div>
+          </div>
+          <div class="kanban-ticket">
+            <div class="kt-addr">304 Market St, Detroit MI</div>
+            <div class="kt-meta">Deep Dive · Due Apr 30 · Analyst: AM</div>
+          </div>
+          <div class="kanban-ticket">
+            <div class="kt-addr">19 Summit Pl, Denver CO</div>
+            <div class="kt-meta">Standard · Due May 1 · Analyst: JR</div>
+          </div>
+        </div>
+        <div class="kanban-col kc-done">
+          <div class="kanban-col-title">✅ DELIVERED <span style="color:var(--txt3);font-weight:400;">(2)</span></div>
+          <div class="kanban-ticket">
+            <div class="kt-addr">22 Birch Ln, Chicago IL</div>
+            <div class="kt-meta">Standard · Delivered Apr 25 · Analyst: AM</div>
+          </div>
+          <div class="kanban-ticket">
+            <div class="kt-addr">401 Lakeview Dr, Austin TX</div>
+            <div class="kt-meta">Rush · Delivered Apr 24 · Analyst: JR</div>
+          </div>
+          <div class="kanban-ticket">
+            <div class="kt-addr">707 Maple Ave, Baltimore MD</div>
+            <div class="kt-meta">Portfolio · Delivered Apr 23 · Analyst: BK</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 5: AUTOMATION PLAYBOOKS ──────────────────────── -->
+  <span id="automations" class="section-anchor"></span>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-title"><span class="section-icon">⚡</span> Automation Playbooks</span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="section-body open">
+      <div class="card" style="margin-bottom:.8rem;">
+        <div class="card-title">Recommended Automations</div>
+        <p style="font-size:.82rem;color:var(--txt2);">Build these workflows in Zapier or Make.com to run Aurevon on autopilot. Each tile shows the trigger → action recipe.</p>
+      </div>
+      <div class="auto-grid">
+        <div class="auto-tile">
+          <div class="auto-icon">🔔</div>
+          <div class="auto-title">New Lead → Slack Alert</div>
+          <div class="auto-desc">Trigger: Airtable new row in Leads table. Action: Post to #new-leads Slack channel with name, tier, and property.</div>
+          <div class="auto-footer">
+            <span class="auto-tag">Zapier / Make</span>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+Slack+Alert">Set up →</a>
+          </div>
+        </div>
+        <div class="auto-tile">
+          <div class="auto-icon">💎</div>
+          <div class="auto-title">Payment → NFT + Discord Role</div>
+          <div class="auto-desc">Trigger: Stripe <code style="font-size:.73rem;">checkout.session.completed</code>. Action: Send NFT email via Postmark + assign Discord role via bot.</div>
+          <div class="auto-footer">
+            <span class="auto-tag">Stripe Webhook</span>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+NFT+Discord+Flow">Set up →</a>
+          </div>
+        </div>
+        <div class="auto-tile">
+          <div class="auto-icon">🚨</div>
+          <div class="auto-title">24h SLA Breach → Escalation</div>
+          <div class="auto-desc">Trigger: Airtable record status = In Progress AND due_date < now(). Action: Slack DM + email to owner.</div>
+          <div class="auto-footer">
+            <span class="auto-tag">Make.com</span>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+SLA+Alert">Set up →</a>
+          </div>
+        </div>
+        <div class="auto-tile">
+          <div class="auto-icon">⭐</div>
+          <div class="auto-title">High NPS → Testimonial Ask</div>
+          <div class="auto-desc">Trigger: NPS survey response ≥ 9. Action: Send personalized email requesting a review + LinkedIn recommendation.</div>
+          <div class="auto-footer">
+            <span class="auto-tag">Typeform + Zapier</span>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+Testimonial+Flow">Set up →</a>
+          </div>
+        </div>
+        <div class="auto-tile">
+          <div class="auto-icon">🏆</div>
+          <div class="auto-title">Lifetime Member Onboarding</div>
+          <div class="auto-desc">Trigger: Genesis or Chrome tier payment. Action: Add to permanent Discord role, send welcome PDF packet, tag in CRM as VIP.</div>
+          <div class="auto-footer">
+            <span class="auto-tag">Stripe + Discord</span>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+Lifetime+Onboarding">Set up →</a>
+          </div>
+        </div>
+        <div class="auto-tile">
+          <div class="auto-icon">🔄</div>
+          <div class="auto-title">Monthly Pro Retainer Renewal</div>
+          <div class="auto-desc">Trigger: 7 days before Stripe subscription renewal. Action: Send check-in DM asking if needs persist and offering upgrade path.</div>
+          <div class="auto-footer">
+            <span class="auto-tag">Stripe + Postmark</span>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+Renewal+Check-in">Set up →</a>
+          </div>
+        </div>
+        <div class="auto-tile">
+          <div class="auto-icon">📊</div>
+          <div class="auto-title">Weekly Owner Digest</div>
+          <div class="auto-desc">Trigger: Every Monday 7 AM. Action: Email owner summary — leads, revenue, NPS score, deliverables, churn risk flag.</div>
+          <div class="auto-footer">
+            <span class="auto-tag">Make.com Schedule</span>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+Weekly+Digest">Set up →</a>
+          </div>
+        </div>
+        <div class="auto-tile">
+          <div class="auto-icon">🛒</div>
+          <div class="auto-title">Abandoned Checkout Recovery</div>
+          <div class="auto-desc">Trigger: Stripe checkout session expired without payment. Action: Wait 2h, send recovery email with direct payment link.</div>
+          <div class="auto-footer">
+            <span class="auto-tag">Stripe + Klaviyo</span>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+Abandoned+Cart">Set up →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 6: CONTENT CALENDAR ─────────────────────────── -->
+  <span id="calendar" class="section-anchor"></span>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-title"><span class="section-icon">📅</span> Content Calendar</span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="section-body open">
+      <div class="card" style="margin-bottom:.8rem;">
+        <div class="card-title">Upcoming Content</div>
+        <p style="font-size:.82rem;color:var(--txt2);">Twitter/X threads, Discord drops, blog posts, and NFT reveals. <a href="https://notion.so" target="_blank" rel="noopener noreferrer">Connect Notion</a> or <a href="https://contentcal.io" target="_blank" rel="noopener noreferrer">ContentCal</a> for live sync.</p>
+      </div>
+      <div class="cal-list">
+        <div class="cal-item">
+          <div class="cal-date">Apr 29, 2026</div>
+          <div class="cal-platform">Twitter/X</div>
+          <div class="cal-topic">"Why most underwriting reports miss the neighborhood data that actually moves deals" — Thread (6 tweets)</div>
+          <span class="pill pill-queued">Scheduled</span>
+        </div>
+        <div class="cal-item">
+          <div class="cal-date">Apr 30, 2026</div>
+          <div class="cal-platform">Discord</div>
+          <div class="cal-topic">Insider Drop: Q2 Atlanta Market Watch PDF — exclusive for Ember+ holders</div>
+          <span class="pill pill-prog">Draft</span>
+        </div>
+        <div class="cal-item">
+          <div class="cal-date">May 2, 2026</div>
+          <div class="cal-platform">Blog</div>
+          <div class="cal-topic">"Aurevon Deep Dive: Unpacking Detroit's Emerging Corridors" — Long-form analysis post</div>
+          <span class="pill pill-prog">Draft</span>
+        </div>
+        <div class="cal-item">
+          <div class="cal-date">May 5, 2026</div>
+          <div class="cal-platform">NFT Drop</div>
+          <div class="cal-topic">Obsidian Key Series 2 reveal — 25 new tokens for Deep Dive tier clients</div>
+          <span class="pill pill-hold">Planned</span>
+        </div>
+        <div class="cal-item">
+          <div class="cal-date">May 7, 2026</div>
+          <div class="cal-platform">Twitter/X</div>
+          <div class="cal-topic">"We've delivered 50 underwriting reports. Here's what we learned." — Milestone thread</div>
+          <span class="pill pill-hold">Planned</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 7: AI ASSISTANT ──────────────────────────────── -->
+  <span id="ai" class="section-anchor"></span>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-title"><span class="section-icon">🤖</span> AI Assistant</span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="section-body open">
+      <div class="card" style="margin-bottom:.8rem;">
+        <div class="card-title">Daily Ops AI Support</div>
+        <p style="font-size:.83rem;color:var(--txt2);">Ask your AI assistant to draft emails, summarize the week's leads, generate report templates, run revenue projections, or QA reports. Embed your Hyperagent thread URL below or click <strong>Open New Thread</strong> to spawn one.</p>
+      </div>
+      <div class="ai-grid">
+        <div class="card">
+          <div class="card-title">Open New Thread</div>
+          <p style="font-size:.8rem;color:var(--txt2);margin-bottom:.8rem;">Spawn a fresh Hyperagent session pre-loaded with Aurevon business context.</p>
+          <button class="btn-grad" onclick="alert('Hyperagent integration: paste your Hyperagent thread URL in the embed panel, or open hyperagent.so to create a new thread.')">🤖 Open New Hyperagent Thread</button>
+        </div>
+        <div class="card">
+          <div class="card-title">Embed Existing Thread</div>
+          <p style="font-size:.8rem;color:var(--txt2);margin-bottom:.5rem;">Paste your Hyperagent thread URL to embed live.</p>
+          <input class="ai-input" id="aiThreadUrl" type="url" placeholder="https://hyperagent.so/threads/your-thread-id"/>
+          <button class="btn" style="margin-top:.6rem;" onclick="embedThread()">Embed →</button>
+          <div id="aiIframeWrap" style="margin-top:.8rem;">
+            <div class="ai-iframe-stub" id="aiStub">Connect your AI assistant — paste your thread URL here or use the button above.</div>
+            <iframe id="aiIframe" style="display:none;width:100%;height:420px;border:1px solid var(--border);border-radius:10px;" title="AI Assistant"></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 8: SETUP CHECKLIST ───────────────────────────── -->
+  <span id="setup" class="section-anchor"></span>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-title"><span class="section-icon">✅</span> Setup Checklist</span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="section-body open">
+      <div class="card" style="margin-bottom:.8rem;">
+        <div class="card-title">One-Time Owner Setup</div>
+        <p style="font-size:.82rem;color:var(--txt2);">Complete these steps to fully launch Aurevon. Progress saves automatically in your browser.</p>
+        <div class="setup-progress">Completed: <span id="setupCount">0</span> / <span id="setupTotal">0</span></div>
+      </div>
+      <div class="checklist" id="checklist">
+        <div class="check-item" data-key="stripe_account" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Create Stripe account → enable Card, Cash App Pay, and Afterpay payment methods</div>
+        </div>
+        <div class="check-item" data-key="stripe_links" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Create Stripe payment links for all 5 RE tiers (Insider $99, Standard $299, Rush $599, Deep Dive $799, Portfolio $1,499) + 2 Community tiers</div>
+        </div>
+        <div class="check-item" data-key="stripe_success_url" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Set Stripe <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">success_url</code> to <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">BLOCKT_RE_Intake.html?paid={'{CHECKOUT_SESSION_ID}'}</code> (or Web3 confirmation page for community tiers)</div>
+        </div>
+        <div class="check-item" data-key="paypal" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Create PayPal Business account → generate payment links for each tier</div>
+        </div>
+        <div class="check-item" data-key="formspree" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Create Formspree account → set form ID in <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">BLOCKT_CONFIG.FORMSPREE_URL</code></div>
+        </div>
+        <div class="check-item" data-key="discord" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Create Discord server → create permanent invite → set up tier-specific roles (Insider, Ember, Obsidian, Genesis, Chrome)</div>
+        </div>
+        <div class="check-item" data-key="airtable" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Connect Airtable → create Leads, Payments, and Deliverables tables → set Base ID in config</div>
+        </div>
+        <div class="check-item" data-key="hosting" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Domain + hosting (Vercel or Netlify recommended for static HTML) → configure custom domain</div>
+        </div>
+        <div class="check-item" data-key="email" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Email forwarding → <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">hello@aurevongroup.com</code> → connect Postmark or Resend for transactional email</div>
+        </div>
+        <div class="check-item" data-key="slack" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Connect Slack workspace → create #new-leads and #alerts channels → automation alerts configured</div>
+        </div>
+        <div class="check-item" data-key="zapier" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Set up Zapier/Make.com account → build all 8 automation playbooks listed above</div>
+        </div>
+        <div class="check-item" data-key="test_payment" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Test the full payment flow on each tier using Stripe test mode card <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">4242 4242 4242 4242</code></div>
+        </div>
+        <div class="check-item" data-key="test_intake" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Test the intake form gating (visit BLOCKT_RE_Intake.html directly — should be blocked without paid token)</div>
+        </div>
+        <div class="check-item" data-key="test_nft" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Mint a test NFT for self using Crossmint sandbox environment</div>
+        </div>
+        <div class="check-item" data-key="ai_connect" onclick="toggleCheck(this)">
+          <div class="check-box">✓</div>
+          <div class="check-label">Connect AI assistant in Operator Hub → paste Hyperagent thread URL in the AI section above</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 9: QUICK LINKS ────────────────────────────────── -->
+  <span id="links" class="section-anchor"></span>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <span class="section-title"><span class="section-icon">🔗</span> Quick Links</span>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="section-body open">
+      <div class="link-section-label">Customer-Facing Pages (Preview)</div>
+      <div class="links-grid">
+        <a href="index.html" class="link-tile">
+          <div class="lt-icon">🏠</div>
+          <div class="lt-name">Home</div>
+          <div class="lt-tag">index.html</div>
+        </a>
+        <a href="BLOCKT_RE_Final.html" class="link-tile">
+          <div class="lt-icon">🏗️</div>
+          <div class="lt-name">RE Underwriting</div>
+          <div class="lt-tag">BLOCKT_RE_Final.html</div>
+        </a>
+        <a href="BLOCKT_Web3.html" class="link-tile">
+          <div class="lt-icon">⛓️</div>
+          <div class="lt-name">Web3 Services</div>
+          <div class="lt-tag">BLOCKT_Web3.html</div>
+        </a>
+        <a href="BLOCKT_NFT_Collection.html" class="link-tile">
+          <div class="lt-icon">🎴</div>
+          <div class="lt-name">NFT Collection</div>
+          <div class="lt-tag">BLOCKT_NFT_Collection.html</div>
+        </a>
+        <a href="BLOCKT_RE_Intake.html?paid=test_token_owner_preview" class="link-tile">
+          <div class="lt-icon">📝</div>
+          <div class="lt-name">Intake Form</div>
+          <div class="lt-tag">?paid=test_token_owner_preview</div>
+        </a>
+        <a href="001_Genesis.html" class="link-tile">
+          <div class="lt-icon">✨</div>
+          <div class="lt-name">001 Genesis</div>
+          <div class="lt-tag">001_Genesis.html</div>
+        </a>
+        <a href="004_Chrome.html" class="link-tile">
+          <div class="lt-icon">🔩</div>
+          <div class="lt-name">004 Chrome</div>
+          <div class="lt-tag">004_Chrome.html</div>
+        </a>
+        <a href="operator.html" class="link-tile">
+          <div class="lt-icon">⚙️</div>
+          <div class="lt-name">Operator Hub</div>
+          <div class="lt-tag">operator.html (this page)</div>
+        </a>
+      </div>
+      <div class="link-section-label">External Dashboards</div>
+      <div class="links-grid">
+        <a href="https://dashboard.stripe.com" target="_blank" rel="noopener noreferrer" class="link-tile">
+          <div class="lt-icon">💳</div>
+          <div class="lt-name">Stripe Dashboard</div>
+          <div class="lt-tag">dashboard.stripe.com</div>
+        </a>
+        <a href="https://paypal.com/merchant" target="_blank" rel="noopener noreferrer" class="link-tile">
+          <div class="lt-icon">🅿️</div>
+          <div class="lt-name">PayPal Business</div>
+          <div class="lt-tag">paypal.com/merchant</div>
+        </a>
+        <a href="https://airtable.com" target="_blank" rel="noopener noreferrer" class="link-tile">
+          <div class="lt-icon">📊</div>
+          <div class="lt-name">Airtable</div>
+          <div class="lt-tag">airtable.com</div>
+        </a>
+        <a href="https://formspree.io" target="_blank" rel="noopener noreferrer" class="link-tile">
+          <div class="lt-icon">📬</div>
+          <div class="lt-name">Formspree</div>
+          <div class="lt-tag">formspree.io</div>
+        </a>
+        <a href="https://discord.com/channels/@me" target="_blank" rel="noopener noreferrer" class="link-tile">
+          <div class="lt-icon">🎮</div>
+          <div class="lt-name">Discord Admin</div>
+          <div class="lt-tag">discord.com</div>
+        </a>
+        <a href="https://zapier.com/app/dashboard" target="_blank" rel="noopener noreferrer" class="link-tile">
+          <div class="lt-icon">⚡</div>
+          <div class="lt-name">Zapier</div>
+          <div class="lt-tag">zapier.com</div>
+        </a>
+        <a href="https://make.com" target="_blank" rel="noopener noreferrer" class="link-tile">
+          <div class="lt-icon">🔧</div>
+          <div class="lt-name">Make.com</div>
+          <div class="lt-tag">make.com</div>
+        </a>
+        <a href="https://postmarkapp.com" target="_blank" rel="noopener noreferrer" class="link-tile">
+          <div class="lt-icon">📧</div>
+          <div class="lt-name">Postmark</div>
+          <div class="lt-tag">postmarkapp.com</div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.wrap -->
+
+<!-- FOOTER INJECT -->
+
+<style>
+.bkt-global-foot{margin-top:0;padding:1.6rem 1rem;border-top:1px solid rgba(255,255,255,0.07);background:#050510;color:#6b6760;font-size:0.78rem;font-family:'DM Sans',sans-serif;}
+.bkt-global-foot .row{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;}
+.bkt-global-foot .links{display:flex;gap:1.2rem;flex-wrap:wrap;}
+.bkt-global-foot a{color:#b8b3ab;text-decoration:none;transition:color .2s;}
+.bkt-global-foot a:hover{color:#1E3A8A;}
+</style>
+<footer class="bkt-global-foot">
+  <div class="row">
+    <div>© <span id="bktYr">2026</span> Aurevon Group LLC · Systems. Capital. Infrastructure..</div>
+    <div class="links">
+      <a href="index.html">Home</a>
+      <a href="BLOCKT_RE_Final.html">RE Underwriting</a>
+      <a href="BLOCKT_Web3.html">Web3</a>
+      <a href="BLOCKT_NFT_Collection.html">NFTs</a>
+      <a href="operator.html">Operator Hub</a>
+      <a href="blockt-crm.html">CRM</a>
+      <a href="portal.html">My Dashboard</a>
+      <a href="merch.html">Merch</a>
+    </div>
+  </div>
+  <script>(function(){var y=document.getElementById('bktYr');if(y)y.textContent=new Date().getFullYear();})();</script>
+</footer>
+
+
+<script>
+/* ── Section collapse ─────────────────────────────────────────── */
+function toggleSection(header) {
+  var body = header.nextElementSibling;
+  var chevron = header.querySelector('.chevron');
+  var isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  chevron.textContent = isOpen ? '▶' : '▼';
+}
+
+/* ── Detail collapse ──────────────────────────────────────────── */
+function toggleDetail(el) {
+  var body = el.nextElementSibling;
+  var open = body.classList.toggle('open');
+  el.textContent = (open ? '▼' : '▶') + ' Webhook Setup Checklist';
+}
+
+/* ── Tab bar smooth scroll ────────────────────────────────────── */
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var id = btn.getAttribute('data-target');
+    var target = document.getElementById(id);
+    if (target) {
+      var y = target.getBoundingClientRect().top + window.scrollY - 110;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+    document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+  });
+});
+
+/* ── Highlight tab on scroll ──────────────────────────────────── */
+var sections = ['leads','payments','mint','deliverables','automations','calendar','ai','setup','links'];
+window.addEventListener('scroll', function() {
+  var scrollY = window.scrollY + 120;
+  var current = '';
+  sections.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top + window.scrollY <= scrollY) current = id;
+  });
+  document.querySelectorAll('.tab-btn').forEach(function(b) {
+    b.classList.toggle('active', b.getAttribute('data-target') === current);
+  });
+});
+
+/* ── Setup checklist localStorage ────────────────────────────── */
+var STORAGE_KEY = 'bkt_setup';
+
+function loadChecklist() {
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e) {}
+  var items = document.querySelectorAll('.check-item[data-key]');
+  document.getElementById('setupTotal').textContent = items.length;
+  var done = 0;
+  items.forEach(function(item) {
+    if (saved[item.getAttribute('data-key')]) {
+      item.classList.add('done');
+      done++;
+    }
+  });
+  document.getElementById('setupCount').textContent = done;
+}
+
+function toggleCheck(el) {
+  el.classList.toggle('done');
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e) {}
+  var key = el.getAttribute('data-key');
+  saved[key] = el.classList.contains('done');
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+  var done = document.querySelectorAll('.check-item.done').length;
+  document.getElementById('setupCount').textContent = done;
+}
+
+/* ── AI iframe embed ──────────────────────────────────────────── */
+function embedThread() {
+  var url = document.getElementById('aiThreadUrl').value.trim();
+  if (!url) { alert('Please paste a Hyperagent thread URL first.'); return; }
+  var iframe = document.getElementById('aiIframe');
+  var stub = document.getElementById('aiStub');
+  iframe.src = url;
+  iframe.style.display = 'block';
+  stub.style.display = 'none';
+}
+
+/* ── Init ─────────────────────────────────────────────────────── */
+loadChecklist();
+</script>
+
+<script id="airtable-module">
+(function(){
+  // ── Aurevon Airtable client ──
+  const A = {
+    BASE_ID: 'app00c03021ILsOrv',
+    TABLES: {'Leads': 'tblDuezyOsxy7sNES', 'Payments': 'tblMPOjy7os3FyO3Q', 'NFT_Mints': 'tblBi4wqjOeWpHAMI'},
+    PAT_KEY: 'bkt_airtable_pat',
+    pat: localStorage.getItem('bkt_airtable_pat') || '',
+  };
+  window.BKT_AIRTABLE = A;
+
+  // Render initial status on page load
+  document.addEventListener('DOMContentLoaded', function(){
+    const inp = document.getElementById('airtablePat');
+    if(inp && A.pat){ inp.value = A.pat; }
+    updateStatus();
+    if(A.pat){ refreshAll(); }
+  });
+
+  function updateStatus(text, state){
+    const el = document.getElementById('airtableStatus');
+    if(!el) return;
+    if(text){
+      el.textContent = text;
+      el.setAttribute('data-state', state || '');
+    } else if(A.pat){
+      el.textContent = '✓ Connected to Aurevon Operations · last sync ' + new Date().toLocaleTimeString();
+      el.setAttribute('data-state', 'ok');
+    } else {
+      el.textContent = '⚠ Not connected — paste your Airtable PAT below to load live data.';
+      el.setAttribute('data-state', 'error');
+    }
+  }
+
+  window.bktAirtableSave = function(){
+    const inp = document.getElementById('airtablePat');
+    const v = (inp && inp.value || '').trim();
+    if(!v.startsWith('pat')){
+      alert('PAT must start with "pat...". Get one at airtable.com/create/tokens.');
+      return;
+    }
+    A.pat = v;
+    localStorage.setItem(A.PAT_KEY, v);
+    updateStatus('Saved. Testing connection...', 'loading');
+    bktAirtableTest();
+  };
+
+  window.bktAirtableClear = function(){
+    if(!confirm('Clear stored PAT? You will need to paste it again.')) return;
+    localStorage.removeItem(A.PAT_KEY);
+    A.pat = '';
+    const inp = document.getElementById('airtablePat');
+    if(inp) inp.value = '';
+    updateStatus();
+    // Reset tables to mock state
+    ['leads','payments','mint'].forEach(s => setSectionMock(s));
+  };
+
+  window.bktAirtableTest = async function(){
+    if(!A.pat){ alert('Paste your PAT first.'); return; }
+    updateStatus('Testing connection...', 'loading');
+    try {
+      const r = await fetch('https://api.airtable.com/v0/' + A.BASE_ID + '/' + A.TABLES.Leads + '?maxRecords=1', {
+        headers: { 'Authorization': 'Bearer ' + A.pat }
+      });
+      if(r.ok){
+        updateStatus('✓ Connection OK — refreshing data...', 'ok');
+        await refreshAll();
+        updateStatus();
+      } else {
+        const err = await r.json().catch(()=>({}));
+        updateStatus('✗ ' + (err.error?.message || ('HTTP ' + r.status)), 'error');
+      }
+    } catch(e){
+      updateStatus('✗ Network error: ' + e.message, 'error');
+    }
+  };
+
+  async function fetchTable(tableId, params){
+    if(!A.pat) throw new Error('No PAT configured');
+    const url = 'https://api.airtable.com/v0/' + A.BASE_ID + '/' + tableId + (params ? '?' + params : '');
+    const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + A.pat }});
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    return data.records || [];
+  }
+
+  async function refreshAll(){
+    if(!A.pat) return;
+    try {
+      const [leads, payments, mints] = await Promise.all([
+        fetchTable(A.TABLES.Leads, 'pageSize=20'),
+        fetchTable(A.TABLES.Payments, 'pageSize=20'),
+        fetchTable(A.TABLES.NFT_Mints, 'pageSize=20'),
+      ]);
+      renderLeads(leads);
+      renderPayments(payments);
+      renderMints(mints);
+      renderKPIs(leads, payments, mints);
+      updateStatus();
+    } catch(e){
+      updateStatus('✗ Refresh failed: ' + e.message, 'error');
+    }
+  }
+  window.bktRefresh = refreshAll;
+  window.bktRefreshSection = async function(section){
+    if(!A.pat){ alert('Connect Airtable first.'); return; }
+    try {
+      if(section === 'leads'){ const r = await fetchTable(A.TABLES.Leads,'pageSize=20'); renderLeads(r); }
+      else if(section === 'payments'){ const r = await fetchTable(A.TABLES.Payments,'pageSize=20'); renderPayments(r); }
+      else if(section === 'mints'){ const r = await fetchTable(A.TABLES.NFT_Mints,'pageSize=20'); renderMints(r); }
+    } catch(e){ alert('Refresh failed: ' + e.message); }
+  };
+
+  function statusPill(value){
+    if(!value) return '<span class="status-pill" style="background:rgba(120,120,120,.1);color:#888;">—</span>';
+    const map = {
+      'New':         {bg:'rgba(30,58,138,.12)',  fg:'#1E3A8A'},
+      'In Progress': {bg:'rgba(50,180,255,.12)', fg:'#3399ff'},
+      'In Review':   {bg:'rgba(59,130,246,.12)', fg:'#3B82F6'},
+      'Delivered':   {bg:'rgba(46,204,113,.12)', fg:'#2ecc71'},
+      'On Hold':     {bg:'rgba(120,120,120,.12)',fg:'#888'},
+      'Succeeded':   {bg:'rgba(46,204,113,.12)', fg:'#2ecc71'},
+      'Pending':     {bg:'rgba(59,130,246,.12)', fg:'#3B82F6'},
+      'Failed':      {bg:'rgba(231,76,60,.12)',  fg:'#e74c3c'},
+      'Refunded':    {bg:'rgba(120,120,120,.12)',fg:'#888'},
+      'Queued':      {bg:'rgba(120,120,120,.12)',fg:'#888'},
+      'Sent':        {bg:'rgba(50,180,255,.12)', fg:'#3399ff'},
+      'Minted':      {bg:'rgba(46,204,113,.12)', fg:'#2ecc71'},
+    };
+    const c = map[value] || {bg:'rgba(120,120,120,.1)',fg:'#aaa'};
+    return '<span class="status-pill" style="background:'+c.bg+';color:'+c.fg+';padding:2px 9px;border-radius:5px;font-size:.7rem;font-weight:700;letter-spacing:.05em;">'+esc(value)+'</span>';
+  }
+  function esc(s){ return String(s==null?'':s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+  function fmtMoney(n){ if(n==null) return '—'; return '$' + Number(n).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:2}); }
+  function fmtDate(d){ if(!d) return '—'; try { return new Date(d).toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch(e){ return d; } }
+
+  function renderLeads(records){
+    const tbody = document.querySelector('#leads-tbody');
+    if(!tbody) return;
+    if(!records.length){
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-row">No leads yet. Submit a deal via the Intake form to populate.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = records.map(r => {
+      const f = r.fields || {};
+      return '<tr>'
+        + '<td>'+fmtDate(f['Submitted'] || r.createdTime)+'</td>'
+        + '<td>'+esc(f['Name'] || '—')+'</td>'
+        + '<td>'+esc(f['Email'] || '—')+'</td>'
+        + '<td>'+esc(f['Property Address'] || '—')+'</td>'
+        + '<td>'+esc(f['Tier'] || '—')+'</td>'
+        + '<td>'+statusPill(f['Status'])+'</td>'
+        + '<td><a href="https://airtable.com/'+A.BASE_ID+'/'+A.TABLES.Leads+'/'+r.id+'" target="_blank" rel="noopener" style="color:var(--gold);font-size:.78rem;">Open ↗</a></td>'
+      + '</tr>';
+    }).join('');
+    markLive('leads');
+  }
+
+  function renderPayments(records){
+    const tbody = document.querySelector('#payments-tbody');
+    if(!tbody) return;
+    if(!records.length){
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-row">No payments yet. Once Stripe / PayPal webhooks are wired, transactions land here.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = records.map(r => {
+      const f = r.fields || {};
+      return '<tr>'
+        + '<td>'+fmtDate(f['Date'] || r.createdTime)+'</td>'
+        + '<td>'+esc(f['Method'] || '—')+'</td>'
+        + '<td>'+esc(f['Tier'] || '—')+'</td>'
+        + '<td><strong style="color:var(--gold);">'+fmtMoney(f['Amount'])+'</strong></td>'
+        + '<td>'+esc(f['Customer Name'] || f['Customer Email'] || '—')+'</td>'
+        + '<td>'+statusPill(f['Status'])+'</td>'
+        + '<td><a href="https://airtable.com/'+A.BASE_ID+'/'+A.TABLES.Payments+'/'+r.id+'" target="_blank" rel="noopener" style="color:var(--gold);font-size:.78rem;">Open ↗</a></td>'
+      + '</tr>';
+    }).join('');
+    markLive('payments');
+  }
+
+  function renderMints(records){
+    const tbody = document.querySelector('#mint-tbody');
+    if(!tbody) return;
+    if(!records.length){
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-row">No mints queued yet. Confirmed payments will trigger NFT entries.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = records.map(r => {
+      const f = r.fields || {};
+      return '<tr>'
+        + '<td>'+esc(f['Customer Email'] || '—')+'</td>'
+        + '<td>'+esc(f['Tier Source'] || '—')+'</td>'
+        + '<td>'+esc(f['NFT Type'] || '—')+'</td>'
+        + '<td>'+statusPill(f['Status'])+'</td>'
+        + '<td>'+(f['Mint Tx'] ? '<code style="font-size:.7rem;">'+esc(f['Mint Tx']).slice(0,12)+'…</code>' : '<em style="color:var(--txt3);">Email-only</em>')+'</td>'
+        + '<td><a href="https://airtable.com/'+A.BASE_ID+'/'+A.TABLES.NFT_Mints+'/'+r.id+'" target="_blank" rel="noopener" style="color:var(--gold);font-size:.78rem;">Open ↗</a></td>'
+      + '</tr>';
+    }).join('');
+    markLive('mint');
+  }
+
+  function renderKPIs(leads, payments, mints){
+    const activeLeads = leads.filter(r => {
+      const s = (r.fields && r.fields['Status']) || '';
+      return s === 'New' || s === 'In Progress' || s === 'In Review';
+    }).length;
+    // MTD revenue
+    const now = new Date();
+    const mtdRev = payments.filter(r => {
+      const d = r.fields && (r.fields['Date'] || r.createdTime);
+      const s = r.fields && r.fields['Status'];
+      if(s !== 'Succeeded') return false;
+      if(!d) return false;
+      const t = new Date(d);
+      return t.getFullYear() === now.getFullYear() && t.getMonth() === now.getMonth();
+    }).reduce((sum, r) => sum + (Number((r.fields && r.fields['Amount']) || 0)), 0);
+    const queueDeliv = leads.filter(r => {
+      const s = (r.fields && r.fields['Status']) || '';
+      return s === 'New' || s === 'In Progress' || s === 'In Review';
+    }).length;
+    const queueMints = mints.filter(r => {
+      const s = (r.fields && r.fields['Status']) || '';
+      return s === 'Queued';
+    }).length;
+    setKpi(0, activeLeads);
+    setKpi(1, '$' + (mtdRev || 0).toLocaleString());
+    setKpi(2, queueDeliv);
+    setKpi(3, queueMints);
+  }
+
+  function setKpi(i, val){
+    const tiles = document.querySelectorAll('.kpi-val');
+    if(tiles[i]) tiles[i].textContent = val;
+  }
+
+  function markLive(id){
+    const el = document.querySelector('#'+id+'-livepill');
+    if(el){ el.className = 'live-pill'; el.textContent = 'LIVE'; }
+  }
+  function setSectionMock(id){
+    const el = document.querySelector('#'+id+'-livepill');
+    if(el){ el.className = 'mock-pill'; el.textContent = 'MOCK'; }
+  }
+})();
+</script>
+<script>/* Setup Wizard: setup-wizard.html */</script></body>
+</html>
