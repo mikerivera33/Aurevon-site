@@ -4,13 +4,18 @@
   "buildCommand": null,
   "outputDirectory": ".",
   "installCommand": "npm install",
-
   "cleanUrls": true,
-
+  "trailingSlash": false,
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ],
-
   "headers": [
     {
       "source": "/(.*)",
@@ -59,58 +64,8 @@
         {
           "key": "Access-Control-Allow-Headers",
           "value": "Content-Type, Authorization, stripe-signature, x-airtable-token"
-        },
-        {
-          "key": "Access-Control-Max-Age",
-          "value": "86400"
         }
       ]
     }
-  ],
-
-  "crons": [
-    {
-      "path": "/api/cron/retry-mints",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/discord/check-membership",
-      "schedule": "0 8 * * *"
-    }
-  ],
-
-  "functions": {
-    "api/webhooks/stripe.js": {
-      "maxDuration": 30,
-      "memory": 512
-    },
-    "api/webhooks/paypal.js": {
-      "maxDuration": 30,
-      "memory": 512
-    },
-    "api/cron/retry-mints.js": {
-      "maxDuration": 30,
-      "memory": 512
-    },
-    "api/crossmint/mint.js": {
-      "maxDuration": 30,
-      "memory": 512
-    },
-    "api/discord/check-membership.js": {
-      "maxDuration": 30,
-      "memory": 512
-    },
-    "api/discord/callback.js": {
-      "maxDuration": 10,
-      "memory": 256
-    },
-    "api/airtable/submit-lead.js": {
-      "maxDuration": 10,
-      "memory": 256
-    },
-    "api/health.js": {
-      "maxDuration": 5,
-      "memory": 128
-    }
-  }
+  ]
 }
