@@ -250,7 +250,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
     @media (max-width: 540px)  { .product-grid { grid-template-columns: 1fr; } }
 
     /* ── PRODUCT CARD STYLES ──────────────────────────────────────── */
-    .product-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;overflow:hidden;transition:transform .3s,border-color .3s,box-shadow .3s;opacity:0;transform:translateY(20px);}
+    .product-card{opacity:1;transform:none;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;overflow:hidden;transition:transform .3s,border-color .3s,box-shadow .3s;opacity:0;transform:translateY(20px);}
     .product-card.visible{opacity:1;transform:translateY(0);transition:opacity .5s ease,transform .5s ease,border-color .3s,box-shadow .3s;}
     .product-card:hover{transform:translateY(-5px);border-color:rgba(30,58,138,0.35);box-shadow:0 20px 50px rgba(30,58,138,0.12);}
     .product-img{aspect-ratio:1/1;overflow:hidden;background:#080810;display:flex;align-items:center;justify-content:center;}
@@ -281,7 +281,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
       content: '';
       position: absolute;
       inset: 0;
-      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 90'%3E%3Cpath d='M40 2 L74 16 L74 48 Q74 72 40 88 Q6 72 6 48 L6 16 Z' fill='none' stroke='rgba(255,255,255,0.06)' stroke-width='2.5'/%3E%3Ctext x='40' y='52' text-anchor='middle' font-family='Arial Black,sans-serif' font-size='13' font-weight='900' fill='rgba(255,255,255,0.05)' letter-spacing='1'%3EBLOCKT%3C/text%3E%3C/svg%3E") center / 55% no-repeat;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 90'%3E%3Cpath d='M40 2 L74 16 L74 48 Q74 72 40 88 Q6 72 6 48 L6 16 Z' fill='none' stroke='rgba(255,255,255,0.06)' stroke-width='2.5'/%3E%3Ctext x='40' y='52' text-anchor='middle' font-family='Arial Black,sans-serif' font-size='13' font-weight='900' fill='rgba(255,255,255,0.05)' letter-spacing='1'%3EAUREVON%3C/text%3E%3C/svg%3E") center / 55% no-repeat;
       pointer-events: none;
     }
     .placeholder-label {
@@ -476,9 +476,9 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
   </a>
   <ul class="nav-links">
     <li><a href="index.html">Home</a></li>
-    <li><a href="BLOCKT_RE_Final.html">RE</a></li>
-    <li><a href="BLOCKT_Web3.html">Web3</a></li>
-    <li><a href="BLOCKT_NFT_Collection.html">NFTs</a></li>
+    <li><a href="AUREVON_RE_Final.html">RE</a></li>
+    <li><a href="AUREVON_Web3.html">Web3</a></li>
+    <li><a href="AUREVON_NFT_Collection.html">NFTs</a></li>
     <li><a href="merch.html" class="active">Merch</a></li>
     <li><a href="portal.html">Portal</a></li>
   </ul>
@@ -518,7 +518,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Premium black heavyweight hoodie with the Aurevon shield logo in orange-gold gradient. Orange accent lining.</p>
           <div class="product-price">$65</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-shield-hoodie"
+            data-item-id="AUREVON-shield-hoodie"
             data-item-price="65"
             data-item-url="/merch.html"
             data-item-name="Aurevon Shield Hoodie"
@@ -640,7 +640,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Relaxed unstructured black dad hat with small embroidered Aurevon shield. Low-profile, adjustable strap.</p>
           <div class="product-price">$30</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-dad-hat"
+            data-item-id="AUREVON-dad-hat"
             data-item-price="30"
             data-item-url="/merch.html"
             data-item-name="Aurevon Dad Hat"
@@ -727,7 +727,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Oversized desk mat with Aurevon shield + stitched orange trim. Non-slip rubber base.</p>
           <div class="product-price">$35</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-xl-desk-mat"
+            data-item-id="AUREVON-xl-desk-mat"
             data-item-price="35"
             data-item-url="/merch.html"
             data-item-name="Aurevon XL Desk Mat"
@@ -748,7 +748,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Matte black 15oz ceramic mug. Aurevon shield on front, tagline on back.</p>
           <div class="product-price">$22</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-operator-mug"
+            data-item-id="AUREVON-operator-mug"
             data-item-price="22"
             data-item-url="/merch.html"
             data-item-name="Aurevon Operator Mug"
@@ -769,7 +769,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Black neoprene sleeve with orange shield emblem. Fits 13"-15" laptops.</p>
           <div class="product-price">$38</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-laptop-sleeve"
+            data-item-id="AUREVON-laptop-sleeve"
             data-item-price="38"
             data-item-url="/merch.html"
             data-item-name="Aurevon Laptop Sleeve"
@@ -792,7 +792,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Stainless steel insulated bottle with Aurevon logo. Hot 12h, cold 24h.</p>
           <div class="product-price">$32</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-hydro-bottle"
+            data-item-id="AUREVON-hydro-bottle"
             data-item-price="32"
             data-item-url="/merch.html"
             data-item-name="Aurevon Hydro Bottle"
@@ -813,7 +813,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Black hardcover journal with Aurevon gold foil. 160 lined pages. "OPERATOR'S LOG" cover.</p>
           <div class="product-price">$28</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-operators-log"
+            data-item-id="AUREVON-operators-log"
             data-item-price="28"
             data-item-url="/merch.html"
             data-item-name="Operator's Log Journal"
@@ -843,7 +843,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Impact-resistant phone case with Aurevon shield. Available for iPhone 14-16 + Samsung S23-S25.</p>
           <div class="product-price">$25</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-phone-case"
+            data-item-id="AUREVON-phone-case"
             data-item-price="25"
             data-item-url="/merch.html"
             data-item-name="Aurevon Shield Phone Case"
@@ -877,7 +877,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">10 die-cut vinyl stickers: shield logos, taglines, tier badges, blockchain icons. Waterproof.</p>
           <div class="product-price">$12</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-sticker-pack"
+            data-item-id="AUREVON-sticker-pack"
             data-item-price="12"
             data-item-url="/merch.html"
             data-item-name="Aurevon Sticker Pack (10)"
@@ -907,7 +907,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Set of 4 cork-backed ceramic coasters. Each features a different Aurevon design.</p>
           <div class="product-price">$20</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-coaster-set"
+            data-item-id="AUREVON-coaster-set"
             data-item-price="20"
             data-item-url="/merch.html"
             data-item-name="Aurevon Coaster Set (4)"
@@ -936,7 +936,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Heavy-duty black canvas tote. Large Aurevon shield print. 15"x15". Carry the empire.</p>
           <div class="product-price">$24</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-canvas-tote"
+            data-item-id="AUREVON-canvas-tote"
             data-item-price="24"
             data-item-url="/merch.html"
             data-item-name="Aurevon Canvas Tote"
@@ -965,7 +965,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Standard round mousepad with Aurevon shield centered on black. Non-slip rubber base.</p>
           <div class="product-price">$18</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-mousepad-std"
+            data-item-id="AUREVON-mousepad-std"
             data-item-price="18"
             data-item-url="/merch.html"
             data-item-name="Aurevon Shield Mousepad"
@@ -996,7 +996,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           </div>
           <div class="product-price">$48</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-operator-backpack"
+            data-item-id="AUREVON-operator-backpack"
             data-item-price="48"
             data-item-url="/merch.html"
             data-item-name="Aurevon Operator Backpack — Slim Pro"
@@ -1017,7 +1017,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Impact-resistant matte black case with Aurevon shield in orange-gold. Raised camera ring, slim profile. All major models.</p>
           <div class="product-price">$28</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-phone-case-collection"
+            data-item-id="AUREVON-phone-case-collection"
             data-item-price="28"
             data-item-url="/merch.html"
             data-item-name="Aurevon Shield Phone Case"
@@ -1045,7 +1045,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           </div>
           <div class="product-price">$35</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-waterproof-speaker"
+            data-item-id="AUREVON-waterproof-speaker"
             data-item-price="35"
             data-item-url="/merch.html"
             data-item-name="Aurevon Waterproof Speaker"
@@ -1066,7 +1066,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Brushed black stainless steel bottle opener with laser-engraved Aurevon shield. Leather loop with orange stitching. EDC essential.</p>
           <div class="product-price">$15</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-bottle-opener"
+            data-item-id="AUREVON-bottle-opener"
             data-item-price="15"
             data-item-url="/merch.html"
             data-item-name="Aurevon Bottle Opener Keychain"
@@ -1087,7 +1087,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           <p class="product-desc">Magnetic golf ball marker with Aurevon shield in orange enamel. Brushed black hat clip with strong neodymium magnet. Detachable marker, gold rim finish.</p>
           <div class="product-price">$18</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-golf-marker"
+            data-item-id="AUREVON-golf-marker"
             data-item-price="18"
             data-item-url="/merch.html"
             data-item-name="Aurevon Golf Marker Hat Clip"
@@ -1113,7 +1113,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
           </div>
           <div class="product-price">$32</div>
           <button class="snipcart-add-item product-buy-btn"
-            data-item-id="blockt-portable-charger"
+            data-item-id="AUREVON-portable-charger"
             data-item-price="32"
             data-item-url="/merch.html"
             data-item-name="Aurevon Portable Charger"
@@ -1204,7 +1204,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
       <div class="cat-card">
         <div class="cat-icon">🔌</div>
         <h3>TECH &amp; LIFESTYLE</h3>
-        <p class="cat-desc">Waterproof speakers, portable chargers, bottle openers, golf markers, phone cases. BLOCKT-branded gear for every occasion.</p>
+        <p class="cat-desc">Waterproof speakers, portable chargers, bottle openers, golf markers, phone cases. AUREVON-branded gear for every occasion.</p>
         <span class="tag-cs">Custom Branded &middot; White-Label</span>
       </div>
     </div>
@@ -1249,11 +1249,11 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
     <div>&#169; <span id="bktYr">2026</span> Aurevon Group LLC &middot; Systems. Capital. Infrastructure..</div>
     <div class="links">
       <a href="index.html">Home</a>
-      <a href="BLOCKT_RE_Final.html">RE Underwriting</a>
-      <a href="BLOCKT_Web3.html">Web3</a>
-      <a href="BLOCKT_NFT_Collection.html">NFTs</a>
+      <a href="AUREVON_RE_Final.html">RE Underwriting</a>
+      <a href="AUREVON_Web3.html">Web3</a>
+      <a href="AUREVON_NFT_Collection.html">NFTs</a>
       <a href="operator.html">Operator Hub</a>
-      <a href="blockt-crm.html">CRM</a>
+      <a href="aurevon-crm.html">CRM</a>
       <a href="merch.html">Merch</a>
     </div>
   </div>
