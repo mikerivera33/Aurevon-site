@@ -1,4 +1,4 @@
-# Aurevon — Operator Playbook
+# Aurevon — Operator Playbook 
 
 > The complete guide to deploying, configuring, and operating the Aurevon autonomous investment backend and membership portal.
 
