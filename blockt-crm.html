@@ -861,7 +861,7 @@ async function exportCSV(key, label) {
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `blockt_${label.toLowerCase()}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.href = url; a.download = `AUREVON_${label.toLowerCase()}_${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
     showToast(`Exported ${records.length} ${label} records`);
