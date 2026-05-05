@@ -15,7 +15,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script>
-window.BLOCKT_LINKS = {
+window.AUREVON_LINKS = {
     RE: "aurevon-re.html",
     WEB3: "aurevon-web3.html",
     NFT_COLLECTION: "aurevon-nft.html",
@@ -69,7 +69,7 @@ section.short{min-height:auto;padding:clamp(2.5rem,5vw,4rem) 0;}
 .noise::before{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");background-size:256px;opacity:0.04;mix-blend-mode:overlay;}
 
 /* Hero shield */
-.hero-shield{width:min(220px,35vw);height:auto;filter:drop-shadow(0 0 40px rgba(30,58,138,0.35)) drop-shadow(0 0 80px rgba(30,58,138,0.12));animation:shield-float 6s ease-in-out infinite;}
+.hero-shield{display:none}.aurevon-hero-wrap{width:min(340px,35vw);height:auto;filter:drop-shadow(0 0 40px rgba(30,58,138,0.35)) drop-shadow(0 0 80px rgba(30,58,138,0.12));animation:shield-float 6s ease-in-out infinite;}
 @keyframes shield-float{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
 
 /* Scroll cue */
@@ -184,7 +184,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
     <div class="blob" style="width:220px;height:220px;top:45%;left:12%;background:var(--o3);opacity:0.07;"></div>
   </div>
   <div class="wrap si">
-    <div class="rv hero-shield" style="margin:0 auto 1.5rem;display:flex;justify-content:center;">
+    <div class="rv aurevon-hero-wrap" style="margin:0 auto 1.5rem;display:flex;justify-content:center;">
       <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gShield" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1E3A8A"/><stop offset="100%" stop-color="#162D6E"/></linearGradient><filter id="fGlow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><linearGradient id="gShine" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0%" stop-color="rgba(255,255,255,0.18)"/><stop offset="50%" stop-color="rgba(255,255,255,0)"/><stop offset="100%" stop-color="rgba(255,255,255,0.04)"/></linearGradient></defs><rect x="10" y="10" width="180" height="180" rx="36" fill="url(#gShield)" filter="url(#fGlow)"/><rect x="10" y="10" width="180" height="180" rx="36" fill="url(#gShine)"/><rect x="12" y="12" width="176" height="176" rx="34" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/><path d="M50 50 L90 50 L90 100 L140 100 L140 150 L50 150 Z" fill="white" opacity="0.95"/><rect x="100" y="50" width="45" height="36" rx="8" fill="white" opacity="0.6"/><path d="M50 50 L90 50 L90 100 L140 100 L140 150 L50 150 Z" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.5"/></svg>
     </div>
     <h1 class="rv lt" style="font-size:clamp(2.5rem,6vw,4rem);margin:0 0 0.5rem;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.05;">Aurevon</h1>
@@ -483,7 +483,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
       <a href="aurevon-web3.html">Web3</a>
       <a href="aurevon-nft.html">NFTs</a>
       <a href="operator.html">Operator Hub</a>
-      <a href="blockt-crm.html">CRM</a>
+      <a href="aurevon-crm.html">CRM</a>
       <a href="portal.html">My Dashboard</a>
       <a href="merch.html">Merch</a>
     </div>
@@ -493,7 +493,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 document.getElementById('yr').textContent = new Date().getFullYear();
-const L = window.BLOCKT_LINKS || {};
+const L = window.AUREVON_LINKS || {};
 document.querySelectorAll('.vcard[href]').forEach(c => {
   const h = c.getAttribute('href');
   if(h === 'aurevon-re.html' && L.RE) c.href = L.RE;
