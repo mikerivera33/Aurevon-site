@@ -19,7 +19,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
      ⚙️  CONFIG — EDIT THESE 4 LINES TO GO LIVE
      ========================================================= -->
 <script>
-window.BLOCKT_CONFIG = {
+window.AUREVON_CONFIG = {
   // 1. Stripe Payment Links — create 3 links in Stripe Dashboard
   //    (Products → Add product → Add price → "Create payment link"),
   //    then paste each URL below.
@@ -1041,7 +1041,7 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
     <div>© <span id="bktYr">2026</span> Aurevon Group LLC · Systems. Capital. Infrastructure..</div>
     <div class="links">
       <a href="index.html">Home</a>
-      <a href="BLOCKT_RE_Final.html">RE Underwriting</a>
+      <a href="aurevon-re.html">RE Underwriting</a>
       <a href="BLOCKT_Web3.html">Web3</a>
       <a href="BLOCKT_NFT_Collection.html">NFTs</a>
       <a href="operator.html">Operator Hub</a>
@@ -1055,7 +1055,7 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 
 <script>
 /* ---------- config wiring ---------- */
-const CFG = window.BLOCKT_CONFIG || {};
+const CFG = window.AUREVON_CONFIG || {};
 document.getElementById('yr').textContent = new Date().getFullYear();
 const mail = document.getElementById('mailLink');
 if (mail && CFG.CONTACT_EMAIL) mail.href = 'mailto:' + CFG.CONTACT_EMAIL;
@@ -1204,13 +1204,13 @@ document.querySelectorAll('[data-pay]').forEach(btn => {
         if(d){
           msg += 'PROMO CODE APPLIED: ' + activePromo + '\n';
           msg += 'Original: $' + BASE_PRICES[tier] + ' → Discounted: $' + d.final + '\n\n';
-          msg += 'To go live: create a ' + svc + ' payment link for $' + d.final + ' and add it to BLOCKT_CONFIG under PROMO_CODES → ' + activePromo + ' → ' + processor + 'Urls → ' + tier + '.\n\nOr create a Stripe Coupon and apply it to your standard payment link.';
+          msg += 'To go live: create a ' + svc + ' payment link for $' + d.final + ' and add it to AUREVON_CONFIG under PROMO_CODES → ' + activePromo + ' → ' + processor + 'Urls → ' + tier + '.\n\nOr create a Stripe Coupon and apply it to your standard payment link.';
         } else {
           msg += 'Code ' + activePromo + ' doesn\'t apply to this tier.\n\n';
-          msg += 'Set up your standard payment link in BLOCKT_CONFIG.';
+          msg += 'Set up your standard payment link in AUREVON_CONFIG.';
         }
       } else {
-        msg += 'The owner needs to paste a ' + svc + ' payment link into BLOCKT_CONFIG at the top of the page.\n\nIMPORTANT: Set your Stripe success_url or PayPal return_url to your hosted BLOCKT_RE_Intake.html page.';
+        msg += 'The owner needs to paste a ' + svc + ' payment link into AUREVON_CONFIG at the top of the page.\n\nIMPORTANT: Set your Stripe success_url or PayPal return_url to your hosted BLOCKT_RE_Intake.html page.';
       }
       alert(msg);
       return;
@@ -1585,7 +1585,7 @@ targets.forEach(t => spy.observe(t));
 
   function renderMethod(method){
     if(!currentTier) return;
-    var cfg = window.BLOCKT_CONFIG || {};
+    var cfg = window.AUREVON_CONFIG || {};
     var isMembership = currentMembership;
     var stripeUrls = {
       bogo: cfg.STRIPE_BOGO_URL, single: cfg.STRIPE_SINGLE_URL,
@@ -1627,7 +1627,7 @@ targets.forEach(t => spy.observe(t));
         var href = cta.getAttribute('href') || '';
         if(href === '#' || href.indexOf('REPLACE_') > -1){
           e.preventDefault();
-          alert('⚙️ Owner setup needed:\n\nThe ' + method.toUpperCase() + ' payment link for "' + currentLabel + '" has not been configured yet.\n\nFor Stripe: Dashboard → Products → Create payment link → enable Cash App Pay & Afterpay.\nFor PayPal: Business → Pay Links & Buttons.\n\nThen paste the URL into BLOCKT_CONFIG and set success_url/return_url to:\n' + (isMembership ? 'membership_confirmation.html' : 'BLOCKT_RE_Intake.html'));
+          alert('⚙️ Owner setup needed:\n\nThe ' + method.toUpperCase() + ' payment link for "' + currentLabel + '" has not been configured yet.\n\nFor Stripe: Dashboard → Products → Create payment link → enable Cash App Pay & Afterpay.\nFor PayPal: Business → Pay Links & Buttons.\n\nThen paste the URL into AUREVON_CONFIG and set success_url/return_url to:\n' + (isMembership ? 'membership_confirmation.html' : 'BLOCKT_RE_Intake.html'));
           return;
         }
         // Open in new tab + remember intent
