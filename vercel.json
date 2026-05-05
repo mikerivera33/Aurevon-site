@@ -7,13 +7,19 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/aurevon-re", "destination": "/aurevon-re.html" },
+    { "source": "/aurevon-nft", "destination": "/aurevon-nft.html" },
+    { "source": "/aurevon-web3", "destination": "/aurevon-web3.html" },
+    { "source": "/aurevon-crm", "destination": "/aurevon-crm.html" },
+    { "source": "/blockt-crm", "destination": "/blockt-crm.html" },
+    { "source": "/portal", "destination": "/portal.html" },
+    { "source": "/operator", "destination": "/operator.html" },
+    { "source": "/merch", "destination": "/merch.html" },
+    { "source": "/discord-welcome", "destination": "/discord-welcome.html" },
+    { "source": "/membership-confirmation", "destination": "/membership_confirmation.html" },
+    { "source": "/AUREVON_NFT_Collection", "destination": "/aurevon-nft.html" },
+    { "source": "/AUREVON-crm", "destination": "/aurevon-crm.html" },
+    { "source": "/", "destination": "/index.html" }
   ]
 }
