@@ -3,8 +3,7 @@
 <head>
 <!-- Suppress wallet extension errors (MetaMask, Coinbase Wallet) -->
 <script>
-window.addEventListener('error',function(e){if(e.filename&&e.filename.startsWith('chrome-extension://')){e.preventDefault();return;}if(e.message&&(e.message.includes('MetaMask')||e.message.includes('cross-origin')||e.message.includes('chrome-extension'))){e.preventDefault();return;}},true);
-window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reason.message||String(e.reason))||'';if(m.includes('MetaMask')||m.includes('cross-origin')||m.includes('chrome-extension')){e.preventDefault();return;}});
+fix: make hero content visible on aurevon-re.html (opacity:1)window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reason.message||String(e.reason))||'';if(m.includes('MetaMask')||m.includes('cross-origin')||m.includes('chrome-extension')){e.preventDefault();return;}});
 (function(){try{localStorage.getItem('_t');}catch(e){var m={};window.localStorage={getItem:function(k){return m[k]||null;},setItem:function(k,v){m[k]=String(v);},removeItem:function(k){delete m[k];},clear:function(){m={};}};}}());
 </script>
 <meta charset="UTF-8">
