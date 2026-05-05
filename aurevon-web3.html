@@ -17,7 +17,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 <style>
 :root{--bg:#0A0A0A;--sf:#111827;--tx:#f0ede8;--tx2:#b8b3ab;--tm:#6b6760;--o1:#1E3A8A;--o2:#3B82F6;--o3:#1E40AF;--gl:rgba(255,255,255,0.05);}
 *,*::before,*::after{box-sizing:border-box;}
-html{scroll-behavior:smooth;scroll-snap-type:y proximity;scroll-padding-top:60px;}
+html{scroll-behavior:smooth;scroll-behavior:smooth;scroll-padding-top:60px;}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;line-height:1.55;}
 body{overflow-x:hidden;}
 a{color:var(--o2);text-decoration:none;}a:hover{color:var(--o1);}
@@ -34,7 +34,7 @@ a{color:var(--o2);text-decoration:none;}a:hover{color:var(--o1);}
 .discord-btn{display:inline-flex;align-items:center;gap:8px;padding:0.7rem 1.4rem;border-radius:10px;background:#5865F2;color:#fff;font-family:'Archivo Black',sans-serif;font-size:0.85rem;box-shadow:0 6px 20px rgba(88,101,242,0.3);transition:transform .2s,box-shadow .2s;}
 .discord-btn:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(88,101,242,0.45);color:#fff;}
 @media(max-width:760px){.nk{display:none;}}
-section{position:relative;min-height:100vh;padding:clamp(4.5rem,7vw,6rem) 0 clamp(3rem,5vw,5rem);display:flex;flex-direction:column;justify-content:center;scroll-snap-align:start;}
+section{position:relative;min-height:100vh;padding:clamp(4.5rem,7vw,6rem) 0 clamp(3rem,5vw,5rem);display:flex;flex-direction:column;justify-content:center;scroll-margin-top:60px;}
 section.short{min-height:auto;padding:clamp(2.5rem,5vw,4rem) 0;}
 .si{width:100%;}
 .tag{display:inline-block;background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.2);color:var(--o2);padding:5px 14px;border-radius:999px;font-size:0.72rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.9rem;}
@@ -45,7 +45,7 @@ section.short{min-height:auto;padding:clamp(2.5rem,5vw,4rem) 0;}
 .blob{position:absolute;border-radius:50%;filter:blur(80px);animation:fl 12s ease-in-out infinite;}
 @keyframes fl{0%{transform:translate(0,0) scale(1);}50%{transform:translate(-35px,35px) scale(0.92);}100%{transform:translate(0,0) scale(1);}}
 .noise::before{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");background-size:256px;opacity:0.04;mix-blend-mode:overlay;}
-.rv{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease;}.rv.in{opacity:1;transform:translateY(0);}
+.rv{opacity:1;transform:translateY(0);transition:opacity .6s ease,transform .6s ease;}.rv.in{opacity:1;transform:translateY(0);}
 .hero-shield{width:min(200px,35vw);filter:drop-shadow(0 0 40px rgba(30,58,138,0.3));animation:sf 6s ease-in-out infinite;}
 @keyframes sf{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
 .sc{position:absolute;bottom:1.6rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:0.35rem;color:var(--tm);font-size:0.7rem;letter-spacing:0.16em;text-transform:uppercase;pointer-events:none;opacity:0.65;}
@@ -128,7 +128,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
       <a href="#reviews">Reviews</a>
       <a href="#faq">FAQ</a>
     </div>
-    <a href="https://discord.gg/GdYRZtdvNS" target="_blank" class="discord-btn" style="font-size:0.78rem;padding:0.5rem 1rem;">Join Discord →</a>
+    <a href="https://discord.gg/aurevon" target="_blank" class="discord-btn" style="font-size:0.78rem;padding:0.5rem 1rem;">Join Discord →</a>
   </div>
 </nav>
 
@@ -141,7 +141,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
     <p class="rv" style="color:var(--tm);font-size:0.82rem;letter-spacing:0.25em;text-transform:uppercase;margin:0 0 1.2rem;">NFTs · Community · Real-World Utility</p>
     <p class="rv lead" style="margin:0 auto 2rem;text-align:center;max-width:620px;">We're not selling JPEGs. We're building the bridge between blockchain and real-world business. Your Aurevon Shield NFT is your membership card, your access token, and your proof of belonging to a community of operators building the future. <b style="color:var(--tx);">Join through an underwriting package — or get a standalone Community Member NFT starting at $29.99/mo.</b></p>
     <div class="rv" style="display:flex;gap:0.8rem;justify-content:center;flex-wrap:wrap;">
-      <a href="https://discord.gg/GdYRZtdvNS" target="_blank" class="discord-btn"><svg width="20" height="15" viewBox="0 0 71 55" fill="none"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z" fill="white"/></svg>Join the Community</a>
+      <a href="https://discord.gg/aurevon" target="_blank" class="discord-btn"><svg width="20" height="15" viewBox="0 0 71 55" fill="none"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z" fill="white"/></svg>Join the Community</a>
       <a href="BLOCKT_RE_Final.html" target="_blank" class="btn-g">Explore Aurevon Capital →</a>
     </div>
   </div>
@@ -383,7 +383,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
     <div class="rv" style="display:flex;gap:0.8rem;justify-content:center;flex-wrap:wrap;">
       <a href="#community-nft" class="btn">Get Community NFT →</a>
       <a href="BLOCKT_RE_Final.html#pricing" target="_blank" class="btn-g">Underwriting + NFT →</a>
-      <a href="https://discord.gg/GdYRZtdvNS" target="_blank" class="discord-btn"><svg width="18" height="14" viewBox="0 0 71 55" fill="none"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z" fill="white"/></svg>Join Discord</a>
+      <a href="https://discord.gg/aurevon" target="_blank" class="discord-btn"><svg width="18" height="14" viewBox="0 0 71 55" fill="none"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z" fill="white"/></svg>Join Discord</a>
     </div>
   </div>
 </section>
