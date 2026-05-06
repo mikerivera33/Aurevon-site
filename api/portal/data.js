@@ -2,6 +2,15 @@
 // POST { email, sessionToken } → validates session, returns customer's leads/payments/nfts/profile
 
 export default async function handler(req, res) {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -17,7 +26,8 @@ export default async function handler(req, res) {
   const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'app00c03021ILsOrv';
 
   if (!AIRTABLE_PAT) {
-    return res.status(500).json({ error: 'Server configuration error' });
+    console.error('AIRTABLE_PAT environment variable is not set');
+    return res.status(500).json({ error: 'Portal not yet configured' });
   }
 
   const airtableHeaders = {
@@ -27,19 +37,23 @@ export default async function handler(req, res) {
 
   // Generic Airtable fetch with filter formula
   async function fetchRecords(tableId, formula, fields = []) {
-    const encoded = encodeURIComponent(formula);
-    let url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${tableId}?filterByFormula=${encoded}&maxRecords=100`;
-    if (fields.length > 0) {
-      fields.forEach(f => { url += `&fields[]=${encodeURIComponent(f)}`; });
-    }
-    const resp = await fetch(url, { headers: airtableHeaders });
-    if (!resp.ok) {
-      const err = await resp.text();
-      console.error(`Airtable fetch error [${tableId}]:`, err);
+    try {
+      const encoded = encodeURIComponent(formula);
+      let url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${tableId}?filterByFormula=${encoded}&maxRecords=100`;
+      if (fields.length > 0) {
+        fields.forEach(f => { url += `&fields[]=${encodeURIComponent(f)}`; });
+      }
+      const resp = await fetch(url, { headers: airtableHeaders });
+      if (!resp.ok) {
+        console.error(`Airtable fetch error [${tableId}]:`, await resp.text());
+        return [];
+      }
+      const data = await resp.json();
+      return data.records || [];
+    } catch (e) {
+      console.error(`fetchRecords exception [${tableId}]:`, e);
       return [];
     }
-    const data = await resp.json();
-    return data.records || [];
   }
 
   try {
@@ -61,81 +75,55 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Invalid or expired session' });
     }
 
-    // Fetch all customer data in parallel
-    const emailFilter = `LOWER({Email})="${normalizedEmail}"`;
-
-    const [leadRecords, paymentRecords, nftRecords] = await Promise.all([
-      fetchRecords('tblDuezyOsxy7sNES', emailFilter),
-      fetchRecords('tblMPOjy7os3FyO3Q', emailFilter),
-      fetchRecords('tblBi4wqjOeWpHAMI', emailFilter),
+    // Fetch customer data in parallel
+    const emailFormula = `LOWER({Email})="${normalizedEmail}"`;
+    const [paymentRecords, nftRecords, leadRecords, memberRecords] = await Promise.all([
+      fetchRecords('tblMPOjy7os3FyO3Q', emailFormula),
+      fetchRecords('tblNFTMintsTableId', emailFormula),
+      fetchRecords('tblDuezyOsxy7sNES', emailFormula),
+      fetchRecords('tblMembersTableId', emailFormula),
     ]);
 
-    // Shape leads
-    const leads = leadRecords.map(r => ({
-      id: r.id,
-      property: r.fields['Property Address'] || r.fields['Address'] || r.fields['Property'] || '',
-      tier: r.fields['Tier'] || r.fields['Package'] || '',
-      status: r.fields['Status'] || 'New',
-      submitted: r.fields['Created'] || r.fields['Date'] || r.createdTime,
-      analyst: r.fields['Analyst'] || r.fields['Assigned To'] || '',
-      notes: r.fields['Notes'] || '',
-      estimatedDelivery: r.fields['Estimated Delivery'] || r.fields['Est. Delivery'] || '',
-    }));
-
-    // Shape payments
-    const payments = paymentRecords.map(r => ({
-      id: r.id,
-      date: r.fields['Date'] || r.fields['Payment Date'] || r.createdTime,
-      tier: r.fields['Tier'] || r.fields['Package'] || '',
-      amount: r.fields['Amount'] || r.fields['Amount Paid'] || 0,
-      method: r.fields['Method'] || r.fields['Payment Method'] || '',
-      status: r.fields['Status'] || r.fields['Payment Status'] || '',
-    }));
-
-    // Shape NFTs
-    const nfts = nftRecords.map(r => ({
-      id: r.id,
-      type: r.fields['NFT Type'] || r.fields['Collection'] || r.fields['Type'] || '',
-      serial: r.fields['Serial Number'] || r.fields['Serial'] || r.fields['Token ID'] || '',
-      status: r.fields['Status'] || r.fields['Mint Status'] || '',
-      collection: r.fields['Collection Name'] || r.fields['Collection'] || '',
-      dateSent: r.fields['Date Sent'] || r.fields['Sent Date'] || r.createdTime,
-      mintTx: r.fields['Mint Tx'] || r.fields['Transaction Hash'] || r.fields['Tx Hash'] || '',
-      imageUrl: r.fields['Image URL'] || '',
-    }));
-
-    // Profile from CustomerAuth
+    // Build profile from auth record and member records
     const profile = {
       name: authFields['Customer Name'] || '',
       email: normalizedEmail,
-      discordId: authFields['Discord ID'] || '',
-      notes: authFields['Notes'] || '',
-      lastLogin: authFields['Last Login'] || '',
+      tier: memberRecords[0]?.fields?.tier || paymentRecords[0]?.fields?.tier || '',
+      discordJoined: memberRecords[0]?.fields?.discord_joined || false,
+      joinedAt: memberRecords[0]?.fields?.joined_at || paymentRecords[0]?.fields?.created_at || '',
+      active: memberRecords[0]?.fields?.active !== false,
     };
 
-    // Compute highest tier from payments + leads
-    const tierRank = { genesis: 4, obsidian: 3, ember: 2, chrome: 1, insider: 1 };
-    let highestTier = '';
-    let highestRank = 0;
-    [...payments, ...leads].forEach(r => {
-      const t = (r.tier || '').toLowerCase();
-      for (const [tier, rank] of Object.entries(tierRank)) {
-        if (t.includes(tier) && rank > highestRank) {
-          highestRank = rank;
-          highestTier = tier.charAt(0).toUpperCase() + tier.slice(1);
-        }
-      }
-    });
-    profile.tier = highestTier;
+    // Format payments
+    const payments = paymentRecords.map(r => ({
+      id: r.id,
+      tier: r.fields.tier || '',
+      amount: r.fields.amount || 0,
+      provider: r.fields.payment_provider || '',
+      status: r.fields.status || '',
+      date: r.fields.created_at || '',
+    }));
 
-    // Member since = earliest payment date
-    const paymentDates = payments
-      .map(p => p.date)
-      .filter(Boolean)
-      .sort();
-    profile.memberSince = paymentDates[0] || '';
+    // Format NFTs
+    const nfts = nftRecords.map(r => ({
+      id: r.id,
+      tier: r.fields.tier || '',
+      status: r.fields.status || '',
+      crossmintOrderId: r.fields.crossmint_order_id || '',
+      chain: r.fields.chain || 'polygon',
+      mintedAt: r.fields.mint_at || '',
+    }));
 
-    return res.status(200).json({ profile, leads, payments, nfts });
+    // Format leads
+    const leads = leadRecords.map(r => ({
+      id: r.id,
+      service: r.fields.service || '',
+      status: r.fields.status || '',
+      message: r.fields.message || '',
+      date: r.fields.created_at || '',
+    }));
+
+    return res.status(200).json({ profile, payments, nfts, leads });
   } catch (err) {
     console.error('data.js error:', err);
     return res.status(500).json({ error: 'Internal server error' });
