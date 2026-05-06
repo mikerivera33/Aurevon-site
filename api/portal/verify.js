@@ -2,6 +2,15 @@
 // POST { email, token } → validates magic link token, returns sessionToken
 
 export default async function handler(req, res) {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -17,7 +26,8 @@ export default async function handler(req, res) {
   const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'app00c03021ILsOrv';
 
   if (!AIRTABLE_PAT) {
-    return res.status(500).json({ valid: false, reason: 'Server configuration error' });
+    console.error('AIRTABLE_PAT environment variable is not set');
+    return res.status(500).json({ valid: false, reason: 'Portal not yet configured' });
   }
 
   const airtableHeaders = {
@@ -30,6 +40,10 @@ export default async function handler(req, res) {
     const formula = encodeURIComponent(`LOWER({Email})="${normalizedEmail}"`);
     const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/tbl1UGOLPxZRW7vB2?filterByFormula=${formula}&maxRecords=1`;
     const resp = await fetch(url, { headers: airtableHeaders });
+    if (!resp.ok) {
+      console.error('Airtable verify lookup error:', await resp.text());
+      return res.status(500).json({ valid: false, reason: 'Database error' });
+    }
     const data = await resp.json();
     const records = data.records || [];
 
@@ -56,22 +70,24 @@ export default async function handler(req, res) {
     const now = new Date().toISOString();
 
     // Update CustomerAuth — mark session active, clear magic token, record last login
-    await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/tbl1UGOLPxZRW7vB2/${record.id}`, {
+    const patchResp = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/tbl1UGOLPxZRW7vB2/${record.id}`, {
       method: 'PATCH',
       headers: airtableHeaders,
       body: JSON.stringify({
         fields: {
           'Session Token': sessionToken,
           'Session Active': true,
-          'Last Login': now,
           'Magic Token': '',
           'Token Expires': '',
+          'Last Login': now,
         },
       }),
     });
+    if (!patchResp.ok) {
+      console.error('Airtable session update error:', await patchResp.text());
+    }
 
     const customerName = fields['Customer Name'] || '';
-
     return res.status(200).json({
       valid: true,
       sessionToken,
