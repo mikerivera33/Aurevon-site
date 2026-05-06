@@ -7,7 +7,6 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/aurevon-re", "destination": "/aurevon-re.html" },
     { "source": "/aurevon-nft", "destination": "/aurevon-nft.html" },
     { "source": "/aurevon-web3", "destination": "/aurevon-web3.html" },
