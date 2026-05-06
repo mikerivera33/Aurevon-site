@@ -7,6 +7,10 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
+    { "source": "/api/portal/auth", "destination": "/api/portal/auth.js" },
+    { "source": "/api/portal/verify", "destination": "/api/portal/verify.js" },
+    { "source": "/api/portal/data", "destination": "/api/portal/data.js" },
+    { "source": "/api/(.*)", "destination": "/api/$1.js" },
     { "source": "/aurevon-re", "destination": "/aurevon-re.html" },
     { "source": "/aurevon-nft", "destination": "/aurevon-nft.html" },
     { "source": "/aurevon-web3", "destination": "/aurevon-web3.html" },
@@ -20,5 +24,15 @@
     { "source": "/AUREVON_NFT_Collection", "destination": "/aurevon-nft.html" },
     { "source": "/AUREVON-crm", "destination": "/aurevon-crm.html" },
     { "source": "/", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
+      ]
+    }
   ]
 }
