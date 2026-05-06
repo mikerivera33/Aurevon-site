@@ -1,5 +1,6 @@
-// api/portal/data.js — Customer data endpoint (server-side Airtable fetch)
-// POST { email, sessionToken } → validates session, returns customer's leads/payments/nfts/profile
+// api/portal/data.js — Customer data endpoint for Aurevon Operations
+// POST { email, sessionToken } → validates session, returns customer's payments/NFTs/profile
+// Airtable Base: appI9X8vcRcK1QZ1l (Aurevon Operations)
 
 export default async function handler(req, res) {
   // CORS headers
@@ -23,7 +24,14 @@ export default async function handler(req, res) {
 
   const normalizedEmail = email.trim().toLowerCase();
   const AIRTABLE_PAT = process.env.AIRTABLE_PAT;
-  const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'app00c03021ILsOrv';
+  // Aurevon Operations base ID
+  const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'appI9X8vcRcK1QZ1l';
+
+  // Aurevon Operations table IDs
+  const AUTH_TABLE = 'tblbCS7TL65FcOiWn';       // CustomerAuth
+  const PAYMENTS_TABLE = 'tbl6KlhM9fIH19W5i';   // Payments
+  const NFT_TABLE = 'tbliXEGJdoEIAJU06';        // NFT_Mints
+  const MEMBERS_TABLE = 'tblYPn7hxnrgH723B';     // Members
 
   if (!AIRTABLE_PAT) {
     console.error('AIRTABLE_PAT environment variable is not set');
@@ -40,9 +48,7 @@ export default async function handler(req, res) {
     try {
       const encoded = encodeURIComponent(formula);
       let url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${tableId}?filterByFormula=${encoded}&maxRecords=100`;
-      if (fields.length > 0) {
-        fields.forEach(f => { url += `&fields[]=${encodeURIComponent(f)}`; });
-      }
+      if (fields.length > 0) { fields.forEach(f => { url += `&fields[]=${encodeURIComponent(f)}`; }); }
       const resp = await fetch(url, { headers: airtableHeaders });
       if (!resp.ok) {
         console.error(`Airtable fetch error [${tableId}]:`, await resp.text());
@@ -59,8 +65,8 @@ export default async function handler(req, res) {
   try {
     // Verify session against CustomerAuth
     const authRecords = await fetchRecords(
-      'tbl1UGOLPxZRW7vB2',
-      `LOWER({Email})="${normalizedEmail}"`
+      AUTH_TABLE,
+      `LOWER({Email})="${normalizedEmail}"`,
     );
 
     if (authRecords.length === 0) {
@@ -70,60 +76,68 @@ export default async function handler(req, res) {
     const authRecord = authRecords[0];
     const authFields = authRecord.fields;
 
-    // Validate session token and active status
-    if (!authFields['Session Active'] || authFields['Session Token'] !== sessionToken) {
-      return res.status(401).json({ error: 'Invalid or expired session' });
+    // Check that session is active
+    if (!authFields['Session Active']) {
+      return res.status(401).json({ error: 'Session expired. Please log in again.' });
     }
 
     // Fetch customer data in parallel
     const emailFormula = `LOWER({Email})="${normalizedEmail}"`;
-    const [paymentRecords, nftRecords, leadRecords, memberRecords] = await Promise.all([
-      fetchRecords('tblMPOjy7os3FyO3Q', emailFormula),
-      fetchRecords('tblNFTMintsTableId', emailFormula),
-      fetchRecords('tblDuezyOsxy7sNES', emailFormula),
-      fetchRecords('tblMembersTableId', emailFormula),
+    const [paymentRecords, nftRecords, memberRecords] = await Promise.all([
+      fetchRecords(PAYMENTS_TABLE, emailFormula),
+      fetchRecords(NFT_TABLE, emailFormula),
+      fetchRecords(MEMBERS_TABLE, emailFormula),
     ]);
-
-    // Build profile from auth record and member records
-    const profile = {
-      name: authFields['Customer Name'] || '',
-      email: normalizedEmail,
-      tier: memberRecords[0]?.fields?.tier || paymentRecords[0]?.fields?.tier || '',
-      discordJoined: memberRecords[0]?.fields?.discord_joined || false,
-      joinedAt: memberRecords[0]?.fields?.joined_at || paymentRecords[0]?.fields?.created_at || '',
-      active: memberRecords[0]?.fields?.active !== false,
-    };
 
     // Format payments
     const payments = paymentRecords.map(r => ({
       id: r.id,
-      tier: r.fields.tier || '',
-      amount: r.fields.amount || 0,
-      provider: r.fields.payment_provider || '',
-      status: r.fields.status || '',
-      date: r.fields.created_at || '',
+      serviceProduct: r.fields['Service Product'] || '',
+      amount: r.fields['amount'] || r.fields['Amount'] || 0,
+      status: r.fields['status'] || r.fields['Status'] || '',
+      deliverableStatus: r.fields['Deliverable Status'] || 'Not Started',
+      deliveryNotes: r.fields['Delivery Notes'] || '',
+      paymentDate: r.fields['Payment Date'] || '',
+      paymentProvider: r.fields['payment_provider'] || r.fields['Payment Provider'] || '',
     }));
 
     // Format NFTs
     const nfts = nftRecords.map(r => ({
       id: r.id,
-      tier: r.fields.tier || '',
-      status: r.fields.status || '',
-      crossmintOrderId: r.fields.crossmint_order_id || '',
-      chain: r.fields.chain || 'polygon',
-      mintedAt: r.fields.mint_at || '',
+      nftType: r.fields['NFT Type'] || '',
+      tokenId: r.fields['Token ID'] || '',
+      mintStatus: r.fields['Mint Status'] || 'Pending',
+      discordRoleAssigned: r.fields['Discord Role Assigned'] || false,
+      mintDate: r.fields['Mint Date'] || '',
+      transactionHash: r.fields['Transaction Hash'] || '',
     }));
 
-    // Format leads
-    const leads = leadRecords.map(r => ({
-      id: r.id,
-      service: r.fields.service || '',
-      status: r.fields.status || '',
-      message: r.fields.message || '',
-      date: r.fields.created_at || '',
-    }));
+    // Member profile
+    const member = memberRecords[0]?.fields || {};
 
-    return res.status(200).json({ profile, payments, nfts, leads });
+    // Build response
+    const customerName = authFields['Customer Name'] || member['Customer Name'] || '';
+    const memberTier = authFields['Member Tier'] || member['Member Tier'] || 'Free';
+
+    return res.status(200).json({
+      success: true,
+      profile: {
+        email: normalizedEmail,
+        customerName,
+        memberTier,
+        joinDate: member['Join Date'] || '',
+        active: member['Active'] || false,
+        discordUsername: member['Discord Username'] || '',
+        nftHoldings: member['NFT Holdings'] || '',
+      },
+      payments,
+      nfts,
+      summary: {
+        totalPayments: payments.length,
+        activeNFTs: nfts.filter(n => n.mintStatus === 'Minted').length,
+        pendingDeliverables: payments.filter(p => p.deliverableStatus === 'Not Started' || p.deliverableStatus === 'In Progress').length,
+      },
+    });
   } catch (err) {
     console.error('data.js error:', err);
     return res.status(500).json({ error: 'Internal server error' });
