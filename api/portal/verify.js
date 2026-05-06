@@ -1,5 +1,7 @@
-// api/portal/verify.js — Token verification endpoint
-// POST { email, token } → validates magic link token, returns sessionToken
+// api/portal/verify.js — Token verification endpoint for Aurevon Operations
+// POST { email, token } → validates magic link token, activates session
+// Airtable Base: appI9X8vcRcK1QZ1l (Aurevon Operations)
+// CustomerAuth table: tblbCS7TL65FcOiWn
 
 export default async function handler(req, res) {
   // CORS headers
@@ -23,7 +25,10 @@ export default async function handler(req, res) {
 
   const normalizedEmail = email.trim().toLowerCase();
   const AIRTABLE_PAT = process.env.AIRTABLE_PAT;
-  const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'app00c03021ILsOrv';
+  // Aurevon Operations base ID
+  const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'appI9X8vcRcK1QZ1l';
+  // CustomerAuth table ID
+  const AUTH_TABLE = 'tblbCS7TL65FcOiWn';
 
   if (!AIRTABLE_PAT) {
     console.error('AIRTABLE_PAT environment variable is not set');
@@ -36,14 +41,16 @@ export default async function handler(req, res) {
   };
 
   try {
-    // Search CustomerAuth for this email
+    // Search CustomerAuth table for this email
     const formula = encodeURIComponent(`LOWER({Email})="${normalizedEmail}"`);
-    const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/tbl1UGOLPxZRW7vB2?filterByFormula=${formula}&maxRecords=1`;
+    const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AUTH_TABLE}?filterByFormula=${formula}&maxRecords=1`;
     const resp = await fetch(url, { headers: airtableHeaders });
+
     if (!resp.ok) {
       console.error('Airtable verify lookup error:', await resp.text());
       return res.status(500).json({ valid: false, reason: 'Database error' });
     }
+
     const data = await resp.json();
     const records = data.records || [];
 
@@ -61,38 +68,30 @@ export default async function handler(req, res) {
 
     // Check expiry
     const tokenExpires = fields['Token Expires'];
-    if (!tokenExpires || new Date(tokenExpires) < new Date()) {
+    if (tokenExpires && new Date(tokenExpires) < new Date()) {
       return res.status(200).json({ valid: false, reason: 'Login link has expired. Please request a new one.' });
     }
 
-    // Generate session token
-    const sessionToken = crypto.randomUUID();
-    const now = new Date().toISOString();
-
-    // Update CustomerAuth — mark session active, clear magic token, record last login
-    const patchResp = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/tbl1UGOLPxZRW7vB2/${record.id}`, {
+    // Mark session active and clear token (one-time use)
+    const recordId = record.id;
+    await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AUTH_TABLE}/${recordId}`, {
       method: 'PATCH',
       headers: airtableHeaders,
       body: JSON.stringify({
         fields: {
-          'Session Token': sessionToken,
           'Session Active': true,
           'Magic Token': '',
-          'Token Expires': '',
-          'Last Login': now,
+          'Last Login': new Date().toISOString().split('T')[0],
         },
       }),
     });
-    if (!patchResp.ok) {
-      console.error('Airtable session update error:', await patchResp.text());
-    }
 
-    const customerName = fields['Customer Name'] || '';
+    // Return customer info for dashboard
     return res.status(200).json({
       valid: true,
-      sessionToken,
-      customerName,
+      customerName: fields['Customer Name'] || '',
       email: normalizedEmail,
+      memberTier: fields['Member Tier'] || 'Free',
     });
   } catch (err) {
     console.error('verify.js error:', err);
