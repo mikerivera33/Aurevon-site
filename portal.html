@@ -1295,7 +1295,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
   async function verifyMagicLink(email, token) {
     showLoading('Verifying your login link…');
     try {
-      const res = await fetch(`${API_BASE}/verify.js`, {
+      const res = await fetch(`${API_BASE}/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, token })
@@ -1325,7 +1325,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
   async function loadPortal() {
     showLoading('Loading your dashboard…');
     try {
-      const res = await fetch(`${API_BASE}/data.js`, {
+      const res = await fetch(`${API_BASE}/data`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: _session.email, sessionToken: _session.sessionToken })
@@ -1680,7 +1680,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
     hideLoginMsg();
 
     try {
-      const res = await fetch(`${API_BASE}/auth.js`, {
+      const res = await fetch(`${API_BASE}/auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
