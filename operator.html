@@ -362,7 +362,7 @@ document.addEventListener('DOMContentLoaded', function(){
         <label style="font-size:.78rem;color:var(--txt2);font-weight:600;">Airtable Personal Access Token (PAT)</label>
         <input type="password" id="airtablePat" placeholder="patXXXXXXXXXXXXX..." style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.7rem 1rem;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:0.85rem;outline:none;" autocomplete="off" spellcheck="false">
         <label style="font-size:.78rem;color:var(--txt2);font-weight:600;margin-top:0.4rem;">Base ID (pre-filled — Aurevon Operations)</label>
-        <input type="text" id="airtableBaseId" value="app00c03021ILsOrv" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.7rem 1rem;color:var(--txt);font-family:'DM Sans',monospace;font-size:0.85rem;outline:none;" readonly>
+        <input type="text" id="airtableBaseId" value="appI9X8vcRcK1QZ1l" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.7rem 1rem;color:var(--txt);font-family:'DM Sans',monospace;font-size:0.85rem;outline:none;" readonly>
         <div style="display:flex;gap:0.6rem;margin-top:0.4rem;flex-wrap:wrap;">
           <button class="btn-primary" type="button" onclick="bktAirtableSave()">💾 Save & Connect</button>
           <button class="btn-secondary" type="button" onclick="bktAirtableTest()">🔍 Test Connection</button>
@@ -387,15 +387,15 @@ document.addEventListener('DOMContentLoaded', function(){
     <div class="card" style="margin-top:1rem;">
       <div class="card-title">Connected Base — Quick Links</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.6rem;">
-        <a href="https://airtable.com/app00c03021ILsOrv/tblDuezyOsxy7sNES" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
+        <a href="https://airtable.com/appI9X8vcRcK1QZ1l/tblDuezyOsxy7sNES" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
           <div class="lt-title">📋 Leads Table</div>
           <div class="lt-tag" style="font-family:'DM Sans',monospace;font-size:.7rem;">tblDuezyOsxy7sNES</div>
         </a>
-        <a href="https://airtable.com/app00c03021ILsOrv/tblMPOjy7os3FyO3Q" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
+        <a href="https://airtable.com/appI9X8vcRcK1QZ1l/tblMPOjy7os3FyO3Q" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
           <div class="lt-title">💰 Payments Table</div>
           <div class="lt-tag" style="font-family:'DM Sans',monospace;font-size:.7rem;">tblMPOjy7os3FyO3Q</div>
         </a>
-        <a href="https://airtable.com/app00c03021ILsOrv/tblBi4wqjOeWpHAMI" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
+        <a href="https://airtable.com/appI9X8vcRcK1QZ1l/tblBi4wqjOeWpHAMI" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
           <div class="lt-title">🎴 NFT Mints Table</div>
           <div class="lt-tag" style="font-family:'DM Sans',monospace;font-size:.7rem;">tblBi4wqjOeWpHAMI</div>
         </a>
@@ -445,7 +445,7 @@ document.addEventListener('DOMContentLoaded', function(){
     <div class="section-body open">
       <div class="card">
         <div class="card-title">Airtable Integration</div>
-        <p style="font-size:.83rem;color:var(--txt2);">All deal submissions from <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">AUREVON_RE_Intake.html</code> are logged here. Connect <strong>Airtable Base ID</strong> <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">appAUREVONRE</code> Table <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">Leads</code> to populate this view.</p>
+        <p style="font-size:.83rem;color:var(--txt2);">All deal submissions from <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">AUREVON_RE_Intake.html</code> are logged here. Connect <strong>Airtable Base ID</strong> <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">appI9X8vcRcK1QZ1l</code> Table <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">Leads</code> to populate this view.</p>
         <div class="card-note">Setup → <strong>Airtable</strong> → <code>AUREVON_CONFIG.AIRTABLE_LEADS_BASE_ID</code>. Webhook from Formspree → Airtable supported via Zapier or Make.com.</div>
       </div>
       <div class="tbl-wrap">
@@ -1070,7 +1070,7 @@ loadChecklist();
 (function(){
   // ── Aurevon Airtable client ──
   const A = {
-    BASE_ID: 'app00c03021ILsOrv',
+    BASE_ID: 'appI9X8vcRcK1QZ1l',
     TABLES: {'Leads': 'tblDuezyOsxy7sNES', 'Payments': 'tblMPOjy7os3FyO3Q', 'NFT_Mints': 'tblBi4wqjOeWpHAMI'},
     PAT_KEY: 'bkt_airtable_pat',
     pat: localStorage.getItem('bkt_airtable_pat') || '',
