@@ -22,11 +22,11 @@ window.AUREVON_CONFIG = {
   // 1. Stripe Payment Links — create 3 links in Stripe Dashboard
   //    (Products → Add product → Add price → "Create payment link"),
   //    then paste each URL below.
-  STRIPE_BOGO_URL:       "https://buy.stripe.com/REPLACE_BOGO",        // $299.99 — First-Timer BOGO (2 Full Package deals)
-  STRIPE_SINGLE_URL:     "https://buy.stripe.com/REPLACE_SINGLE",      // $189.99 — Second Opinion (underwriting + analysis, 2 docs)
-  STRIPE_FULL_URL:       "https://buy.stripe.com/REPLACE_FULL",        // $250.00 — Full Package (all 3 documents)
-  STRIPE_RETAINER_URL:   "https://buy.stripe.com/REPLACE_RETAINER",    // $1,499 / month — Pro Retainer (6 deals / month, subscription link)
-  STRIPE_ENTERPRISE_URL: "https://buy.stripe.com/REPLACE_ENTERPRISE",  // $2,499 / month — Enterprise (unlimited deals, subscription link)
+    STRIPE_BOGO_URL:      "__CHECKOUT__re_bogo",       // $299.99 — First-Timer BOGO (2 Full Package deals)
+    STRIPE_SINGLE_URL:    "__CHECKOUT__re_single",     // $189.99 — Second Opinion (underwriting + analysis, 2 docs)
+    STRIPE_FULL_URL:      "__CHECKOUT__re_full",       // $250.00 — Full Package (all 3 documents)
+    STRIPE_RETAINER_URL:  "__CHECKOUT__re_retainer",   // $1,499/month — Pro Retainer (6 deals/month, subscription)
+    STRIPE_ENTERPRISE_URL: "__CHECKOUT__re_enterprise", // $2,499/month — Enterprise (unlimited deals, subscription)
 
   // 2. PayPal payment links — two options (use whichever you prefer per tier):
   //    A) PayPal.me link:  https://www.paypal.me/YourHandle/149.99
@@ -1624,7 +1624,24 @@ targets.forEach(t => spy.observe(t));
     if(cta){
       cta.addEventListener('click', function(e){
         var href = cta.getAttribute('href') || '';
-        if(href === '#' || href.indexOf('REPLACE_') > -1){
+                    // Aurevon API Checkout — intercept __CHECKOUT__ tier keys
+            if(href && href.startsWith('__CHECKOUT__')){
+              e.preventDefault();
+              var tier = href.replace('__CHECKOUT__', '');
+              var promoParam = activePromo ? activePromo : null;
+              var cancelPath = window.location.pathname;
+              var btn = cta; btn.disabled = true; btn.textContent = 'Redirecting...';
+              fetch('/api/stripe/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tier: tier, promoCode: promoParam, cancelPath: cancelPath })
+              }).then(function(r){ return r.json(); }).then(function(data){
+                if(data.url){ sessionStorage.setItem('bkt_pending_intake', cta.getAttribute('data-success')); window.location.href = data.url; }
+                else { btn.disabled = false; btn.textContent = btn.getAttribute('data-orig-text') || 'Buy'; alert('Checkout error: ' + (data.error || 'Unknown error')); }
+              }).catch(function(err){ btn.disabled = false; alert('Checkout error: ' + err.message); });
+              return;
+            }
+           if(href === '#' || href.indexOf('REPLACE_') > -1){
           e.preventDefault();
           alert('⚙️ Owner setup needed:\n\nThe ' + method.toUpperCase() + ' payment link for "' + currentLabel + '" has not been configured yet.\n\nFor Stripe: Dashboard → Products → Create payment link → enable Cash App Pay & Afterpay.\nFor PayPal: Business → Pay Links & Buttons.\n\nThen paste the URL into AUREVON_CONFIG and set success_url/return_url to:\n' + (isMembership ? 'membership_confirmation.html' : 'AUREVON_RE_Intake.html'));
           return;
