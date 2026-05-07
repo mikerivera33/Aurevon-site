@@ -12,6 +12,9 @@
     "test:qa": "bash qa-test.sh",
     "test:pipeline": "bash qa-test.sh --full-pipeline"
   },
+    "dependencies": {
+    "stripe": "^16.0.0"
+  },
   "devDependencies": {
     "vercel": "^37.0.0"
   },
