@@ -417,8 +417,8 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 /* ─── AUREVON_CONFIG: unified config for payment terminal ─── */
 window.AUREVON_CONFIG = window.AUREVON_CONFIG || {};
 Object.assign(window.AUREVON_CONFIG, {
-  STRIPE_COMM_MONTHLY_URL:  "https://buy.stripe.com/REPLACE_COMM_MONTHLY",
-  STRIPE_COMM_LIFETIME_URL: "https://buy.stripe.com/REPLACE_COMM_LIFETIME",
+    STRIPE_COMM_MONTHLY_URL:  "__CHECKOUT__comm_monthly",   // $29.99/month — Community Monthly subscription
+    STRIPE_COMM_LIFETIME_URL: "__CHECKOUT__comm_lifetime",  // $349.99 one-time — Community Lifetime
   PAYPAL_COMM_MONTHLY_URL:  "https://www.paypal.com/ncp/payment/REPLACE_COMM_MONTHLY",
   PAYPAL_COMM_LIFETIME_URL: "https://www.paypal.com/ncp/payment/REPLACE_COMM_LIFETIME"
 });
@@ -426,8 +426,8 @@ Object.assign(window.AUREVON_CONFIG, {
 /* ─── CONFIG: Paste your Stripe/PayPal links here ─── */
 const COMM_PAY = {
   stripe: {
-    comm_monthly:  "https://buy.stripe.com/REPLACE_COMM_MONTHLY",   // $29.99/mo
-    comm_lifetime: "https://buy.stripe.com/REPLACE_COMM_LIFETIME"   // $349.99 one-time
+        comm_monthly:  "__CHECKOUT__comm_monthly",   // $29.99/mo
+        comm_lifetime: "__CHECKOUT__comm_lifetime",  // $349.99 one-time
   },
   paypal: {
     comm_monthly:  "https://www.paypal.com/REPLACE_COMM_MONTHLY",
@@ -448,6 +448,22 @@ document.querySelectorAll('[data-pay]').forEach(btn => {
     const processor = btn.dataset.pay;
     const tier = btn.dataset.tier;
     const url = (COMM_PAY[processor] || {})[tier];
+            // Aurevon API Checkout — intercept __CHECKOUT__ tier keys (dynamic Stripe session)
+        if(url && url.startsWith('__CHECKOUT__')){
+          e.preventDefault();
+          var checkoutTier = url.replace('__CHECKOUT__', '');
+          var cancelPath = window.location.pathname;
+          btn.disabled = true; btn.textContent = 'Redirecting...';
+          fetch('/api/stripe/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tier: checkoutTier, cancelPath: cancelPath })
+          }).then(function(r){ return r.json(); }).then(function(data){
+            if(data.url){ window.location.href = data.url; }
+            else { btn.disabled = false; btn.textContent = btn.getAttribute('data-orig-text') || 'Join Now'; alert('Checkout error: ' + (data.error || 'Unknown error')); }
+          }).catch(function(err){ btn.disabled = false; alert('Checkout error: ' + err.message); });
+          return;
+        }
     if (!url || url.includes('REPLACE_')) {
       const svc = processor === 'paypal' ? 'PayPal' : 'Stripe';
       const price = tier === 'comm_monthly' ? '$29.99/mo' : '$349.99 one-time';
@@ -619,6 +635,23 @@ document.querySelectorAll('[data-pay]').forEach(btn => {
     if(cta){
       cta.addEventListener('click', function(e){
         var href = cta.getAttribute('href') || '';
+                    // Aurevon API Checkout — intercept __CHECKOUT__ tier keys
+            if(href && href.startsWith('__CHECKOUT__')){
+              e.preventDefault();
+              var tier = href.replace('__CHECKOUT__', '');
+              var promoParam = window.activePromo || null;
+              var cancelPath = window.location.pathname;
+              var btn = cta; btn.disabled = true; btn.textContent = 'Redirecting...';
+              fetch('/api/stripe/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tier: tier, promoCode: promoParam, cancelPath: cancelPath })
+              }).then(function(r){ return r.json(); }).then(function(data){
+                if(data.url){ sessionStorage.setItem('bkt_pending_intake', cta.getAttribute('data-success')); window.location.href = data.url; }
+                else { btn.disabled = false; btn.textContent = btn.getAttribute('data-orig-text') || 'Join Now'; alert('Checkout error: ' + (data.error || 'Unknown error')); }
+              }).catch(function(err){ btn.disabled = false; alert('Checkout error: ' + err.message); });
+              return;
+            }
         if(href === '#' || href.indexOf('REPLACE_') > -1){
           e.preventDefault();
           alert('⚙️ Owner setup needed:\n\nThe ' + method.toUpperCase() + ' payment link for "' + currentLabel + '" has not been configured yet.\n\nFor Stripe: Dashboard → Products → Create payment link → enable Cash App Pay & Afterpay.\nFor PayPal: Business → Pay Links & Buttons.\n\nThen paste the URL into AUREVON_CONFIG and set success_url/return_url to:\n' + (isMembership ? 'membership_confirmation.html' : 'AUREVON_RE_Intake.html'));
