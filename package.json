@@ -12,7 +12,8 @@
     "test:qa": "bash qa-test.sh",
     "test:pipeline": "bash qa-test.sh --full-pipeline"
   },
-    "dependencies": {
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "stripe": "^16.0.0"
   },
   "devDependencies": {
