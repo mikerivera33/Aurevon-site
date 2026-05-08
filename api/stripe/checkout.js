@@ -8,162 +8,118 @@
 
 import Stripe from 'stripe';
 
-// ---------------------------------------------------------------------------
-// Product catalog — maps tier keys to Stripe price configs
-// ---------------------------------------------------------------------------
+// -----------------------------------------------------------------------
+// Product catalog — maps tier keys to real Stripe price IDs (Aurevon-Labs)
+// -----------------------------------------------------------------------
 const PRODUCT_CATALOG = {
   // Aurevon RE tiers
   re_bogo: {
     name: 'Aurevon RE — First-Timer BOGO',
-    description: '2 Full Package deals — underwriting + analysis for 2 properties.',
-    amount: 29999, // $299.99
-    currency: 'usd',
+    priceId: 'price_1TUbS78e9ZIjX9wLXztOF2rW',
     mode: 'payment',
     tier: 're_bogo',
   },
   re_single: {
     name: 'Aurevon RE — Second Opinion',
-    description: 'Underwriting + analysis report, 2 documents.',
-    amount: 18999, // $189.99
-    currency: 'usd',
+    priceId: 'price_1TUbRV8e9ZIjX9wLwnipS9cT',
     mode: 'payment',
     tier: 're_single',
   },
   re_full: {
     name: 'Aurevon RE — Full Package',
-    description: 'Full underwriting package — all 3 documents.',
-    amount: 25000, // $250.00
-    currency: 'usd',
+    priceId: 'price_1TUbRq8e9ZIjX9wLmheDhC9n',
     mode: 'payment',
     tier: 're_full',
   },
   re_retainer: {
     name: 'Aurevon RE — Pro Retainer',
-    description: '6 deals/month — pro retainer subscription.',
-    amount: 149900, // $1,499/mo
-    currency: 'usd',
+    priceId: 'price_1TUbSQ8e9ZIjX9wL2eaJG23q',
     mode: 'subscription',
     tier: 're_retainer',
   },
   re_enterprise: {
     name: 'Aurevon RE — Enterprise',
-    description: 'Unlimited deals/month — enterprise subscription.',
-    amount: 249900, // $2,499/mo
-    currency: 'usd',
+    priceId: 'price_1TUbUa8e9ZIjX9wLKzmvxCni',
     mode: 'subscription',
     tier: 're_enterprise',
   },
-  // Aurevon Web3 / NFT Community tiers
-  comm_monthly: {
-    name: 'Aurevon NFT — Community Monthly',
-    description: 'Monthly NFT Community membership. Includes Discord access + Genesis NFT.',
-    amount: 2999, // $29.99/mo
-    currency: 'usd',
+  // Aurevon Web3 / AI tiers
+  web3_starter: {
+    name: 'Aurevon Web3 — Starter',
+    priceId: 'price_1TUbWM8e9ZIjX9wL1rvz5qpC',
     mode: 'subscription',
-    tier: 'comm_monthly',
+    tier: 'web3_starter',
   },
-  comm_lifetime: {
-    name: 'Aurevon NFT — Community Lifetime',
-    description: 'Lifetime NFT Community membership. One-time payment. Includes Genesis NFT.',
-    amount: 34999, // $349.99
-    currency: 'usd',
-    mode: 'payment',
-    tier: 'comm_lifetime',
+  web3_growth: {
+    name: 'Aurevon Web3 — Growth',
+    priceId: 'price_1TUbWw8e9ZIjX9wLkSdG65AA',
+    mode: 'subscription',
+    tier: 'web3_growth',
+  },
+  web3_scale: {
+    name: 'Aurevon Web3 — Scale',
+    priceId: 'price_1TUbXO8e9ZIjX9wLWcv9ckWi',
+    mode: 'subscription',
+    tier: 'web3_scale',
+  },
+  web3_enterprise: {
+    name: 'Aurevon Web3 — Enterprise',
+    priceId: 'price_1TUbXi8e9ZIjX9wL1UllvSGy',
+    mode: 'subscription',
+    tier: 'web3_enterprise',
   },
 };
 
-// ---------------------------------------------------------------------------
-// Vercel handler
-// ---------------------------------------------------------------------------
+// -----------------------------------------------------------------------
+// Handler
+// -----------------------------------------------------------------------
 export default async function handler(req, res) {
-  // CORS preflight
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeSecretKey) {
-    console.error('[Checkout] STRIPE_SECRET_KEY not set');
-    return res.status(500).json({ error: 'Server misconfiguration' });
-  }
+  const { tier } = req.body ?? {};
 
-  const stripe = new Stripe(stripeSecretKey);
-
-  const { tier, promoCode, cancelPath } = req.body ?? {};
-
-  if (!tier || !PRODUCT_CATALOG[tier]) {
-    return res.status(400).json({ error: `Unknown tier: ${tier}` });
+  if (!tier) {
+    return res.status(400).json({ error: 'Missing tier parameter' });
   }
 
   const product = PRODUCT_CATALOG[tier];
-  const baseUrl = process.env.BASE_URL || 'https://www.aurevonvc.com';
-
-  // Build success URL — for RE tiers, redirect to intake form with session ID
-  let successUrl;
-  if (tier.startsWith('re_')) {
-    successUrl = `${baseUrl}/AUREVON_RE_Intake.html?paid={CHECKOUT_SESSION_ID}&tier=${tier}`;
-  } else {
-    successUrl = `${baseUrl}/membership-confirmation?session_id={CHECKOUT_SESSION_ID}&tier=${tier}`;
+  if (!product) {
+    return res.status(400).json({ error: `Unknown tier: ${tier}` });
   }
-  const cancelUrl = `${baseUrl}${cancelPath || '/'}`;  
+
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return res.status(500).json({ error: 'Stripe secret key not configured' });
+  }
+
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: '2023-10-16',
+  });
+
+  const BASE_URL = process.env.BASE_URL || `https://${req.headers.host}`;
 
   try {
     const sessionParams = {
       mode: product.mode,
       line_items: [
         {
-          price_data: {
-            currency: product.currency,
-            product_data: {
-              name: product.name,
-              description: product.description,
-              images: [`${baseUrl}/assets/aurevon-logo.png`],
-            },
-            unit_amount: product.amount,
-            ...(product.mode === 'subscription' && {
-              recurring: { interval: 'month' },
-            }),
-          },
+          price: product.priceId,
           quantity: 1,
         },
       ],
-      metadata: { tier: product.tier },
-      customer_creation: product.mode === 'payment' ? 'always' : undefined,
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      // Aurevon branding
-      custom_text: {
-        submit: { message: 'You will receive your Aurevon delivery via email after payment.' },
+      success_url: `${BASE_URL}/success?tier=${product.tier}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${BASE_URL}/cancel?tier=${product.tier}`,
+      metadata: {
+        tier: product.tier,
+        product_name: product.name,
       },
-      // Allow promo codes entered at checkout
-      allow_promotion_codes: true,
-      // Collect billing/email details
-      billing_address_collection: 'auto',
-      phone_number_collection: { enabled: false },
     };
 
-    // Apply pre-filled promo code if provided
-    if (promoCode) {
-      try {
-        const promotionCodes = await stripe.promotionCodes.list({ code: promoCode, active: true, limit: 1 });
-        if (promotionCodes.data.length > 0) {
-          sessionParams.discounts = [{ promotion_code: promotionCodes.data[0].id }];
-          sessionParams.allow_promotion_codes = false; // disable field when pre-filled
-        }
-      } catch (err) {
-        console.warn(`[Checkout] Promo code lookup failed: ${err.message}`);
-      }
-    }
-
     const session = await stripe.checkout.sessions.create(sessionParams);
-    return res.status(200).json({ url: session.url, sessionId: session.id });
+    return res.status(200).json({ url: session.url });
   } catch (err) {
-    console.error(`[Checkout] Stripe error: ${err.message}`);
+    console.error('Stripe checkout error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }
