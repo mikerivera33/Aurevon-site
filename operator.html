@@ -1169,7 +1169,7 @@ loadChecklist();
       renderKPIs(leads, payments, mints);
       updateStatus();
     } catch(e){
-      updateStatus('✗ Refresh failed: ' + e.message, 'error');
+      updateStatus(A.pat ? ('✗ Refresh failed: ' + e.message + ' — Check browser console.') : '⚠️ Airtable PAT not configured — enter your PAT in Setup below to load live data.', A.pat ? 'error' : 'warn');
     }
   }
   window.bktRefresh = refreshAll;
