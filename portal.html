@@ -7,6 +7,8 @@ window.addEventListener('error',function(e){if(e.filename&&e.filename.startsWith
 window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reason.message||String(e.reason))||'';if(m.includes('MetaMask')||m.includes('cross-origin')||m.includes('chrome-extension')){e.preventDefault();return;}});
 (function(){try{localStorage.getItem('_t');}catch(e){var m={};window.localStorage={getItem:function(k){return m[k]||null;},setItem:function(k,v){m[k]=String(v);},removeItem:function(k){delete m[k];},clear:function(){m={};}};}}());
 </script>
+<!-- Vercel Speed Insights -->
+<script defer src="/_vercel/speed-insights/script.js"></script>
 <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Aurevon Dashboard — My Portal</title>
