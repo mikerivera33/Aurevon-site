@@ -1,0 +1,82 @@
+name: Scheduled Health Monitor
+
+on:
+  schedule:
+    # Every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to check'
+        required: false
+        default: 'production'
+
+jobs:
+  health-check:
+    name: API Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check /api/health endpoint
+        id: health
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" https://aurevon-site.vercel.app/api/health)
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "status=$HTTP_STATUS" >> $GITHUB_OUTPUT
+          echo "body=$BODY" >> $GITHUB_OUTPUT
+          echo "HTTP Status: $HTTP_STATUS"
+          echo "Response: $BODY"
+
+      - name: Parse missing env vars
+        run: |
+          BODY='${{ steps.health.outputs.body }}'
+          echo "Health check result:"
+          echo "$BODY" | python3 -c "
+import sys, json
+try:
+  data = json.load(sys.stdin)
+  print(f\"Pipeline: {data.get('pipeline', 'unknown')}\")
+  print(f\"Status: {data.get('status', 'unknown')}\")
+  env = data.get('env_check', {})
+  missing = [k for k,v in env.items() if not v]
+  configured = [k for k,v in env.items() if v]
+  print(f\"Configured ({len(configured)}): {', '.join(configured)}\")
+  print(f\"Missing ({len(missing)}): {', '.join(missing)}\")
+  if missing:
+    print(f\"\\n::warning::MISSING ENV VARS: {', '.join(missing)}\")
+except Exception as e:
+  print(f'Parse error: {e}')
+" || echo "Could not parse JSON response"
+
+      - name: Check page routes
+        run: |
+          ROUTES=(
+            "https://aurevon-site.vercel.app/"
+            "https://aurevon-site.vercel.app/aurevon-re"
+            "https://aurevon-site.vercel.app/aurevon-web3"
+            "https://aurevon-site.vercel.app/aurevon-nft"
+            "https://aurevon-site.vercel.app/merch"
+            "https://aurevon-site.vercel.app/portal"
+            "https://aurevon-site.vercel.app/operator"
+            "https://aurevon-site.vercel.app/api/health"
+          )
+          ALL_OK=true
+          for ROUTE in "${ROUTES[@]}"; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$ROUTE")
+            if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+              echo "OK ($STATUS): $ROUTE"
+            else
+              echo "FAIL ($STATUS): $ROUTE"
+              ALL_OK=false
+            fi
+          done
+          if [ "$ALL_OK" = false ]; then
+            echo "::error::One or more routes returned non-2xx/3xx status"
+            exit 1
+          fi
+
+      - name: Fail if health check returned non-200
+        if: steps.health.outputs.status != '200'
+        run: |
+          echo "::error::Health endpoint returned status ${{ steps.health.outputs.status }}"
+          exit 1
