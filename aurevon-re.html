@@ -1469,7 +1469,7 @@ targets.forEach(t => spy.observe(t));
 <div id="bktPayModal" class="bkt-pay-modal" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="bkt-pay-overlay"></div>
   <div class="bkt-pay-card">
-    <button class="bkt-pay-close" type="button" aria-label="Close">&times;</button>
+    <button class="bkt-pay-close" type="button" aria-label="Close">&times;</button> <div id="bkt-pay-error" style="display:none;background:#c0392b;color:#fff;padding:12px 16px;border-radius:6px;margin:16px 20px 0;font-size:14px;font-weight:600;line-height:1.4;"></div>
     <div class="bkt-pay-head">
       <div class="bkt-pay-logo">
         <svg width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:8px;flex-shrink:0;"><rect width="40" height="40" rx="8" fill="#1E3A8A"/><text x="20" y="28" text-anchor="middle" font-family='Archivo Black',sans-serif font-size="22" fill="white" font-weight="900">A</text></svg>
@@ -1639,8 +1639,8 @@ targets.forEach(t => spy.observe(t));
                 body: JSON.stringify({ tier: tier, promoCode: promoParam, cancelPath: cancelPath })
               }).then(function(r){ return r.json(); }).then(function(data){
                 if(data.url){ sessionStorage.setItem('bkt_pending_intake', cta.getAttribute('data-success')); window.location.href = data.url; }
-                else { btn.disabled = false; btn.textContent = btn.getAttribute('data-orig-text') || 'Buy'; alert('Checkout error: ' + (data.error || 'Unknown error')); }
-              }).catch(function(err){ btn.disabled = false; alert('Checkout error: ' + err.message); });
+                else { btn.disabled = false; btn.textContent = btn.getAttribute('data-orig-text') || 'Buy'; showPaymentError(data.error || 'Checkout failed. Please try again or contact hello@aurevongroup.com.'); }
+              }).catch(function(err){ btn.disabled = false; showPaymentError(err.message || 'Network error. Please check your connection and try again.'); });
               return;
             }
            if(href === '#' || href.indexOf('REPLACE_') > -1){
