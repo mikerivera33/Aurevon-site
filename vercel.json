@@ -29,23 +29,21 @@
     { "source": "/success", "destination": "/index.html" },
     { "source": "/cancel", "destination": "/index.html" },
     { "source": "/AUREVON_NFT_Collection", "destination": "/aurevon-nft.html" },
-                    { "soource": "/api/email/send", "destination": "/api/email/send.js" },
+    { "source": "/api/email/send", "destination": "/api/email/send.js" },
     { "source": "/api/crossmint/mint", "destination": "/api/crossmint/mint.js" },
     { "source": "/api/paypal/create-order", "destination": "/api/paypal/create-order.js" },
     { "source": "/api/paypal/capture", "destination": "/api/paypal/capture.js" },
     { "source": "/aurevon_nft_collection", "destination": "/aurevon-nft.html" },
     { "source": "/nft-collection", "destination": "/aurevon-nft.html" },
-    { "source": "/nfts", "destination": "/aurevon-nft.html" },
-    { "source": "/AUREVON-crm", "destination": "/aurevon-crm.html" },
-    { "source": "/", "destination": "/index.html" }
+    { "source": "/nfts", "destination": "/aurevon-nft.html" }
   ],
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, stripe-signature" }
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type,Authorization" }
       ]
     },
     {
@@ -58,36 +56,14 @@
     }
   ],
   "functions": {
-    "api/webhooks/stripe.js": {
-      "maxDuration": 30
-    },
-    "api/webhooks/paypal.js": {
-      "maxDuration": 30
-    },
-    "api/stripe/checkout.js": {
-      "maxDuration": 15
-    },
-    "api/portal/auth.js": {
-      "maxDuration": 15
-    },
-    "api/portal/verify.js": {
-      "maxDuration": 10
-    },
-    "api/portal/data.js": {
-      "maxDuration": 15
-              },
-"api/paypal/create-order.js": {
-      "maxDuration": 20
-    },
-    "api/paypal/capture.js": {
-      "maxDuration": 20
-    },
-    "api/crossmint/mint.js": {
-      "maxDuration": 30
-    },
-    "api/email/send.js": {
-      "maxDuration": 10
-    }
-    }
+    "api/stripe/checkout.js": { "maxDuration": 30 },
+    "api/webhooks/stripe.js": { "maxDuration": 60 },
+    "api/portal/auth.js": { "maxDuration": 20 },
+    "api/portal/verify.js": { "maxDuration": 15 },
+    "api/portal/data.js": { "maxDuration": 15 },
+    "api/paypal/create-order.js": { "maxDuration": 20 },
+    "api/paypal/capture.js": { "maxDuration": 20 },
+    "api/crossmint/mint.js": { "maxDuration": 30 },
+    "api/email/send.js": { "maxDuration": 10 }
   }
 }
