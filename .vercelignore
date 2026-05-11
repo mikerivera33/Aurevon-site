@@ -1,0 +1,11 @@
+# Exclude test files from Vercel deployment
+api/test
+
+# Exclude cron jobs (requires Pro plan for scheduling)
+api/cron
+
+# Exclude Discord lib (utility only)
+api/discord/lib
+
+# Exclude markdown docs from deployment
+*.md
