@@ -26,12 +26,6 @@ jobs:
       - name: Validate vercel.json
         run: node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8')); console.log('vercel.json is valid JSON');"
 
-      - name: Check API files syntax
-        run: |
-          for f in api/**/*.js api/*.js; do
-            node --input-type=module < "$f" 2>&1 || true
-          done
-
   deploy-production:
     name: Deploy Production (main only)
     runs-on: ubuntu-latest
@@ -42,6 +36,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Remove excess serverless functions (Hobby plan limit = 12)
+        run: |
+          rm -rf api/test
+          rm -rf api/cron
+          echo "Remaining API functions:"
+          find api -name '*.js' | wc -l
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -58,8 +59,8 @@ jobs:
       - name: Deploy to Vercel Production
         run: vercel deploy --prod --token=$VERCEL_TOKEN --yes
 
-      - name: Comment deployment URL on commit
-        run: echo "Deployed to Vercel"
+      - name: Echo deployment complete
+        run: echo "Production deployment complete"
 
   deploy-preview:
     name: Deploy Preview (PR only)
@@ -71,6 +72,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Remove excess serverless functions (Hobby plan limit = 12)
+        run: |
+          rm -rf api/test
+          rm -rf api/cron
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
