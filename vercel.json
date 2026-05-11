@@ -29,6 +29,13 @@
     { "source": "/success", "destination": "/index.html" },
     { "source": "/cancel", "destination": "/index.html" },
     { "source": "/AUREVON_NFT_Collection", "destination": "/aurevon-nft.html" },
+            { "soource": "/api/email/send", "destination": "/api/email/send.js" },
+    { "source": "/api/crossmint/mint", "destination": "/api/crossmint/mint.js" },
+    { "source": "/api/paypal/create-order", "destination": "/api/paypal/create-order.js" },
+    { "source": "/api/paypal/capture", "destination": "/api/paypal/capture.js" },
+    { "source": "/aurevon_nft_collection", "destination": "/aurevon-nft.html" },
+    { "source": "/nft-collection", "destination": "/aurevon-nft.html" },
+    { "source": "/nfts", "destination": "/aurevon-nft.html" },
     { "source": "/AUREVON-crm", "destination": "/aurevon-crm.html" },
     { "source": "/", "destination": "/index.html" }
   ],
@@ -68,6 +75,19 @@
     },
     "api/portal/data.js": {
       "maxDuration": 15
+              },
+"api/paypal/create-order.js": {
+      "maxDuration": 20
+    },
+    "api/paypal/capture.js": {
+      "maxDuration": 20
+    },
+    "api/crossmint/mint.js": {
+      "maxDuration": 30
+    },
+    "api/email/send.js": {
+      "maxDuration": 10
+    }
     }
   }
 }
