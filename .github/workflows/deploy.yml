@@ -37,6 +37,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint-and-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -54,19 +56,18 @@ jobs:
         run: npm install --global vercel@latest
 
       - name: Deploy to Vercel Production
-        run: vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel deploy --prod --token=$VERCEL_TOKEN --yes
 
       - name: Comment deployment URL on commit
-        run: echo "Deployed to https://aurevon-site.vercel.app"
+        run: echo "Deployed to Vercel"
 
   deploy-preview:
     name: Deploy Preview (PR only)
     runs-on: ubuntu-latest
     needs: lint-and-test
     if: github.event_name == 'pull_request'
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -84,7 +85,4 @@ jobs:
         run: npm install --global vercel@latest
 
       - name: Deploy to Vercel Preview
-        run: vercel deploy --token=${{ secrets.VERCEL_TOKEN }} --yes
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel deploy --token=$VERCEL_TOKEN --yes
