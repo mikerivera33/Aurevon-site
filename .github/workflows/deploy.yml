@@ -37,12 +37,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Remove excess serverless functions (Hobby plan limit = 12)
+      - name: Remove excess API directories (Hobby plan max 12 functions)
         run: |
-          rm -rf api/test
-          rm -rf api/cron
-          echo "Remaining API functions:"
-          find api -name '*.js' | wc -l
+          rm -rf api/test api/cron
+          echo "JS files in api after cleanup:"
+          find api -name '*.js' | sort
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -56,8 +55,8 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
-      - name: Deploy to Vercel Production
-        run: vercel deploy --prod --token=$VERCEL_TOKEN --yes
+      - name: Deploy to Vercel Production (force fresh build)
+        run: vercel deploy --prod --token=$VERCEL_TOKEN --yes --force
 
       - name: Echo deployment complete
         run: echo "Production deployment complete"
@@ -73,10 +72,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Remove excess serverless functions (Hobby plan limit = 12)
-        run: |
-          rm -rf api/test
-          rm -rf api/cron
+      - name: Remove excess API directories
+        run: rm -rf api/test api/cron
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -91,4 +88,4 @@ jobs:
         run: npm install --global vercel@latest
 
       - name: Deploy to Vercel Preview
-        run: vercel deploy --token=$VERCEL_TOKEN --yes
+        run: vercel deploy --token=$VERCEL_TOKEN --yes --force
