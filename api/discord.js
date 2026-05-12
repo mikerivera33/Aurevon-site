@@ -1,42 +1,36 @@
 /**
- * Unified Discord handler — GET /api/discord?action=auth|callback
+ * Unified Discord handler — /api/discord?action=auth|callback|sync
  *
- * Consolidates OAuth flow into one serverless function to stay under
- * the Vercel Hobby plan's 12-function limit.
+ * action=auth&email=xxx     → redirect to Discord OAuth consent screen
+ * action=callback&code=x    → handle OAuth callback, assign role, write Airtable
+ * action=sync  (POST)       → bot-assign role for a member who already has a Discord ID
+ *                             Body: { email, secret? }  OR use CRON_SECRET header
  *
- * Routes:
- *   ?action=auth&email=xxx   → redirect to Discord consent screen
- *   ?action=callback&code=x  → handle OAuth callback, assign role
+ * Function limit note: all Discord actions consolidated here to stay under
+ * the Vercel Hobby 12-function limit.
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { addRoleToMember, addMemberToGuild } from './_lib/discord-bot.js';
+import { upsertDiscordLink, updateDiscordSyncStatus, findActiveMintByEmail, findMemberByEmail } from './_lib/airtable.js';
+import { resolveEntitlementFromNftType, getRoleId } from './_lib/entitlements.js';
+import { onEntitlementActivated } from './_lib/engage.js';
 
 // ── Env ──────────────────────────────────────────────────────────────────────
 const CLIENT_ID     = process.env.DISCORD_CLIENT_ID;
 const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
-const BOT_TOKEN     = process.env.DISCORD_BOT_TOKEN;
 const GUILD_ID      = process.env.DISCORD_GUILD_ID;
 const DOMAIN        = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 const STATE_SECRET  = process.env.STATE_SECRET ?? 'change-me-32-chars-placeholder!!';
-const AIRTABLE_API_KEY = process.env.AIRTABLE_PAT ?? process.env.AIRTABLE_API_KEY;
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const AIRTABLE_TABLE   = process.env.AIRTABLE_TABLE ?? 'NFT_Mints';
+const SYNC_SECRET   = process.env.SYNC_SECRET  ?? process.env.CRON_SECRET ?? '';
 
-const REDIRECT_URI     = `${DOMAIN}/api/discord?action=callback`;
-const DISCORD_API      = 'https://discord.com/api/v10';
-const DISCORD_OAUTH     = 'https://discord.com/api/oauth2/authorize';
-const SCOPES           = 'identify guilds.join';
-
-// ── NFT → Role mapping ──────────────────────────────────────────────────────
-const NFT_ROLE_MAP = {
-  'Aurevon Insider':            process.env.DISCORD_ROLE_INSIDER,
-  'Aurevon Ember':              process.env.DISCORD_ROLE_EMBER,
-  'Aurevon Obsidian Executive': process.env.DISCORD_ROLE_OBSIDIAN,
-  '001 Genesis':               process.env.DISCORD_ROLE_GENESIS,
-  '004 Chrome':                process.env.DISCORD_ROLE_CHROME,
-};
+const REDIRECT_URI  = `${DOMAIN}/api/discord?action=callback`;
+const DISCORD_API   = 'https://discord.com/api/v10';
+const DISCORD_OAUTH = 'https://discord.com/api/oauth2/authorize';
+const SCOPES        = 'identify guilds.join';
 
 // ── HMAC state helpers ───────────────────────────────────────────────────────
+
 function signState(email) {
   const mac = createHmac('sha256', STATE_SECRET).update(email).digest('hex').slice(0, 16);
   return `${email}.${mac}`;
@@ -54,8 +48,9 @@ function verifyState(state) {
   return email;
 }
 
-// ── Discord API helpers ──────────────────────────────────────────────────────
-async function discordError(res, ctx) {
+// ── Discord OAuth helpers ────────────────────────────────────────────────────
+
+async function discordFetchError(res, ctx) {
   const body = await res.text().catch(() => '');
   throw new Error(`Discord ${ctx} [${res.status}]: ${body}`);
 }
@@ -69,62 +64,24 @@ async function exchangeCode(code) {
       grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI,
     }).toString(),
   });
-  if (!res.ok) await discordError(res, 'token exchange');
+  if (!res.ok) await discordFetchError(res, 'token exchange');
   return res.json();
 }
 
-async function getUser(accessToken) {
+async function getDiscordUser(accessToken) {
   const res = await fetch(`${DISCORD_API}/users/@me`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!res.ok) await discordError(res, 'get user');
+  if (!res.ok) await discordFetchError(res, 'get user');
   return res.json();
 }
 
-async function addMemberToGuild(userId, accessToken, roleIds) {
-  const res = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/members/${userId}`, {
-    method: 'PUT',
-    headers: { Authorization: `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token: accessToken, roles: roleIds }),
-  });
-  if (![200, 201, 204].includes(res.status)) await discordError(res, 'add to guild');
-}
-
-async function assignRole(userId, roleId) {
-  const res = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/members/${userId}/roles/${roleId}`, {
-    method: 'PUT',
-    headers: { Authorization: `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
-  });
-  if (res.status !== 204) await discordError(res, 'assign role');
-}
-
-// ── Airtable helpers ─────────────────────────────────────────────────────────
-async function lookupNft(email) {
-  const formula = encodeURIComponent(
-    `AND({Customer Email}="${email}",OR({Status}="Sent",{Status}="Minted"))`,
-  );
-  const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE}?filterByFormula=${formula}&maxRecords=1&fields[]=NFT+Type&fields[]=Status`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${AIRTABLE_API_KEY}` } });
-  if (!res.ok) { const b = await res.text().catch(() => ''); throw new Error(`Airtable [${res.status}]: ${b}`); }
-  const data = await res.json();
-  const rec = data.records?.[0];
-  return rec ? { recordId: rec.id, nftType: rec.fields['NFT Type'] ?? '' } : null;
-}
-
-async function updateAirtableRecord(recordId, userId) {
-  await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE}/${recordId}`, {
-    method: 'PATCH',
-    headers: { Authorization: `Bearer ${AIRTABLE_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: { Notes: `Discord linked: ${userId}`, Status: 'Minted' } }),
-  }).catch(err => console.error('Airtable update error:', err.message));
-}
-
 // ── Route: auth ──────────────────────────────────────────────────────────────
+
 function handleAuth(req, res) {
   const { email } = req.query ?? {};
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: 'Valid email required as query param' });
+    return res.status(400).json({ error: 'Valid email required as ?email= query param' });
   }
   const state = signState(email.toLowerCase().trim());
   const params = new URLSearchParams({
@@ -135,46 +92,123 @@ function handleAuth(req, res) {
 }
 
 // ── Route: callback ──────────────────────────────────────────────────────────
+
 async function handleCallback(req, res) {
   const { code, state, error: oauthErr } = req.query ?? {};
   if (oauthErr) return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=denied`);
   if (!code || !state) return res.status(400).json({ error: 'Missing code or state' });
 
   let email;
-  try { email = verifyState(state); } catch (e) {
-    return res.status(403).json({ error: 'Invalid state', detail: e.message });
-  }
+  try { email = verifyState(state); }
+  catch (e) { return res.status(403).json({ error: 'Invalid state', detail: e.message }); }
 
   let token, user;
-  try { token = await exchangeCode(code); user = await getUser(token.access_token); } catch (e) {
-    return res.status(502).json({ error: 'Discord auth failed', detail: e.message });
+  try { token = await exchangeCode(code); user = await getDiscordUser(token.access_token); }
+  catch (e) { return res.status(502).json({ error: 'Discord auth failed', detail: e.message }); }
+
+  // Find this member's active NFT mint in Airtable
+  let mintRecord = null;
+  try { mintRecord = await findActiveMintByEmail(email); }
+  catch (e) { console.error(`[Discord] Airtable lookup failed: ${e.message}`); }
+
+  if (!mintRecord) {
+    return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=no_nft`);
   }
 
-  let nft;
-  try { nft = await lookupNft(email); } catch (e) {
-    return res.status(502).json({ error: 'NFT lookup failed', detail: e.message });
-  }
-  if (!nft) return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=no_nft`);
+  const nftType = mintRecord.fields['NFT Type'] ?? '';
+  const entitlementKey = resolveEntitlementFromNftType(nftType);
+  const roleId = entitlementKey ? getRoleId(entitlementKey) : null;
 
-  const roleId = NFT_ROLE_MAP[nft.nftType];
-  if (!roleId) return res.status(500).json({ error: `No role for NFT type: ${nft.nftType}` });
-
-  try { await addMemberToGuild(user.id, token.access_token, [roleId]); } catch (e) {
-    console.warn('addMember warning:', e.message);
+  if (!roleId) {
+    console.error(`[Discord] No roleId for nftType="${nftType}" entitlement="${entitlementKey}"`);
+    return res.status(500).json({ error: `No Discord role configured for NFT type: ${nftType}` });
   }
-  try { await assignRole(user.id, roleId); } catch (e) {
+
+  // Add member to guild (OAuth flow)
+  try { await addMemberToGuild(user.id, token.access_token, [roleId]); }
+  catch (e) { console.warn(`[Discord] addMemberToGuild warning: ${e.message}`); }
+
+  // Assign role via bot
+  try { await addRoleToMember(user.id, roleId); }
+  catch (e) {
     return res.status(502).json({ error: 'Role assignment failed', detail: e.message });
   }
 
-  updateAirtableRecord(nft.recordId, user.id).catch(() => {});
-  res.redirect(302, `${DOMAIN}/discord-welcome.html?role=${encodeURIComponent(nft.nftType)}&server=${GUILD_ID}`);
+  // Persist Discord link to Airtable
+  try {
+    await upsertDiscordLink(email, { discordId: user.id, discordUsername: user.username });
+    await updateDiscordSyncStatus(email, 'synced');
+  } catch (e) {
+    console.error(`[Discord] Airtable update failed: ${e.message}`);
+  }
+
+  // Fire Engage event (non-fatal)
+  onEntitlementActivated({
+    email,
+    entitlementType: entitlementKey ?? '',
+    nftType,
+    serial: mintRecord.fields['Reference'] ?? '',
+  }).catch(() => {});
+
+  res.redirect(302, `${DOMAIN}/discord-welcome.html?role=${encodeURIComponent(nftType)}&server=${GUILD_ID}`);
+}
+
+// ── Route: sync (bot-initiated, no OAuth) ────────────────────────────────────
+
+async function handleSync(req, res) {
+  // Validate sync secret — accept via body or Authorization header
+  const authHeader = req.headers['authorization'] ?? '';
+  const bodySecret = req.body?.secret ?? '';
+  const providedSecret = authHeader.replace('Bearer ', '').trim() || bodySecret;
+
+  if (SYNC_SECRET && providedSecret !== SYNC_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const email = req.body?.email;
+  if (!email) return res.status(400).json({ error: 'Missing email in request body' });
+
+  // Look up member record
+  let member = null;
+  try { member = await findMemberByEmail(email); }
+  catch (e) { return res.status(502).json({ error: 'Airtable lookup failed', detail: e.message }); }
+
+  if (!member) return res.status(404).json({ error: 'Member not found in Airtable' });
+
+  const discordId = member.fields['Discord ID'];
+  if (!discordId) return res.status(422).json({ error: 'Member has no linked Discord ID — they must complete OAuth first', link: `${DOMAIN}/member-claim.html` });
+
+  // Look up active mint
+  let mintRecord = null;
+  try { mintRecord = await findActiveMintByEmail(email); }
+  catch (e) { return res.status(502).json({ error: 'NFT lookup failed', detail: e.message }); }
+
+  if (!mintRecord) return res.status(404).json({ error: 'No active NFT mint found for this email' });
+
+  const nftType = mintRecord.fields['NFT Type'] ?? '';
+  const entitlementKey = resolveEntitlementFromNftType(nftType);
+  const roleId = entitlementKey ? getRoleId(entitlementKey) : null;
+
+  if (!roleId) {
+    return res.status(500).json({ error: `No Discord role configured for entitlement: ${entitlementKey}` });
+  }
+
+  try {
+    await addRoleToMember(discordId, roleId);
+    await updateDiscordSyncStatus(email, 'synced');
+    return res.status(200).json({ ok: true, discordId, roleId, nftType, entitlementKey });
+  } catch (e) {
+    await updateDiscordSyncStatus(email, 'failed', { error: e.message }).catch(() => {});
+    return res.status(502).json({ error: 'Role assignment failed', detail: e.message });
+  }
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
+
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', 'https://www.aurevonvc.com');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Origin', DOMAIN);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const action = req.query?.action ?? '';
@@ -182,10 +216,11 @@ export default async function handler(req, res) {
   switch (action) {
     case 'auth':     return handleAuth(req, res);
     case 'callback': return handleCallback(req, res);
+    case 'sync':     return handleSync(req, res);
     default:
       return res.status(400).json({
         error: 'Missing or invalid action param',
-        valid: ['auth', 'callback'],
+        valid: ['auth', 'callback', 'sync'],
       });
   }
 }

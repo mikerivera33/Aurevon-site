@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Claim Your Aurevon Access</title>
+<meta name="robots" content="noindex,nofollow"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#0A0A0A;--card:#0d1117;--border:rgba(255,255,255,0.07);--border-gold:rgba(59,130,246,0.2);--txt:#f0ede8;--txt2:#a1a1aa;--gold:#3B82F6;--grad:linear-gradient(135deg,#1E3A8A,#3B82F6);--radius:14px;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--txt);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1rem;}
+.card{background:var(--card);border:1px solid var(--border-gold);border-radius:var(--radius);max-width:460px;width:100%;padding:2.5rem;}
+.logo{font-family:'Archivo Black',sans-serif;font-size:1.5rem;letter-spacing:2px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;margin-bottom:.25rem;}
+.subtitle{text-align:center;font-size:.8rem;letter-spacing:3px;color:var(--txt2);text-transform:uppercase;margin-bottom:2rem;}
+h1{font-family:'Archivo Black',sans-serif;font-size:1.4rem;margin-bottom:.5rem;}
+p.desc{color:var(--txt2);font-size:.9rem;line-height:1.6;margin-bottom:1.75rem;}
+label{display:block;font-size:.8rem;font-weight:600;letter-spacing:.05em;color:var(--txt2);text-transform:uppercase;margin-bottom:.4rem;}
+input{width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:.95rem;padding:.7rem 1rem;outline:none;transition:border-color .2s;margin-bottom:1.25rem;}
+input:focus{border-color:var(--gold);}
+.btn{display:block;width:100%;padding:.85rem;background:var(--grad);border:none;border-radius:8px;color:#fff;font-family:'Archivo Black',sans-serif;font-size:.95rem;letter-spacing:.5px;cursor:pointer;transition:opacity .2s;}
+.btn:hover{opacity:.88;}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.divider{height:1px;background:var(--border);margin:1.75rem 0;}
+.discord-btn{display:block;width:100%;padding:.75rem;background:#5865F2;border:none;border-radius:8px;color:#fff;font-family:'Archivo Black',sans-serif;font-size:.9rem;cursor:pointer;letter-spacing:.5px;text-decoration:none;text-align:center;}
+.discord-btn:hover{opacity:.88;}
+.result{margin-top:1.5rem;padding:1rem;border-radius:8px;font-size:.88rem;line-height:1.5;display:none;}
+.result.success{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);color:#86efac;}
+.result.error{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#fca5a5;}
+.result.info{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);color:#93c5fd;}
+.status-row{display:flex;justify-content:space-between;align-items:center;font-size:.82rem;padding:.35rem 0;border-bottom:1px solid var(--border);}
+.status-row:last-child{border-bottom:none;}
+.badge{padding:2px 8px;border-radius:999px;font-size:.75rem;font-weight:700;}
+.badge.green{background:rgba(34,197,94,.15);color:#4ade80;}
+.badge.yellow{background:rgba(251,191,36,.15);color:#fcd34d;}
+.badge.red{background:rgba(239,68,68,.15);color:#f87171;}
+.badge.grey{background:rgba(255,255,255,.08);color:var(--txt2);}
+footer{margin-top:2rem;font-size:.75rem;color:var(--txt2);text-align:center;}
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+  <div class="logo">Aurevon</div>
+  <div class="subtitle">Member Access Portal</div>
+
+  <h1>Claim Your Access</h1>
+  <p class="desc">Enter the email you used to purchase. We'll link your Discord account and activate your role.</p>
+
+  <form id="claimForm" onsubmit="handleLookup(event)">
+    <label for="email">Purchase Email</label>
+    <input type="email" id="email" placeholder="you@example.com" required autocomplete="email"/>
+    <button type="submit" class="btn" id="lookupBtn">Look Up My Account</button>
+  </form>
+
+  <div class="result" id="result"></div>
+
+  <div id="discordSection" style="display:none;">
+    <div class="divider"></div>
+    <p class="desc" style="margin-bottom:1rem;">Your NFT is ready. Connect Discord to receive your role.</p>
+    <a class="discord-btn" id="discordLink" href="#">
+      🔐 Connect Discord Account
+    </a>
+  </div>
+</div>
+
+<footer>Aurevon Group LLC &middot; <a href="mailto:hello@aurevongroup.com" style="color:var(--gold);text-decoration:none;">hello@aurevongroup.com</a></footer>
+
+<script>
+const DOMAIN = window.location.origin;
+
+async function handleLookup(e) {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  const btn   = document.getElementById('lookupBtn');
+  const result = document.getElementById('result');
+
+  btn.disabled = true;
+  btn.textContent = 'Looking up…';
+  result.style.display = 'none';
+
+  try {
+    // Check status
+    const secret = '';  // Public status check — no secret needed without ?action=reconcile
+    const r = await fetch(`/api/member/claim?action=status&email=${encodeURIComponent(email)}`);
+
+    // If 401, the endpoint requires a secret which we shouldn't expose client-side.
+    // Fall through to POST claim which is public.
+    if (r.status === 401) {
+      await doClaimPost(email);
+      return;
+    }
+
+    const data = await r.json();
+
+    if (!data.nftFound) {
+      showResult('info', `No NFT purchase found for <strong>${email}</strong>. If you just purchased, it can take a few minutes to process. Try again shortly or email <a href="mailto:hello@aurevongroup.com" style="color:#93c5fd;">hello@aurevongroup.com</a>.`);
+      return;
+    }
+
+    // Show status
+    showStatusCard(data, email);
+
+  } catch (err) {
+    showResult('error', 'Network error — please try again.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Look Up My Account';
+  }
+}
+
+async function doClaimPost(email) {
+  const r = await fetch('/api/member/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const data = await r.json();
+  if (data.nftFound) {
+    showStatusCard(data, email);
+  } else {
+    showResult('info', `No active NFT found for <strong>${email}</strong>. Contact <a href="mailto:hello@aurevongroup.com" style="color:#93c5fd;">support</a> if you believe this is an error.`);
+  }
+}
+
+function showStatusCard(data, email) {
+  const result = document.getElementById('result');
+  const discordSection = document.getElementById('discordSection');
+
+  const syncBadge = data.discordSync === 'synced' ? '<span class="badge green">Synced ✓</span>'
+    : data.discordSync === 'pending' ? '<span class="badge yellow">Pending</span>'
+    : data.discordSync === 'failed'  ? '<span class="badge red">Failed</span>'
+    : '<span class="badge grey">Not linked</span>';
+
+  result.innerHTML = `
+    <div class="status-row"><span>Email</span><span style="color:var(--txt)">${email}</span></div>
+    <div class="status-row"><span>NFT</span><span style="color:var(--gold)">${data.nftType ?? '—'}</span></div>
+    <div class="status-row"><span>Mint Status</span><span>${data.mintStatus ?? '—'}</span></div>
+    <div class="status-row"><span>Discord</span>${syncBadge}</div>
+  `;
+  result.className = 'result info';
+  result.style.display = 'block';
+
+  if (data.discordSync !== 'synced' && data.nftFound) {
+    const discordUrl = data.discordAuthUrl ?? `/api/discord?action=auth&email=${encodeURIComponent(email)}`;
+    document.getElementById('discordLink').href = discordUrl;
+    discordSection.style.display = 'block';
+  }
+}
+
+function showResult(type, html) {
+  const el = document.getElementById('result');
+  el.className = `result ${type}`;
+  el.innerHTML = html;
+  el.style.display = 'block';
+}
+</script>
+</body>
+</html>

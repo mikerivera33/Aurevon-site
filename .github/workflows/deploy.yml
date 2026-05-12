@@ -1,4 +1,4 @@
-name: CI — Lint, Test & Vercel Deploy
+name: CI — Lint, Validate & Vercel Deploy
 
 on:
   push:
@@ -12,12 +12,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
-      - run: npm ci
-      - run: node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8')); console.log('vercel.json is valid');"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate vercel.json
+        run: node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8')); console.log('✓ vercel.json is valid JSON');"
+
+      - name: Count API serverless functions
+        run: |
+          echo "── Serverless function inventory ──────────────────"
+          find api -name '*.js' ! -path 'api/_lib/*' | sort | while read f; do echo "  $f"; done
+          COUNT=$(find api -name '*.js' ! -path 'api/_lib/*' | wc -l | tr -d ' ')
+          echo "──────────────────────────────────────────────────"
+          echo "  Total functions : $COUNT"
+          echo "  Vercel Hobby limit: 12"
+          if [ "$COUNT" -gt 12 ]; then
+            echo "✗ ERROR: $COUNT functions exceeds the 12-function Hobby plan limit!"
+            exit 1
+          fi
+          echo "✓ Function count OK ($COUNT / 12)"
+
+      - name: Validate .env.example exists (secrets audit)
+        run: |
+          if [ ! -f .env.example ]; then
+            echo "✗ .env.example is missing"
+            exit 1
+          fi
+          # Ensure no real secrets are in .env.example (must only contain placeholder values)
+          if grep -qE "(sk_live_[a-zA-Z0-9]{20,}|whsec_[a-zA-Z0-9]{20,}|pat[a-zA-Z0-9]{16,}\.[a-zA-Z0-9]{60,})" .env.example; then
+            echo "✗ .env.example appears to contain real secrets — remove them!"
+            exit 1
+          fi
+          echo "✓ .env.example looks clean"
 
   deploy-production:
     name: Deploy Production (main only)
@@ -28,13 +60,25 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
-      - run: npm ci
-      - run: npm install --global vercel@latest
-      - run: vercel deploy --prod --token=$VERCEL_TOKEN --yes --force
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Log API function count pre-deploy
+        run: |
+          COUNT=$(find api -name '*.js' ! -path 'api/_lib/*' | wc -l | tr -d ' ')
+          echo "Deploying with $COUNT serverless functions"
+
+      - name: Deploy to Vercel Production (force cache bust)
+        run: vercel deploy --prod --token=$VERCEL_TOKEN --yes --force
 
   deploy-preview:
     name: Deploy Preview (PR only)
@@ -45,10 +89,17 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
-      - run: npm ci
-      - run: npm install --global vercel@latest
-      - run: vercel deploy --token=$VERCEL_TOKEN --yes --force
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Deploy preview
+        run: vercel deploy --token=$VERCEL_TOKEN --yes --force

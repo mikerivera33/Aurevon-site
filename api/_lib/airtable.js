@@ -1,155 +1,205 @@
 /**
- * Airtable REST API client for Aurevon data persistence.
+ * Airtable REST API client — Aurevon Operations base
  *
- * Table IDs:
- *   Leads      → tblDuezyOsxy7sNES
- *   Payments   → tblMPOjy7os3FyO3Q
- *   NFT_Mints  → tblBi4wqjOeWpHAMI
+ * Base: appI9X8vcRcK1QZ1l  (Aurevon Operations)
+ *
+ * Table IDs (set via AIRTABLE_TABLE_* env vars or defaults below):
+ *   CustomerAuth  → tblbCS7TL65FcOiWn
+ *   Payments      → tbl6KlhM9fIH19W5i
+ *   NFT_Mints     → tbliXEGJdoEIAJU06
+ *   Members       → tblYPn7hxnrgH723B
+ *   Leads         → tblDuezyOsxy7sNES  (lead captures)
+ *
+ * Field names follow the Airtable UI names (spaces allowed, used in filter formulas).
+ * Airtable API accepts the exact display name.
  */
 
-const AIRTABLE_BASE_URL = 'https://api.airtable.com/v0';
+const BASE_URL = 'https://api.airtable.com/v0';
 
-const TABLE_IDS = {
-  Leads:     'tblDuezyOsxy7sNES',
-  Payments:  'tblMPOjy7os3FyO3Q',
-  NFT_Mints: 'tblBi4wqjOeWpHAMI',
+// ── Table ID registry ─────────────────────────────────────────────────────────
+const TABLE = {
+  CustomerAuth: process.env.AIRTABLE_TABLE_CUSTOMER_AUTH ?? 'tblbCS7TL65FcOiWn',
+  Payments:     process.env.AIRTABLE_TABLE_PAYMENTS       ?? 'tbl6KlhM9fIH19W5i',
+  NFT_Mints:    process.env.AIRTABLE_TABLE_NFT_MINTS      ?? 'tbliXEGJdoEIAJU06',
+  Members:      process.env.AIRTABLE_TABLE_MEMBERS        ?? 'tblYPn7hxnrgH723B',
+  Leads:        process.env.AIRTABLE_TABLE_LEADS          ?? 'tblDuezyOsxy7sNES',
 };
 
-function getHeaders() {
-  const pat = process.env.AIRTABLE_PAT;
-  if (!pat) throw new Error('Missing AIRTABLE_PAT env var');
-  return {
-    'Authorization': `Bearer ${pat}`,
-    'Content-Type': 'application/json',
-  };
+function getBase() {
+  return process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
 }
 
-function getBaseId() {
-  return process.env.AIRTABLE_BASE_ID ?? 'app00c03021ILsOrv';
+function getHeaders() {
+  const pat = process.env.AIRTABLE_PAT ?? process.env.AIRTABLE_API_KEY;
+  if (!pat) throw new Error('Missing AIRTABLE_PAT env var');
+  return { Authorization: `Bearer ${pat}`, 'Content-Type': 'application/json' };
 }
+
+// ── Core primitives ───────────────────────────────────────────────────────────
 
 async function createRecord(tableId, fields) {
-  const baseId = getBaseId();
-  const url = `${AIRTABLE_BASE_URL}/${baseId}/${tableId}`;
-
-  const response = await fetch(url, {
+  const url = `${BASE_URL}/${getBase()}/${tableId}`;
+  const res = await fetch(url, {
     method: 'POST',
     headers: getHeaders(),
     body: JSON.stringify({ fields }),
   });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Airtable createRecord failed (${response.status}) on table ${tableId}: ${errText}`);
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Airtable createRecord [${tableId}] (${res.status}): ${txt}`);
   }
-
-  return response.json();
+  return res.json();
 }
 
 async function updateRecord(tableId, recordId, fields) {
-  const baseId = getBaseId();
-  const url = `${AIRTABLE_BASE_URL}/${baseId}/${tableId}/${recordId}`;
-
-  const response = await fetch(url, {
+  const url = `${BASE_URL}/${getBase()}/${tableId}/${recordId}`;
+  const res = await fetch(url, {
     method: 'PATCH',
     headers: getHeaders(),
     body: JSON.stringify({ fields }),
   });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Airtable updateRecord failed (${response.status}) on table ${tableId}: ${errText}`);
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Airtable updateRecord [${tableId}/${recordId}] (${res.status}): ${txt}`);
   }
-
-  return response.json();
+  return res.json();
 }
 
-async function listRecords(tableId, { filterFormula, maxRecords = 100 } = {}) {
-  const baseId = getBaseId();
+/**
+ * List records with optional filter + field projection.
+ * Paginates automatically when maxRecords is large enough to trigger it.
+ */
+async function listRecords(tableId, { filterFormula, fields = [], maxRecords = 100 } = {}) {
   const params = new URLSearchParams({ maxRecords: String(maxRecords) });
   if (filterFormula) params.set('filterByFormula', filterFormula);
+  for (const f of fields) params.append('fields[]', f);
 
-  const url = `${AIRTABLE_BASE_URL}/${baseId}/${tableId}?${params}`;
-
-  const response = await fetch(url, { headers: getHeaders() });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Airtable listRecords failed (${response.status}) on table ${tableId}: ${errText}`);
+  const url = `${BASE_URL}/${getBase()}/${tableId}?${params}`;
+  const res = await fetch(url, { headers: getHeaders() });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Airtable listRecords [${tableId}] (${res.status}): ${txt}`);
   }
-
-  const data = await response.json();
+  const data = await res.json();
   return data.records ?? [];
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+async function upsertRecord(tableId, filterFormula, fields) {
+  const existing = await listRecords(tableId, { filterFormula, maxRecords: 1 });
+  if (existing.length > 0) {
+    return updateRecord(tableId, existing[0].id, fields);
+  }
+  return createRecord(tableId, fields);
+}
+
+// ── NFT_Mints ─────────────────────────────────────────────────────────────────
+// Field names match the Airtable UI in the Aurevon Operations base.
+// If your Airtable field names differ, adjust the strings below.
 
 /**
- * Count NFT_Mints records whose Reference field starts with `{prefix}_`.
- * Used to determine the next serial number for a collection.
- *
- * @param {string} prefix  e.g. 'INSIDER'
- * @returns {Promise<number>}  count of matching records
+ * Count mints whose Reference starts with `prefix_`.
+ * Used to determine next serial number.
  */
 export async function countNftMintsByPrefix(prefix) {
-  const baseId = getBaseId();
-  // Airtable FIND returns the position (1-based) of the substring, or 0 if not found.
-  // FIND(needle, haystack) = 1 means the field starts with the needle.
-  const filterFormula = `FIND("${prefix}_", {Reference}) = 1`;
+  const filter = `FIND("${prefix}_",{Reference})=1`;
   const params = new URLSearchParams({
-    filterByFormula: filterFormula,
-    // We only need the count — fetch minimal fields to keep the response small.
+    filterByFormula: filter,
     'fields[]': 'Reference',
     maxRecords: '10000',
   });
 
-  const url = `${AIRTABLE_BASE_URL}/${baseId}/${TABLE_IDS.NFT_Mints}?${params}`;
-
-  let allRecords = [];
+  let all = [];
   let offset = null;
-
-  // Page through all results (Airtable returns max 100 per page by default)
   do {
-    const pageParams = new URLSearchParams(params);
-    if (offset) pageParams.set('offset', offset);
-
-    const pageUrl = `${AIRTABLE_BASE_URL}/${baseId}/${TABLE_IDS.NFT_Mints}?${pageParams}`;
-    const response = await fetch(pageUrl, { headers: getHeaders() });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Airtable countNftMintsByPrefix failed (${response.status}): ${errText}`);
-    }
-
-    const data = await response.json();
-    allRecords = allRecords.concat(data.records ?? []);
+    if (offset) params.set('offset', offset);
+    const url = `${BASE_URL}/${getBase()}/${TABLE.NFT_Mints}?${params}`;
+    const res = await fetch(url, { headers: getHeaders() });
+    if (!res.ok) { const t = await res.text(); throw new Error(`countNftMintsByPrefix (${res.status}): ${t}`); }
+    const data = await res.json();
+    all = all.concat(data.records ?? []);
     offset = data.offset ?? null;
   } while (offset);
 
-  console.log(`[Airtable] countNftMintsByPrefix("${prefix}") → ${allRecords.length}`);
-  return allRecords.length;
+  return all.length;
 }
 
 /**
- * Create a Lead record.
- * @param {{ name: string, email: string, tier?: string, source?: string }} opts
+ * Create a new NFT_Mints record.
+ *
+ * Maps our internal names → Airtable field names.
+ * Airtable field names in the Operations base (portal/data.js evidence):
+ *   Email, NFT Type, Token ID, Mint Status, Mint Date,
+ *   Transaction Hash, Discord Role Assigned, Reference,
+ *   Tier Source, Email Delivered, Notes, Retry Count
  */
-export async function createLead({ name, email, tier = '', source = 'Stripe' }) {
-  console.log(`[Airtable] Creating Lead for ${email}`);
-  return createRecord(TABLE_IDS.Leads, {
-    Name: name,
-    Email: email,
-    Tier: tier,
-    Source: source,
-    CreatedAt: new Date().toISOString(),
+export async function createNftMint({
+  reference,
+  email,
+  nftType,
+  tierSource,
+  status,
+  sentDate,
+  emailDelivered = false,
+  notes = '',
+  mintId = '',
+  retryCount = 0,
+  entitlementType = '',
+}) {
+  console.log(`[Airtable] createNftMint ref=${reference} email=${email}`);
+  return createRecord(TABLE.NFT_Mints, {
+    'Reference':           reference,
+    'Email':               email,
+    'NFT Type':            nftType,
+    'Tier Source':         tierSource,
+    'Mint Status':         status,
+    'Mint Date':           sentDate,
+    'Email Delivered':     emailDelivered,
+    'Notes':               notes,
+    'Token ID':            mintId,
+    'Retry Count':         retryCount,
+    'Entitlement Type':    entitlementType,
+    'Discord Synced':      false,
   });
 }
 
 /**
- * Create a Payment record.
- * @param {{ transactionId, method, tier, amount, customerEmail, customerName, status, token }} opts
+ * Update fields on an NFT_Mints record.
+ */
+export async function updateNftMint(recordId, fields) {
+  console.log(`[Airtable] updateNftMint recordId=${recordId}`);
+  return updateRecord(TABLE.NFT_Mints, recordId, fields);
+}
+
+/**
+ * List NFT_Mints rows matching a filter.
+ */
+export async function listNftMints(filterFormula, { maxRecords = 100 } = {}) {
+  return listRecords(TABLE.NFT_Mints, { filterFormula, maxRecords });
+}
+
+/**
+ * Find the most recent active mint for an email address.
+ * Returns null if none found.
+ */
+export async function findActiveMintByEmail(email) {
+  const formula = `AND(LOWER({Email})="${email.toLowerCase()}",OR({Mint Status}="Minted",{Mint Status}="Sent",{Mint Status}="Queued"))`;
+  const recs = await listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords: 1 });
+  return recs[0] ?? null;
+}
+
+/**
+ * Find mints that succeeded but haven't been Discord-synced yet.
+ */
+export async function listUnsynced({ maxRecords = 50 } = {}) {
+  const formula = `AND(OR({Mint Status}="Minted",{Mint Status}="Sent"),{Discord Synced}=FALSE())`;
+  return listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords });
+}
+
+// ── Payments ──────────────────────────────────────────────────────────────────
+
+/**
+ * Create a Payments record.
+ * Field names match the Aurevon Operations Payments table.
  */
 export async function createPayment({
   transactionId,
@@ -161,65 +211,101 @@ export async function createPayment({
   status,
   token,
 }) {
-  console.log(`[Airtable] Creating Payment record for session ${transactionId}`);
-  return createRecord(TABLE_IDS.Payments, {
-    TransactionID: transactionId,
-    Method: method,
-    Tier: tier,
-    Amount: amount,
-    CustomerEmail: customerEmail,
-    CustomerName: customerName,
-    Status: status,
-    Token: token,
-    CreatedAt: new Date().toISOString(),
+  console.log(`[Airtable] createPayment txn=${transactionId} email=${customerEmail}`);
+  return createRecord(TABLE.Payments, {
+    'Transaction ID':    transactionId,
+    'Payment Provider':  method,
+    'Pass Type':         tier,
+    'Amount':            amount,
+    'Customer Email':    customerEmail,
+    'Customer Name':     customerName,
+    'Status':            status,
+    'Token':             token,
+    'Payment Date':      new Date().toISOString(),
   });
 }
 
+// ── Members ───────────────────────────────────────────────────────────────────
+
 /**
- * Create an NFT_Mints record.
- * The `reference` field carries the serial string (e.g. "EMBER_014") and is the
- * canonical unique identifier for each mint.
+ * Upsert a member record by email.
+ * Creates a new member if one doesn't exist; patches fields if it does.
  *
- * @param {{ reference, customerEmail, nftType, tierSource, status, sentDate, emailDelivered, notes, mintId, retryCount }} opts
+ * Requires these fields to exist in the Members Airtable table:
+ *   Email, Customer Name, Join Date, Active, Member Tier,
+ *   Discord Username, Discord ID, Discord Linked At, Wallet Address,
+ *   Entitlement Type, Discord Sync Status, Discord Sync At
  */
-export async function createNftMint({
-  reference,
-  customerEmail,
-  nftType,
-  tierSource,
-  status,
-  sentDate,
-  emailDelivered = false,
-  notes = '',
-  mintId = '',
-  retryCount = 0,
-}) {
-  console.log(`[Airtable] Creating NFT_Mints record ref=${reference}`);
-  return createRecord(TABLE_IDS.NFT_Mints, {
-    Reference: reference,
-    CustomerEmail: customerEmail,
-    NFTType: nftType,
-    TierSource: tierSource,
-    Status: status,
-    SentDate: sentDate,
-    EmailDelivered: emailDelivered,
-    Notes: notes,
-    MintID: mintId,
-    RetryCount: retryCount,
+export async function upsertMemberByEmail(email, fields) {
+  const normalized = email.toLowerCase().trim();
+  const formula = `LOWER({Email})="${normalized}"`;
+  console.log(`[Airtable] upsertMemberByEmail email=${normalized}`);
+  return upsertRecord(TABLE.Members, formula, { 'Email': normalized, ...fields });
+}
+
+/**
+ * Find a member record by email. Returns null if not found.
+ */
+export async function findMemberByEmail(email) {
+  const formula = `LOWER({Email})="${email.toLowerCase().trim()}"`;
+  const recs = await listRecords(TABLE.Members, { filterFormula: formula, maxRecords: 1 });
+  return recs[0] ?? null;
+}
+
+/**
+ * Update Discord link information on a member record.
+ * Also sets Discord Sync Status to 'pending' so the reconcile job picks it up.
+ */
+export async function upsertDiscordLink(email, { discordId, discordUsername }) {
+  console.log(`[Airtable] upsertDiscordLink email=${email} discordId=${discordId}`);
+  return upsertMemberByEmail(email, {
+    'Discord ID':          discordId,
+    'Discord Username':    discordUsername ?? '',
+    'Discord Linked At':   new Date().toISOString(),
+    'Discord Sync Status': 'pending',
   });
 }
 
 /**
- * Update an NFT_Mints record (used by cron retry).
+ * Mark a member's Discord sync as succeeded or failed.
  */
-export async function updateNftMint(recordId, fields) {
-  console.log(`[Airtable] Updating NFT_Mints record ${recordId}`);
-  return updateRecord(TABLE_IDS.NFT_Mints, recordId, fields);
+export async function updateDiscordSyncStatus(email, status, { error = '' } = {}) {
+  console.log(`[Airtable] updateDiscordSyncStatus email=${email} status=${status}`);
+  const fields = {
+    'Discord Sync Status': status,
+    'Discord Sync At':     new Date().toISOString(),
+  };
+  if (error) fields['Discord Sync Error'] = error;
+  return upsertMemberByEmail(email, fields);
 }
 
 /**
- * List NFT_Mints rows matching a filter formula.
+ * List members where Discord sync is pending (waiting for role assignment).
  */
-export async function listNftMints(filterFormula) {
-  return listRecords(TABLE_IDS.NFT_Mints, { filterFormula, maxRecords: 10 });
+export async function listPendingDiscordSync({ maxRecords = 50 } = {}) {
+  const formula = `{Discord Sync Status}="pending"`;
+  return listRecords(TABLE.Members, { filterFormula: formula, maxRecords });
+}
+
+/**
+ * List monthly members whose entitlement should be revoked (expired + past grace period).
+ * Checks for `Entitlement Expires At` field being in the past beyond the grace period.
+ */
+export async function listOutOfSyncEntitlements({ graceDays = 7 } = {}) {
+  const cutoff = new Date(Date.now() - graceDays * 86_400_000).toISOString().split('T')[0];
+  const formula = `AND({Entitlement Type}="monthly_membership",{Entitlement Status}="active",IS_BEFORE({Entitlement Expires At},"${cutoff}"))`;
+  return listRecords(TABLE.Members, { filterFormula: formula, maxRecords: 100 });
+}
+
+// ── Leads ─────────────────────────────────────────────────────────────────────
+
+export async function createLead({ name, email, tier = '', source = 'Stripe' }) {
+  console.log(`[Airtable] createLead email=${email}`);
+  return createRecord(TABLE.Leads, {
+    'Name':        name,
+    'Email':       email,
+    'Tier':        tier,
+    'Source':      source,
+    'Created At':  new Date().toISOString(),
+  });
 }
