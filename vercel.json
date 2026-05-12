@@ -6,42 +6,45 @@
   "outputDirectory": ".",
   "cleanUrls": true,
   "trailingSlash": false,
+  "redirects": [
+    { "source": "/AUREVON_NFT_Collection", "destination": "/aurevon-web3", "permanent": true },
+    { "source": "/aurevon-nft",            "destination": "/aurevon-web3", "permanent": true },
+    { "source": "/aurevon_nft_collection", "destination": "/aurevon-web3", "permanent": true },
+    { "source": "/nft-collection",         "destination": "/aurevon-web3", "permanent": true },
+    { "source": "/nft",                    "destination": "/aurevon-web3", "permanent": true }
+  ],
   "rewrites": [
-    { "source": "/api/stripe/checkout", "destination": "/api/stripe/checkout.js" },
-    { "source": "/api/webhooks/stripe", "destination": "/api/webhooks/stripe.js" },
-    { "source": "/api/webhooks/paypal", "destination": "/api/webhooks/paypal.js" },
-    { "source": "/api/portal/auth", "destination": "/api/portal/auth.js" },
-    { "source": "/api/portal/verify", "destination": "/api/portal/verify.js" },
-    { "source": "/api/portal/data", "destination": "/api/portal/data.js" },
-    { "source": "/api/health", "destination": "/api/health.js" },
-    { "source": "/api/(.*)", "destination": "/api/$1.js" },
-    { "source": "/aurevon-re", "destination": "/aurevon-re.html" },
-    { "source": "/aurevon-nft", "destination": "/aurevon-nft.html" },
-    { "source": "/aurevon-web3", "destination": "/aurevon-web3.html" },
-    { "source": "/aurevon-crm", "destination": "/aurevon-crm.html" },
-    { "source": "/blockt-crm", "destination": "/blockt-crm.html" },
-    { "source": "/portal", "destination": "/portal.html" },
-    { "source": "/operator", "destination": "/operator.html" },
-    { "source": "/merch", "destination": "/merch.html" },
+    { "source": "/api/stripe/checkout",      "destination": "/api/stripe/checkout.js" },
+    { "source": "/api/webhooks/stripe",      "destination": "/api/webhooks/stripe.js" },
+    { "source": "/api/webhooks/paypal",      "destination": "/api/webhooks/paypal.js" },
+    { "source": "/api/portal/data",          "destination": "/api/portal/data.js" },
+    { "source": "/api/health",               "destination": "/api/health.js" },
+    { "source": "/api/discord/auth",         "destination": "/api/discord.js?action=auth" },
+    { "source": "/api/discord/callback",     "destination": "/api/discord.js?action=callback" },
+    { "source": "/api/discord",              "destination": "/api/discord.js" },
+    { "source": "/api/email/send",           "destination": "/api/email/send.js" },
+    { "source": "/api/crossmint/mint",       "destination": "/api/crossmint/mint.js" },
+    { "source": "/api/paypal/create-order",  "destination": "/api/paypal/create-order.js" },
+    { "source": "/api/paypal/capture",       "destination": "/api/paypal/capture.js" },
+    { "source": "/aurevon-re",      "destination": "/aurevon-re.html" },
+    { "source": "/aurevon-web3",    "destination": "/aurevon-web3.html" },
+    { "source": "/aurevon-crm",     "destination": "/aurevon-crm.html" },
+    { "source": "/blockt-crm",      "destination": "/blockt-crm.html" },
+    { "source": "/portal",          "destination": "/portal.html" },
+    { "source": "/operator",        "destination": "/operator.html" },
+    { "source": "/merch",           "destination": "/merch.html" },
     { "source": "/discord-welcome", "destination": "/discord-welcome.html" },
     { "source": "/membership-confirmation", "destination": "/membership_confirmation.html" },
-    { "source": "/setup-wizard", "destination": "/setup-wizard.html" },
-    { "source": "/success", "destination": "/index.html" },
-    { "source": "/cancel", "destination": "/index.html" },
-    { "source": "/AUREVON_NFT_Collection", "destination": "/aurevon-nft.html" },
-    { "source": "/api/email/send", "destination": "/api/email/send.js" },
-    { "source": "/api/crossmint/mint", "destination": "/api/crossmint/mint.js" },
-    { "source": "/api/paypal/create-order", "destination": "/api/paypal/create-order.js" },
-    { "source": "/api/paypal/capture", "destination": "/api/paypal/capture.js" },
-    { "source": "/aurevon_nft_collection", "destination": "/aurevon-nft.html" },
-    { "source": "/nft-collection", "destination": "/aurevon-nft.html" },
-    { "source": "/nfts", "destination": "/aurevon-nft.html" }
+    { "source": "/setup-wizard",    "destination": "/setup-wizard.html" },
+    { "source": "/success",         "destination": "/index.html" },
+    { "source": "/cancel",          "destination": "/index.html" },
+    { "source": "/nfts",            "destination": "/aurevon-web3.html" }
   ],
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Origin",  "value": "*" },
         { "key": "Access-Control-Allow-Methods", "value": "GET,POST,OPTIONS" },
         { "key": "Access-Control-Allow-Headers", "value": "Content-Type,Authorization" }
       ]
@@ -50,20 +53,20 @@
       "source": "/(.*)",
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        { "key": "X-Frame-Options",        "value": "SAMEORIGIN" },
+        { "key": "Referrer-Policy",        "value": "strict-origin-when-cross-origin" }
       ]
     }
   ],
   "functions": {
-    "api/stripe/checkout.js": { "maxDuration": 30 },
-    "api/webhooks/stripe.js": { "maxDuration": 60 },
-    "api/portal/auth.js": { "maxDuration": 20 },
-    "api/portal/verify.js": { "maxDuration": 15 },
-    "api/portal/data.js": { "maxDuration": 15 },
+    "api/stripe/checkout.js":     { "maxDuration": 30 },
+    "api/webhooks/stripe.js":     { "maxDuration": 60 },
+    "api/webhooks/paypal.js":     { "maxDuration": 30 },
+    "api/portal/data.js":         { "maxDuration": 15 },
+    "api/discord.js":             { "maxDuration": 30 },
     "api/paypal/create-order.js": { "maxDuration": 20 },
-    "api/paypal/capture.js": { "maxDuration": 20 },
-    "api/crossmint/mint.js": { "maxDuration": 30 },
-    "api/email/send.js": { "maxDuration": 10 }
+    "api/paypal/capture.js":      { "maxDuration": 20 },
+    "api/crossmint/mint.js":      { "maxDuration": 30 },
+    "api/email/send.js":          { "maxDuration": 10 }
   }
 }

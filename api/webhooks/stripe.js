@@ -6,10 +6,10 @@
  */
 
 import crypto from 'node:crypto';
-import { TIER_NFT_MAP, inferTierFromAmount, getNextSerial, formatSerial } from '../lib/tiers.js';
-import { mintToEmail } from '../lib/crossmint.js';
-import { createPayment, createNftMint } from '../lib/airtable.js';
-import { sendNftDelivery, sendPurchaseConfirmation } from '../lib/email.js';
+import { TIER_NFT_MAP, inferTierFromAmount, getNextSerial, formatSerial } from '../_lib/tiers.js';
+import { mintToEmail } from '../_lib/crossmint.js';
+import { createPayment, createNftMint } from '../_lib/airtable.js';
+import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
 
 // ---------------------------------------------------------------------------
 // Stripe signature verification (no Stripe SDK dependency)

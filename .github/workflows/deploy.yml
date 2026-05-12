@@ -1,4 +1,4 @@
-name: CI - Lint, Test & Vercel Deploy
+name: CI — Lint, Test & Vercel Deploy
 
 on:
   push:
@@ -11,20 +11,13 @@ jobs:
     name: Lint & Validate
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Validate vercel.json
-        run: node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8')); console.log('vercel.json is valid JSON');"
+      - run: npm ci
+      - run: node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8')); console.log('vercel.json is valid');"
 
   deploy-production:
     name: Deploy Production (main only)
@@ -34,32 +27,14 @@ jobs:
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Remove excess API directories (Hobby plan max 12 functions)
-        run: |
-          rm -rf api/test api/cron
-          echo "JS files in api after cleanup:"
-          find api -name '*.js' | sort
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-
-      - name: Deploy to Vercel Production (force fresh build)
-        run: vercel deploy --prod --token=$VERCEL_TOKEN --yes --force
-
-      - name: Echo deployment complete
-        run: echo "Production deployment complete"
+      - run: npm ci
+      - run: npm install --global vercel@latest
+      - run: vercel deploy --prod --token=$VERCEL_TOKEN --yes --force
 
   deploy-preview:
     name: Deploy Preview (PR only)
@@ -69,23 +44,11 @@ jobs:
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Remove excess API directories
-        run: rm -rf api/test api/cron
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-
-      - name: Deploy to Vercel Preview
-        run: vercel deploy --token=$VERCEL_TOKEN --yes --force
+      - run: npm ci
+      - run: npm install --global vercel@latest
+      - run: vercel deploy --token=$VERCEL_TOKEN --yes --force

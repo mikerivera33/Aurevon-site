@@ -8,10 +8,10 @@
  * Same downstream pipeline as Stripe: Airtable → Crossmint → Airtable → Resend.
  */
 
-import { TIER_NFT_MAP, getNextSerial, formatSerial } from '../lib/tiers.js';
-import { mintToEmail } from '../lib/crossmint.js';
-import { createPayment, createNftMint } from '../lib/airtable.js';
-import { sendNftDelivery, sendPurchaseConfirmation } from '../lib/email.js';
+import { TIER_NFT_MAP, getNextSerial, formatSerial } from '../_lib/tiers.js';
+import { mintToEmail } from '../_lib/crossmint.js';
+import { createPayment, createNftMint } from '../_lib/airtable.js';
+import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
 
 const PAYPAL_IPN_VERIFY_URL_LIVE    = 'https://ipnpb.paypal.com/cgi-bin/webscr';
 const PAYPAL_IPN_VERIFY_URL_SANDBOX = 'https://ipnpb.sandbox.paypal.com/cgi-bin/webscr';
