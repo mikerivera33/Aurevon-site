@@ -63,29 +63,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check VERCEL_TOKEN
+        id: token_check
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "⚠ VERCEL_TOKEN not set — Vercel GitHub integration handles production deployment"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.token_check.outputs.configured == 'true'
         with:
           node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
+        if: steps.token_check.outputs.configured == 'true'
         run: npm ci
 
       - name: Install Vercel CLI
+        if: steps.token_check.outputs.configured == 'true'
         run: npm install --global vercel@latest
 
       - name: Log API function count pre-deploy
+        if: steps.token_check.outputs.configured == 'true'
         run: |
           COUNT=$(find api -name '*.js' ! -path 'api/_lib/*' | wc -l | tr -d ' ')
           echo "Deploying with $COUNT serverless functions"
 
       - name: Deploy to Vercel Production (force cache bust)
-        run: |
-          if [ -z "$VERCEL_TOKEN" ]; then
-            echo "⚠ VERCEL_TOKEN not configured — skipping CLI deploy (Vercel GitHub integration handles production deployment)"
-            exit 0
-          fi
-          vercel deploy --prod --token=$VERCEL_TOKEN --yes --force
+        if: steps.token_check.outputs.configured == 'true'
+        run: vercel deploy --prod --token=$VERCEL_TOKEN --yes --force
 
   deploy-preview:
     name: Deploy Preview (PR only)
@@ -99,21 +109,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check VERCEL_TOKEN
+        id: token_check
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "⚠ VERCEL_TOKEN not set — Vercel GitHub integration handles preview deployment"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.token_check.outputs.configured == 'true'
         with:
           node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
+        if: steps.token_check.outputs.configured == 'true'
         run: npm ci
 
       - name: Install Vercel CLI
+        if: steps.token_check.outputs.configured == 'true'
         run: npm install --global vercel@latest
 
       - name: Deploy preview
-        run: |
-          if [ -z "$VERCEL_TOKEN" ]; then
-            echo "⚠ VERCEL_TOKEN not configured — skipping CLI deploy (Vercel GitHub integration handles preview deployment)"
-            exit 0
-          fi
-          vercel deploy --token=$VERCEL_TOKEN --yes --force
+        if: steps.token_check.outputs.configured == 'true'
+        run: vercel deploy --token=$VERCEL_TOKEN --yes --force
