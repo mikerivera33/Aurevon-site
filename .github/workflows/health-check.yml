@@ -18,8 +18,10 @@ jobs:
     steps:
       - name: Check /api/health endpoint
         id: health
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://aurevon-site.vercel.app' }}
         run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" https://aurevon-site.vercel.app/api/health)
+          RESPONSE=$(curl -s -w "\n%{http_code}" "$PRODUCTION_URL/api/health")
           HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "status=$HTTP_STATUS" >> $GITHUB_OUTPUT
@@ -49,16 +51,23 @@ except Exception as e:
 " || echo "Could not parse JSON response"
 
       - name: Check page routes
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://aurevon-site.vercel.app' }}
         run: |
           ROUTES=(
-            "https://aurevon-site.vercel.app/"
-            "https://aurevon-site.vercel.app/aurevon-re"
-            "https://aurevon-site.vercel.app/aurevon-web3"
-            "https://aurevon-site.vercel.app/aurevon-nft"
-            "https://aurevon-site.vercel.app/merch"
-            "https://aurevon-site.vercel.app/portal"
-            "https://aurevon-site.vercel.app/operator"
-            "https://aurevon-site.vercel.app/api/health"
+            "$PRODUCTION_URL/"
+            "$PRODUCTION_URL/aurevon-re"
+            "$PRODUCTION_URL/aurevon-web3"
+            "$PRODUCTION_URL/aurevon-nft"
+            "$PRODUCTION_URL/merch"
+            "$PRODUCTION_URL/portal"
+            "$PRODUCTION_URL/operator"
+            "$PRODUCTION_URL/api/health"
+            "$PRODUCTION_URL/nfts/genesis"
+            "$PRODUCTION_URL/nfts/chrome"
+            "$PRODUCTION_URL/nfts/ember"
+            "$PRODUCTION_URL/nfts/insider"
+            "$PRODUCTION_URL/nfts/obsidian"
           )
           ALL_OK=true
           for ROUTE in "${ROUTES[@]}"; do
@@ -78,5 +87,6 @@ except Exception as e:
       - name: Fail if health check returned non-200
         if: steps.health.outputs.status != '200'
         run: |
-          echo "::error::Health endpoint returned status ${{ steps.health.outputs.status }}"
+          echo "::error::Health endpoint returned HTTP ${{ steps.health.outputs.status }} (expected 200)"
+          echo "::error::Set the PRODUCTION_URL repository variable to override the default URL"
           exit 1

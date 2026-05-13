@@ -63,6 +63,7 @@
     }
   ],
   "functions": {
+    "api/health.js":              { "maxDuration": 10 },
     "api/stripe/checkout.js":     { "maxDuration": 30 },
     "api/webhooks/stripe.js":     { "maxDuration": 60 },
     "api/webhooks/paypal.js":     { "maxDuration": 30 },
