@@ -299,7 +299,7 @@
     </div>
 
     <div class="cta-wrap">
-      <a id="discord-link" href="https://discord.gg/GdYRZtdvNS" class="btn-discord" target="_blank" rel="noopener noreferrer">
+      <a id="discord-link" href="https://discord.gg/2fwFjMEh" class="btn-discord" target="_blank" rel="noopener noreferrer">
         <!-- Discord logo -->
         <svg width="22" height="17" viewBox="0 0 71 55" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <path d="M60.1 4.8A58.5 58.5 0 0 0 45.6.5a.22.22 0 0 0-.23.11 40.8 40.8 0 0 0-1.8 3.7 54 54 0 0 0-16.2 0 37.4 37.4 0 0 0-1.83-3.7.23.23 0 0 0-.23-.11A58.3 58.3 0 0 0 10.8 4.8a.2.2 0 0 0-.1.08C1.58 18.25-.95 31.3.3 44.18a.24.24 0 0 0 .09.17 58.8 58.8 0 0 0 17.7 8.95.23.23 0 0 0 .26-.09 42 42 0 0 0 3.6-5.87.23.23 0 0 0-.12-.32 38.7 38.7 0 0 1-5.53-2.63.23.23 0 0 1-.02-.38c.37-.28.74-.57 1.1-.86a.22.22 0 0 1 .23-.03c11.6 5.3 24.17 5.3 35.63 0a.22.22 0 0 1 .23.03c.36.3.73.58 1.1.86a.23.23 0 0 1-.02.38 36.4 36.4 0 0 1-5.54 2.63.23.23 0 0 0-.12.32 47.1 47.1 0 0 0 3.6 5.87.22.22 0 0 0 .25.09 58.6 58.6 0 0 0 17.72-8.95.23.23 0 0 0 .09-.17c1.48-15.31-2.48-28.25-10.5-39.3a.18.18 0 0 0-.09-.08ZM23.73 36.49c-3.49 0-6.37-3.21-6.37-7.15s2.82-7.15 6.37-7.15c3.57 0 6.42 3.24 6.37 7.15 0 3.94-2.83 7.15-6.37 7.15Zm23.54 0c-3.49 0-6.37-3.21-6.37-7.15s2.82-7.15 6.37-7.15c3.57 0 6.42 3.24 6.37 7.15 0 3.94-2.8 7.15-6.37 7.15Z" fill="currentColor"/>
@@ -328,7 +328,7 @@
   const params = new URLSearchParams(window.location.search);
   const role = params.get('role') || '';
   const error = params.get('error') || '';
-  const inviteUrl = params.get('invite') || 'https://discord.gg/GdYRZtdvNS';
+  const inviteUrl = params.get('invite') || 'https://discord.gg/2fwFjMEh';
 
   // Error path
   if (error === 'denied') {
@@ -338,7 +338,7 @@
 
   // Success path
   document.getElementById('main-content').style.display = 'block';
-  document.getElementById('discord-link').href = inviteUrl || 'https://discord.gg/GdYRZtdvNS';
+  document.getElementById('discord-link').href = inviteUrl || 'https://discord.gg/2fwFjMEh';
   document.getElementById('role-label').textContent = role || 'Aurevon Operator';
 
   // Channel map per tier

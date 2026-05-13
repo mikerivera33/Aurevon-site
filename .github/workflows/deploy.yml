@@ -58,6 +58,8 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_fWJOrYad78aAg3T4g6SlJ9Xo
+      VERCEL_PROJECT_ID: prj_Qbp5AcWi4J6GbvbwtSondxZ0ZRZ0
     steps:
       - uses: actions/checkout@v4
 
@@ -87,6 +89,8 @@ jobs:
     if: github.event_name == 'pull_request'
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_fWJOrYad78aAg3T4g6SlJ9Xo
+      VERCEL_PROJECT_ID: prj_Qbp5AcWi4J6GbvbwtSondxZ0ZRZ0
     steps:
       - uses: actions/checkout@v4
 
