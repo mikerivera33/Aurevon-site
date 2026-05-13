@@ -184,7 +184,7 @@ export default async function handler(req, res) {
       req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
       req.on('error', reject);
     });
-  } catch (err) {
+  } catch (_err) {
     return res.status(400).json({ error: 'Failed to read body' });
   }
 

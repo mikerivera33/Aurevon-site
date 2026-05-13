@@ -9,15 +9,22 @@
   "scripts": {
     "dev": "vercel dev",
     "deploy": "bash scripts/deploy.sh",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:qa": "bash qa-test.sh",
-    "test:pipeline": "bash qa-test.sh --full-pipeline"
+    "test:pipeline": "bash qa-test.sh --full-pipeline",
+    "lint": "eslint api/",
+    "lint:fix": "eslint api/ --fix"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
     "stripe": "^16.0.0"
   },
   "devDependencies": {
-    "vercel": "^37.0.0"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.3.0",
+    "vercel": "^37.0.0",
+    "vitest": "^4.1.6"
   },
   "keywords": [
     "blockt",
