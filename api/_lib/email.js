@@ -25,7 +25,7 @@ function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, disc
     ? `<div style="font-family:'Courier New',monospace;font-size:1.2rem;color:#3B82F6;letter-spacing:0.15em;text-align:center;margin:0.8rem 0;">${serial}</div>`
     : '';
 
-  const editionDisplay = edition != null ? String(edition).padStart(3, '0') : null;
+  const editionDisplay = edition !== null ? String(edition).padStart(3, '0') : null;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -196,7 +196,7 @@ function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, disc
 function buildNftDeliveryText({ customerName, nftType, mintId, discordInviteUrl, tier, serial, edition }) {
   const firstName = customerName?.split(' ')[0] ?? 'Operator';
   const tierLabel = tier ? tier.toUpperCase().replace('_', ' ') : 'MEMBER';
-  const editionDisplay = edition != null ? String(edition).padStart(3, '0') : null;
+  const editionDisplay = edition !== null ? String(edition).padStart(3, '0') : null;
 
   return `Aurevon — NFT DELIVERY
 ================================
@@ -274,11 +274,11 @@ export async function sendNftDelivery({ email, customerName, nftType, mintId, nf
 
   // Derive edition from serial if not provided directly
   let resolvedEdition = edition;
-  if (resolvedEdition == null && serial) {
+  if (resolvedEdition === null && serial) {
     const parts = serial.split('_');
     if (parts[1]) resolvedEdition = parseInt(parts[1], 10);
   }
-  const editionDisplay = resolvedEdition != null ? String(resolvedEdition).padStart(3, '0') : null;
+  const editionDisplay = resolvedEdition !== null ? String(resolvedEdition).padStart(3, '0') : null;
 
   const subject = editionDisplay
     ? `Your ${nftType} #${editionDisplay} is here — Welcome to Aurevon`

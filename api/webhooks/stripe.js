@@ -122,7 +122,7 @@ async function handleCheckoutSessionCompleted(session) {
   // 6. Mint NFT via Crossmint
   let mintId = null;
   let imageUrl = null;
-  let mintStatus = 'Queued';
+  let mintStatus;
   let mintNotes = '';
 
   try {
@@ -148,7 +148,6 @@ async function handleCheckoutSessionCompleted(session) {
   // 7. Write NFT_Mints row — use serial as the reference; retry on collision (race condition guard)
   const reference = serial ?? `MINT_${sessionId.slice(-8)}_${nftType.replace(/\s+/g, '_')}`;
   let insertedSerial = serial;
-  let airtableSuccess = false;
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const ref = attempt === 0 ? reference : (() => {
@@ -174,7 +173,6 @@ async function handleCheckoutSessionCompleted(session) {
         mintId: mintId ?? '',
         retryCount: 0,
       });
-      airtableSuccess = true;
       console.log(`[Stripe] NFT_Mints record created with reference=${ref}`);
       break;
     } catch (err) {

@@ -156,7 +156,7 @@ async function handleVerifiedIPN(ipn) {
   // Mint NFT
   let mintId = null;
   let imageUrl = null;
-  let mintStatus = 'Queued';
+  let mintStatus;
   let mintNotes = '';
 
   try {
@@ -273,7 +273,7 @@ export default async function handler(req, res) {
   res.status(200).send('OK');
 
   // Verify with PayPal
-  let verified = false;
+  let verified;
   try {
     verified = await verifyPayPalIPN(rawBody);
   } catch (err) {

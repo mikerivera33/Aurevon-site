@@ -18,7 +18,7 @@
 
 import { upsertMemberByEmail, findMemberByEmail, findActiveMintByEmail, listPendingDiscordSync, listOutOfSyncEntitlements, updateDiscordSyncStatus, updateNftMint } from '../_lib/airtable.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
-import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess, ENTITLEMENT_MAP } from '../_lib/entitlements.js';
+import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
 
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
@@ -127,7 +127,7 @@ async function handleClaim(req, res) {
 
 // ── GET: reconcile ───────────────────────────────────────────────────────────
 
-async function handleReconcile(res) {
+async function handleReconcile() {
   console.log('[Reconcile] Starting reconcile pass...');
   const now = new Date().toISOString();
   const report = {

@@ -169,7 +169,7 @@ async function handleSync(req, res) {
   if (!email) return res.status(400).json({ error: 'Missing email in request body' });
 
   // Look up member record
-  let member = null;
+  let member;
   try { member = await findMemberByEmail(email); }
   catch (e) { return res.status(502).json({ error: 'Airtable lookup failed', detail: e.message }); }
 
@@ -179,7 +179,7 @@ async function handleSync(req, res) {
   if (!discordId) return res.status(422).json({ error: 'Member has no linked Discord ID — they must complete OAuth first', link: `${DOMAIN}/member-claim.html` });
 
   // Look up active mint
-  let mintRecord = null;
+  let mintRecord;
   try { mintRecord = await findActiveMintByEmail(email); }
   catch (e) { return res.status(502).json({ error: 'NFT lookup failed', detail: e.message }); }
 
