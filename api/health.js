@@ -74,17 +74,17 @@ export default function handler(req, res) {
   const optional = Object.fromEntries(OPTIONAL_ENV.map((k) => [k, Boolean(process.env[k])]));
 
   const allRequired = Object.values(required).every(Boolean);
-  const missingCount = Object.values(required).filter((v) => !v).length;
   const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
 
   return res.status(200).json({
     ok: true,
+    status: 'ok',
     version: VERSION,
     timestamp: new Date().toISOString(),
     pipeline: 'Aurevon NFT Membership + Discord Automation',
-    status: allRequired ? 'fully_wired' : `${missingCount}_required_env_var(s)_missing`,
-    missing_required: missing,
-    required,
+    env: allRequired ? 'complete' : 'partial',
+    missing: missing,
+    env_check: required,
     optional,
     airtable_base: process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l (default)',
     function_count: 12,

@@ -195,6 +195,14 @@ export async function listUnsynced({ maxRecords = 50 } = {}) {
   return listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords });
 }
 
+/**
+ * Find NFT_Mints rows where the mint failed and can be retried.
+ */
+export async function listFailedMints({ maxRecords = 50 } = {}) {
+  const formula = `{Mint Status}="Failed"`;
+  return listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords });
+}
+
 // ── Payments ──────────────────────────────────────────────────────────────────
 
 /**

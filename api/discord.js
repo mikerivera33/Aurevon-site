@@ -214,13 +214,62 @@ export default async function handler(req, res) {
   const action = req.query?.action ?? '';
 
   switch (action) {
-    case 'auth':     return handleAuth(req, res);
-    case 'callback': return handleCallback(req, res);
-    case 'sync':     return handleSync(req, res);
+    case 'auth':              return handleAuth(req, res);
+    case 'callback':          return handleCallback(req, res);
+    case 'sync':              return handleSync(req, res);
+    case 'check-membership':  return handleCheckMembership(req, res);
     default:
       return res.status(400).json({
         error: 'Missing or invalid action param',
-        valid: ['auth', 'callback', 'sync'],
+        valid: ['auth', 'callback', 'sync', 'check-membership'],
       });
   }
+}
+
+// ── Cron: check membership sync ───────────────────────────────────────────────
+
+async function handleCheckMembership(req, res) {
+  const secret = SYNC_SECRET;
+  if (secret) {
+    const auth  = req.headers?.authorization ?? '';
+    const query = req.query?.secret ?? '';
+    if (auth !== `Bearer ${secret}` && query !== secret) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  }
+
+  if (!process.env.AIRTABLE_PAT || !process.env.AIRTABLE_BASE_ID) {
+    return res.status(200).json({ ok: true, skipped: true, reason: 'Airtable not configured', synced: 0, errors: 0 });
+  }
+
+  const { listPendingDiscordSync, findActiveMintByEmail: findMint, updateDiscordSyncStatus: updateSync } = await import('./_lib/airtable.js');
+  const synced = [];
+  const errors = [];
+
+  try {
+    const pending = await listPendingDiscordSync({ maxRecords: 100 });
+    for (const member of pending) {
+      const email     = member.fields?.['Email'] ?? '';
+      const discordId = member.fields?.['Discord ID'];
+      if (!email || !discordId) continue;
+      try {
+        const mint = await findMint(email);
+        if (!mint) continue;
+        const nftType        = mint.fields['NFT Type'] ?? '';
+        const entitlementKey = resolveEntitlementFromNftType(nftType);
+        const roleId         = entitlementKey ? getRoleId(entitlementKey) : null;
+        if (!roleId) continue;
+        await addRoleToMember(discordId, roleId);
+        await updateSync(email, 'synced');
+        synced.push({ email, discordId, nftType });
+      } catch (err) {
+        errors.push({ email, error: err.message });
+        await updateSync(email, 'failed', { error: err.message }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    return res.status(500).json({ error: 'Membership check failed', detail: err.message });
+  }
+
+  return res.status(200).json({ ok: true, synced: synced.length, errors: errors.length, details: { synced, errors } });
 }

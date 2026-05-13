@@ -16,7 +16,7 @@
  *   → Returns member entitlement + sync status
  */
 
-import { upsertMemberByEmail, findMemberByEmail, findActiveMintByEmail, listPendingDiscordSync, listOutOfSyncEntitlements, updateDiscordSyncStatus, updateNftMint } from '../_lib/airtable.js';
+import { upsertMemberByEmail, findMemberByEmail, findActiveMintByEmail, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint } from '../_lib/airtable.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
 import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
@@ -272,6 +272,48 @@ async function handleStatus(email, res) {
   });
 }
 
+// ── Cron: retry failed mints ─────────────────────────────────────────────────
+
+async function handleRetryMints() {
+  if (!process.env.AIRTABLE_PAT || !process.env.AIRTABLE_BASE_ID) {
+    return { skipped: true, reason: 'Airtable not configured', retried: 0, errors: 0 };
+  }
+
+  const { TIER_NFT_MAP, getNextSerial } = await import('../_lib/tiers.js');
+  const { mintToEmail } = await import('../_lib/crossmint.js');
+  const retried = [];
+  const errors = [];
+  const failedMints = await listFailedMints({ maxRecords: 50 });
+
+  for (const record of failedMints) {
+    const email        = record.fields?.['Email'] ?? '';
+    const nftType      = record.fields?.['NFT Type'] ?? '';
+    const tier         = record.fields?.['Tier Source'] ?? '';
+    if (!email || !nftType) continue;
+
+    const tierConfig    = TIER_NFT_MAP[tier] ?? null;
+    const templateKey   = tierConfig?.template ?? null;
+    const serialPrefix  = tierConfig?.serialPrefix ?? null;
+    const collectionName = tierConfig?.collectionName ?? null;
+
+    let serial = null;
+    if (serialPrefix) {
+      try { serial = await getNextSerial(serialPrefix); } catch { /* continue without serial */ }
+    }
+
+    try {
+      const result = await mintToEmail({ email, nftType, customerName: email, templateKey, serial, collectionName, tierKey: tier });
+      await updateNftMint(record.id, { 'Mint Status': 'Sent', 'Mint ID': result.mintId, 'Retry Count': (record.fields['Retry Count'] ?? 0) + 1 });
+      retried.push({ email, nftType, mintId: result.mintId });
+    } catch (err) {
+      errors.push({ email, nftType, error: err.message });
+      await updateNftMint(record.id, { 'Retry Count': (record.fields['Retry Count'] ?? 0) + 1, Notes: `Retry failed: ${err.message}` }).catch(() => {});
+    }
+  }
+
+  return { retried: retried.length, errors: errors.length, details: { retried, errors } };
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -291,10 +333,19 @@ export default async function handler(req, res) {
 
     if (action === 'reconcile') {
       try {
-        const report = await handleReconcile(res);
+        const report = await handleReconcile();
         return res.status(200).json({ ok: true, report });
       } catch (err) {
         return res.status(500).json({ error: 'Reconcile failed', detail: err.message });
+      }
+    }
+
+    if (action === 'retry-mints') {
+      try {
+        const report = await handleRetryMints();
+        return res.status(200).json({ ok: true, report });
+      } catch (err) {
+        return res.status(500).json({ error: 'Retry-mints failed', detail: err.message });
       }
     }
 
@@ -304,7 +355,7 @@ export default async function handler(req, res) {
       return handleStatus(email, res);
     }
 
-    return res.status(400).json({ error: 'Invalid action', valid: ['reconcile', 'status'] });
+    return res.status(400).json({ error: 'Invalid action', valid: ['reconcile', 'retry-mints', 'status'] });
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
