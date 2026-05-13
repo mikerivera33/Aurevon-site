@@ -80,7 +80,12 @@ jobs:
           echo "Deploying with $COUNT serverless functions"
 
       - name: Deploy to Vercel Production (force cache bust)
-        run: vercel deploy --prod --token=$VERCEL_TOKEN --yes --force
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "⚠ VERCEL_TOKEN not configured — skipping CLI deploy (Vercel GitHub integration handles production deployment)"
+            exit 0
+          fi
+          vercel deploy --prod --token=$VERCEL_TOKEN --yes --force
 
   deploy-preview:
     name: Deploy Preview (PR only)
@@ -106,4 +111,9 @@ jobs:
         run: npm install --global vercel@latest
 
       - name: Deploy preview
-        run: vercel deploy --token=$VERCEL_TOKEN --yes --force
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "⚠ VERCEL_TOKEN not configured — skipping CLI deploy (Vercel GitHub integration handles preview deployment)"
+            exit 0
+          fi
+          vercel deploy --token=$VERCEL_TOKEN --yes --force
