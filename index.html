@@ -42,11 +42,10 @@ a{color:var(--o2);text-decoration:none;}a:hover{color:var(--o1);}
 .nav{position:fixed;top:0;left:0;right:0;z-index:80;background:rgba(12,12,14,0.72);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,0.06);}
 .ni{display:flex;align-items:center;justify-content:space-between;padding:0.7rem 0;}
 .nl{display:flex;align-items:center;gap:0.55rem;}
-.nl svg{border-radius:6px;width:32px;height:32px;}
 .nk{display:flex;gap:1.6rem;font-size:0.88rem;color:var(--tx2);}
 .nk a{color:var(--tx2);}.nk a:hover{color:var(--o1);}
 .btn{display:inline-flex;align-items:center;gap:0.4rem;padding:0.6rem 1.1rem;border-radius:10px;background:linear-gradient(135deg,var(--o1),var(--o2));color:#0A0A0A;font-family:'Archivo Black',sans-serif;font-size:0.82rem;letter-spacing:0.02em;box-shadow:0 8px 24px rgba(30,58,138,0.28);transition:transform .2s,box-shadow .2s;cursor:pointer;border:none;}
-.btn:hover{transform:translateY(-1px);box-shadow:0 10px 30px rgba(30,58,138,0.4);color:#0A0A0A;}
+.nl svg,.nl img{border-radius:6px;width:auto;height:32px;object-fit:contain;}
 .btn-g{display:inline-flex;align-items:center;gap:0.4rem;padding:0.6rem 1.1rem;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--tx);font-weight:600;font-size:0.85rem;cursor:pointer;transition:background .2s;}
 .btn-g:hover{background:rgba(255,255,255,0.08);color:var(--tx);}
 @media(max-width:760px){.nk{display:none;}}
@@ -153,7 +152,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 <nav class="nav">
   <div class="wrap ni">
     <a href="#top" class="nl">
-      <svg width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:8px;flex-shrink:0;"><rect width="40" height="40" rx="8" fill="#1E3A8A"/><path fill-rule="evenodd" fill="white" d="M14 5L21 4L31 36L27 36L23 23L16 27L13 36L8.5 36Z M19 7L23 23L16 27Z"/></svg>
+      <img src="assets/Aurevon LOGO1.jpg" alt="Aurevon Logo" style="height:32px;border-radius:4px;object-fit:contain;">
       <span class="lt" style="font-size:1.1rem;color:var(--tx);">Aurevon</span>
     </a>
     <div class="nk">
@@ -187,7 +186,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
   </div>
   <div class="wrap si">
     <div class="rv aurevon-hero-wrap" style="margin:0 auto 1.5rem;display:flex;justify-content:center;">
-      <svg width="340" height="88" viewBox="0 0 340 88" xmlns="http://www.w3.org/2000/svg" aria-label="Aurevon Group LLC - Systems. Capital. Infrastructure."><defs><linearGradient id="aLockGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1E3A8A"/><stop offset="100%" stop-color="#3B82F6"/></linearGradient><linearGradient id="aMarkGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#c8dcff"/></linearGradient><filter id="aGlow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><rect x="1" y="1" width="82" height="82" rx="16" fill="url(#aLockGrad)" filter="url(#aGlow)"/><rect x="1" y="1" width="82" height="82" rx="16" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1"/><path fill-rule="evenodd" fill="url(#aMarkGrad)" d="M29 11L45 8L67 76L58 76L48 48L34 58L27 76L18 76Z M40 14L48 48L34 58Z"/><text x="100" y="38" font-family="Arial Black,Impact,sans-serif" font-size="28" font-weight="900" fill="#f0ede8" letter-spacing="3">AUREVON</text><line x1="100" y1="44" x2="335" y2="44" stroke="rgba(59,130,246,0.25)" stroke-width="0.75"/><text x="100" y="60" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="400" fill="#3B82F6" letter-spacing="3.5">SYSTEMS. CAPITAL. INFRASTRUCTURE.</text><line x1="100" y1="67" x2="335" y2="67" stroke="rgba(59,130,246,0.15)" stroke-width="0.5"/><text x="100" y="78" font-family="Arial,Helvetica,sans-serif" font-size="8" font-weight="300" fill="rgba(176,163,152,0.7)" letter-spacing="2">GROUP LLC &#183; EST. 2024</text></svg>
+      <img src="assets/Aurevon LOGO1.jpg" alt="Aurevon Group LLC — Systems. Capital. Infrastructure." style="max-width:340px;width:100%;height:auto;border-radius:8px;">
     </div>
     <h1 class="rv lt" style="font-size:clamp(2.5rem,6vw,4rem);margin:0 0 0.5rem;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.05;">Aurevon</h1>
     <p class="rv" style="color:var(--tm);font-size:0.82rem;letter-spacing:0.25em;text-transform:uppercase;margin:0 0 1.2rem;">Holdings · Ventures · Community</p>
