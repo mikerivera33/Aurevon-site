@@ -42,12 +42,11 @@ footer{margin-top:2rem;font-size:.75rem;color:var(--txt2);text-align:center;}
 <body>
 
 <div class="card" id="card">
-  <div class="logo">Aurevon</div>
+        <div class="logo"><img src="assets/Aurevon LOGO1.jpg" alt="Aurevon" style="height:40px;border-radius:4px;"></div>
   <div class="subtitle">Member Access Portal</div>
 
   <h1>Claim Your Access</h1>
-  <p class="desc">Enter the email you used to purchase. We'll link your Discord account and activate your role.</p>
-
+        
   <form id="claimForm" onsubmit="handleLookup(event)">
     <label for="email">Purchase Email</label>
     <input type="email" id="email" placeholder="you@example.com" required autocomplete="email"/>
