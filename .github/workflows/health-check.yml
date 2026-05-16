@@ -19,7 +19,7 @@ jobs:
       - name: Check /api/health endpoint
         id: health
         env:
-          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://aurevon-site.vercel.app' }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://www.aurevonvc.com' }}
         run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" "$PRODUCTION_URL/api/health")
           HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
@@ -33,26 +33,26 @@ jobs:
         run: |
           BODY='${{ steps.health.outputs.body }}'
           echo "Health check result:"
-          echo "$BODY" | python3 -c "
+          echo "$BODY" | python3 << 'PYEOF'
 import sys, json
 try:
-  data = json.load(sys.stdin)
-  print(f\"Pipeline: {data.get('pipeline', 'unknown')}\")
-  print(f\"Status: {data.get('status', 'unknown')}\")
-  env = data.get('env_check', {})
-  missing = [k for k,v in env.items() if not v]
-  configured = [k for k,v in env.items() if v]
-  print(f\"Configured ({len(configured)}): {', '.join(configured)}\")
-  print(f\"Missing ({len(missing)}): {', '.join(missing)}\")
-  if missing:
-    print(f\"\\n::warning::MISSING ENV VARS: {', '.join(missing)}\")
+    data = json.loads(sys.stdin.read())
+    print(f"Pipeline: {data.get('pipeline', 'unknown')}")
+    print(f"Status: {data.get('status', 'unknown')}")
+    env = data.get('env_check', {})
+    missing = [k for k, v in env.items() if not v]
+    configured = [k for k, v in env.items() if v]
+    print(f"Configured ({len(configured)}): {', '.join(configured)}")
+    print(f"Missing ({len(missing)}): {', '.join(missing)}")
+    if missing:
+        print(f"\n::warning::MISSING ENV VARS: {', '.join(missing)}")
 except Exception as e:
-  print(f'Parse error: {e}')
-" || echo "Could not parse JSON response"
+    print(f"Parse error: {e}")
+PYEOF
 
       - name: Check page routes
         env:
-          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://aurevon-site.vercel.app' }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://www.aurevonvc.com' }}
         run: |
           ROUTES=(
             "$PRODUCTION_URL/"
