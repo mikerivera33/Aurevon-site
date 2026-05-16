@@ -3,9 +3,6 @@
   "version": "1.0.0",
   "description": "Aurevon — autonomous investment backend + membership portal",
   "type": "module",
-  "engines": {
-    "node": "22.x"
-  },
   "scripts": {
     "dev": "vercel dev",
     "deploy": "bash scripts/deploy.sh",
