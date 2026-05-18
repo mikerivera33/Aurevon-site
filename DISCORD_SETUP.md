@@ -1,5 +1,9 @@
 # Aurevon Operators Discord Server — Setup Guide
 
+> **Automated setup available.** Run `npm run setup` inside the `discord/` directory to build the entire server (roles, channels, embeds) in ~2 minutes. See [`discord/README.md`](discord/README.md) for full instructions.
+>
+> The manual steps below are for reference or for repairing individual pieces after running the bot.
+
 This document walks you through creating the Aurevon Discord server, configuring
 roles and channels, connecting the bot, and wiring everything into the Vercel backend.
 
