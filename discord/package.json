@@ -1,13 +1,16 @@
 {
-  "name": "aurevon-discord-setup",
-  "version": "1.0.0",
-  "description": "One-run Discord server setup bot for Aurevon Operators",
+  "name": "aurevon-discord-bot",
+  "version": "2.0.0",
+  "description": "Aurevon Ventures — Discord gateway bot + server setup",
   "type": "module",
   "engines": { "node": ">=18" },
   "scripts": {
-    "setup": "node setup.js"
+    "setup": "node setup.js",
+    "bot":   "node bot.js",
+    "start": "node bot.js"
   },
   "dependencies": {
-    "dotenv": "^16.4.5"
+    "discord.js": "^14.16.3",
+    "dotenv":     "^16.4.5"
   }
 }
