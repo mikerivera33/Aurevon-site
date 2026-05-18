@@ -36,10 +36,10 @@ import {
   ActionRowBuilder,
   GuildScheduledEventPrivacyLevel,
   GuildScheduledEventEntityType,
+  GuildScheduledEventStatus,
   AutoModerationRuleTriggerType,
   AutoModerationRuleEventType,
   AutoModerationActionType,
-  AuditLogEvent,
 } from 'discord.js';
 
 import {
@@ -53,7 +53,6 @@ import {
   findActiveMintByEmail,
   updateDiscordSyncStatus,
   listPendingDiscordSync,
-  upsertDiscordLink,
 } from '../api/_lib/airtable.js';
 
 // ── Env validation ────────────────────────────────────────────────────────────
@@ -177,7 +176,6 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.GuildScheduledEvents,
     GatewayIntentBits.GuildModeration,
-    GatewayIntentBits.GuildPresences,
   ],
   partials: [Partials.Channel, Partials.Message, Partials.GuildMember],
 });
@@ -192,10 +190,9 @@ async function registerCommands(clientId) {
 
 // ── Embed helpers ─────────────────────────────────────────────────────────────
 
-const GOLD   = 0xC8A96E;
-const BLURPL = 0x5865F2;
-const RED    = 0xED4245;
-const GREEN  = 0x57F287;
+const GOLD  = 0xC8A96E;
+const RED   = 0xED4245;
+const GREEN = 0x57F287;
 
 function goldEmbed(title) {
   return new EmbedBuilder()
@@ -428,7 +425,7 @@ async function handleLookup(interaction) {
   const targetUser = interaction.options.getUser('user');
 
   if (!email && !targetUser) {
-    return interaction.editReply('❌  Provide at least one of: `email` or `user`.');
+    return interaction.editReply({ content: '❌  Provide at least one of: `email` or `user`.' });
   }
 
   const lookupEmail = email?.toLowerCase().trim();
@@ -436,37 +433,50 @@ async function handleLookup(interaction) {
   let memberRecord, mintRecord;
   try {
     if (lookupEmail) {
-      memberRecord = await findMemberByEmail(lookupEmail);
-      mintRecord   = await findActiveMintByEmail(lookupEmail);
+      [memberRecord, mintRecord] = await Promise.all([
+        findMemberByEmail(lookupEmail),
+        findActiveMintByEmail(lookupEmail),
+      ]);
     }
   } catch (e) {
-    return interaction.editReply(`❌  Airtable error: ${e.message}`);
+    return interaction.editReply({ content: `❌  Airtable error: ${e.message}` });
   }
 
   if (lookupEmail && !memberRecord && !mintRecord) {
-    return interaction.editReply(`❌  No Airtable record found for \`${lookupEmail}\`.`);
+    return interaction.editReply({ content: `❌  No Airtable record found for \`${lookupEmail}\`.` });
   }
 
-  const discordId = memberRecord?.fields?.['Discord ID'] ?? targetUser?.id ?? '—';
-  const nftType   = mintRecord?.fields?.['NFT Type'] ?? '—';
-  const status    = mintRecord?.fields?.['Status']   ?? '—';
-  const reference = mintRecord?.fields?.['Reference'] ?? '—';
-  const syncSt    = memberRecord?.fields?.['Discord Sync Status'] ?? '—';
+  // Resolve Discord ID — prefer Airtable record, fall back to @user option
+  const discordId = memberRecord?.fields?.['Discord ID'] ?? targetUser?.id ?? null;
+  const nftType   = mintRecord?.fields?.['NFT Type']            ?? '—';
+  const mintStatus = mintRecord?.fields?.['Status']             ?? '—';
+  const reference  = mintRecord?.fields?.['Reference']          ?? '—';
+  const syncSt     = memberRecord?.fields?.['Discord Sync Status'] ?? '—';
 
-  let guildTag = '—';
-  if (discordId !== '—') {
-    const gm = await interaction.guild.members.fetch(discordId).catch(() => null);
-    guildTag = gm ? `<@${discordId}>` : `${discordId} (not in server)`;
+  // Fetch guild member for Discord-side info
+  let gm = null;
+  if (discordId) {
+    gm = await interaction.guild.members.fetch(discordId).catch(() => null);
   }
+
+  const guildTag = gm ? `<@${discordId}>` : discordId ? `${discordId} (not in server)` : '—';
+  const joinedAt = gm?.joinedAt ? `<t:${Math.floor(gm.joinedAt / 1000)}:D>` : '—';
+  const tierRoles = gm
+    ? gm.roles.cache
+        .filter(r => getTierRoleIds().includes(r.id))
+        .map(r => r.name).join(', ') || 'None'
+    : '—';
 
   const embed = goldEmbed('🔍  Member Lookup')
     .addFields(
-      { name: 'Email',        value: lookupEmail ?? '—',  inline: true  },
-      { name: 'Discord',      value: guildTag,             inline: true  },
-      { name: 'NFT Type',     value: nftType,              inline: true  },
-      { name: 'Serial',       value: reference,            inline: true  },
-      { name: 'Mint Status',  value: status,               inline: true  },
-      { name: 'Sync Status',  value: syncSt,               inline: true  },
+      { name: 'Email',        value: lookupEmail ?? '—', inline: true  },
+      { name: 'Discord',      value: guildTag,            inline: true  },
+      { name: 'Joined Server',value: joinedAt,            inline: true  },
+      { name: 'Tier Roles',   value: tierRoles,           inline: false },
+      { name: 'NFT Type',     value: nftType,             inline: true  },
+      { name: 'Serial',       value: reference,           inline: true  },
+      { name: 'Mint Status',  value: mintStatus,          inline: true  },
+      { name: 'Sync Status',  value: syncSt,              inline: true  },
     );
 
   return interaction.editReply({ embeds: [embed] });
@@ -480,7 +490,7 @@ async function handleAnnounce(interaction) {
   const title   = interaction.options.getString('title') ?? '📢  Aurevon Update';
 
   const announceCh = findChannel(interaction.guild, 'announcements');
-  if (!announceCh) return interaction.editReply('❌  #announcements channel not found. Run `discord/setup.js` first.');
+  if (!announceCh) return interaction.editReply({ content: '❌  #announcements channel not found. Run `discord/setup.js` first.' });
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setLabel('Visit Aurevon').setStyle(ButtonStyle.Link).setURL(SITE_URL).setEmoji('🌐'),
@@ -488,7 +498,7 @@ async function handleAnnounce(interaction) {
 
   const embed = goldEmbed(title).setDescription(message);
   await announceCh.send({ embeds: [embed], components: [row] });
-  return interaction.editReply(`✅  Posted to <#${announceCh.id}>`);
+  return interaction.editReply({ content: `✅  Posted to <#${announceCh.id}>` });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -554,8 +564,8 @@ async function handleEventCreate(interaction) {
       { name: '📌  Title',    value: title,                                   inline: true },
       { name: '🎙️  Channel', value: voiceCh.name,                             inline: true },
       { name: '🕐  Start',   value: `<t:${Math.floor(startTime / 1000)}:F>`,  inline: false },
-    )
-    .setURL(event.url ?? '');
+    );
+  if (event.url) embed.setURL(event.url);
 
   const announceCh = findChannel(interaction.guild, 'announcements');
   if (announceCh) await announceCh.send({ embeds: [embed] });
@@ -640,7 +650,6 @@ async function handleBoostStats(interaction) {
   const embed = new EmbedBuilder()
     .setColor(0xFF73FA)
     .setTitle('🚀  Server Boost Status')
-    .setThumbnail(guild.iconURL())
     .addFields(
       { name: '📶  Boost Level',    value: `Level ${currentTier}`,              inline: true  },
       { name: '💎  Total Boosts',   value: String(currentBoosts),               inline: true  },
@@ -650,6 +659,9 @@ async function handleBoostStats(interaction) {
     )
     .setFooter({ text: 'Boost Aurevon Ventures to unlock more perks!' })
     .setTimestamp();
+
+  const iconURL = guild.iconURL({ dynamic: true });
+  if (iconURL) embed.setThumbnail(iconURL);
 
   return interaction.editReply({ embeds: [embed] });
 }
@@ -670,7 +682,7 @@ async function setupAutoMod(guild) {
       triggerMetadata: { mentionTotalLimit: 5 },
       actions: [
         { type: AutoModerationActionType.BlockMessage, metadata: { customMessage: 'Too many mentions. Please keep discussions focused.' } },
-        { type: AutoModerationActionType.SendAlertMessage, metadata: { channel: guild.channels.cache.find(c => c.name === 'mod-actions') } },
+        { type: AutoModerationActionType.SendAlertMessage, metadata: { channel: guild.channels.cache.find(c => c.name === 'mod-actions')?.id } },
       ],
       enabled: true,
     },
@@ -690,12 +702,13 @@ async function setupAutoMod(guild) {
       triggerMetadata: {
         keywordFilter: [
           '*guaranteed returns*', '*risk-free investment*', '*100% profit*',
-          '*send crypto*', '*dm me for deal*', '*pump*dump*',
+          '*send crypto*', '*dm me for deal*', '*pump and dump*', '*rug pull*',
+          '*ponzi*', '*multi-level*', '*get rich quick*',
         ],
       },
       actions: [
         { type: AutoModerationActionType.BlockMessage, metadata: { customMessage: 'This content violates Aurevon community standards.' } },
-        { type: AutoModerationActionType.SendAlertMessage, metadata: { channel: guild.channels.cache.find(c => c.name === 'mod-actions') } },
+        { type: AutoModerationActionType.SendAlertMessage, metadata: { channel: guild.channels.cache.find(c => c.name === 'mod-actions')?.id } },
       ],
       enabled: true,
     },
@@ -704,9 +717,9 @@ async function setupAutoMod(guild) {
   for (const rule of rules) {
     if (existingNames.has(rule.name)) continue;
 
-    // Filter out SendAlertMessage actions if the alert channel doesn't exist
+    // Filter out SendAlertMessage actions if mod-actions channel doesn't exist yet
     rule.actions = rule.actions.filter(a =>
-      a.type !== AutoModerationActionType.SendAlertMessage || a.metadata?.channel
+      a.type !== AutoModerationActionType.SendAlertMessage || a.metadata?.channel != null
     );
 
     await guild.autoModerationRules.create(rule).catch(err =>
@@ -803,8 +816,8 @@ client.on(Events.GuildScheduledEventCreate, async (event) => {
 
   const embed = goldEmbed(`📅  New Event: ${event.name}`)
     .setDescription(event.description ?? 'A new Aurevon event has been scheduled.')
-    .addFields({ name: '🕐  Starts', value: `<t:${Math.floor(event.scheduledStartTimestamp / 1000)}:F>`, inline: true })
-    .setURL(event.url ?? '');
+    .addFields({ name: '🕐  Starts', value: `<t:${Math.floor(event.scheduledStartTimestamp / 1000)}:F>`, inline: true });
+  if (event.url) embed.setURL(event.url);
 
   await sendLog(guild, 'announcements', { embeds: [embed] });
 });
@@ -813,15 +826,15 @@ client.on(Events.GuildScheduledEventCreate, async (event) => {
 
 client.on(Events.GuildScheduledEventUpdate, async (oldEvent, newEvent) => {
   if (newEvent.guildId !== GUILD_ID) return;
-  if (newEvent.status !== 2 /* ACTIVE */ || oldEvent?.status === 2) return; // Only on start
+  if (newEvent.status !== GuildScheduledEventStatus.Active || oldEvent?.status === GuildScheduledEventStatus.Active) return;
 
   const guild = newEvent.guild ?? client.guilds.cache.get(GUILD_ID);
   if (!guild) return;
 
   const embed = goldEmbed(`🔴  LIVE: ${newEvent.name}`)
     .setDescription(newEvent.description ?? 'An Aurevon event is now live!')
-    .addFields({ name: '🎙️  Channel', value: newEvent.channel?.name ?? 'See server', inline: true })
-    .setURL(newEvent.url ?? '');
+    .addFields({ name: '🎙️  Channel', value: newEvent.channel?.name ?? 'See server', inline: true });
+  if (newEvent.url) embed.setURL(newEvent.url);
 
   await sendLog(guild, 'announcements', { embeds: [embed] });
 });
