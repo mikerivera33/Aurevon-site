@@ -7,7 +7,7 @@
 # Usage:
 #   export CROSSMINT_API_KEY="sk_staging_..."
 #   export CROSSMINT_COLLECTION_ID="444de9e1-9da4-4088-bf30-ee2030fe3aeb"
-#   export CROSSMINT_ENV="staging"   # or "production"
+#   export CROSSMINT_ENV="staging"  # or "production"
 #   bash scripts/create-nft-templates.sh
 #
 # After running Pinata uploads, update IMAGE_BASE and ANIM_BASE below
@@ -44,7 +44,7 @@ OBSIDIAN_IMG_CID="bafkreie7rhy5sibiocfu5cq7hhwf52tdzgesk3brmj753v2xgulannwsy4"
 OBSIDIAN_VID_CID="bafybeiguz4kqtq3uywhvnhbvlkazaacq3cdnqna6ly2yvyfhwnefhspusq"
 # ---------------------------------------------------------------------------
 
-mint_nft() {
+create_template() {
   local NAME="$1"
   local DESC="$2"
   local IMG_CID="$3"
@@ -59,10 +59,10 @@ mint_nft() {
   local VID_URL="${GATEWAY}/${VID_CID}"
 
   echo ""
-  echo "Creating NFT: ${NAME}..."
+  echo "Creating template: ${NAME}..."
 
   RESPONSE=$(curl -s -w "\n%{http_code}" --request POST \
-    --url "${BASE_URL}/collections/${COLLECTION_ID}/nfts" \
+    --url "${BASE_URL}/collections/${COLLECTION_ID}/templates" \
     --header "Content-Type: application/json" \
     --header "X-API-KEY: ${API_KEY}" \
     --data "{
@@ -73,16 +73,16 @@ mint_nft() {
         \"animation_url\": \"${VID_URL}\",
         \"external_url\": \"https://aurevon.com\",
         \"attributes\": [
-          {\"trait_type\": \"Tier\",         \"value\": \"${TIER}\"},
+          {\"trait_type\": \"Tier\", \"value\": \"${TIER}\"},
           {\"trait_type\": \"Access Level\", \"value\": \"${ACCESS}\"},
-          {\"trait_type\": \"Category\",     \"value\": \"${CATEGORY}\"},
-          {\"trait_type\": \"Pricing\",      \"value\": \"${PRICING}\"},
-          {\"trait_type\": \"Serial\",       \"value\": \"${SERIAL}\"},
-          {\"trait_type\": \"Chain\",        \"value\": \"Base Ethereum L2\"},
-          {\"trait_type\": \"Status\",       \"value\": \"Active Operator\"},
+          {\"trait_type\": \"Category\", \"value\": \"${CATEGORY}\"},
+          {\"trait_type\": \"Pricing\", \"value\": \"${PRICING}\"},
+          {\"trait_type\": \"Serial\", \"value\": \"${SERIAL}\"},
+          {\"trait_type\": \"Chain\", \"value\": \"Base Ethereum L2\"},
+          {\"trait_type\": \"Status\", \"value\": \"Active Operator\"},
           {\"trait_type\": \"Verification\", \"value\": \"Crossmint + Stripe\"},
-          {\"trait_type\": \"Minted\",       \"value\": \"2026 Genesis Drop\"},
-          {\"trait_type\": \"Issuer\",       \"value\": \"Aurevon Group LLC\"}
+          {\"trait_type\": \"Minted\", \"value\": \"2026 Genesis Drop\"},
+          {\"trait_type\": \"Issuer\", \"value\": \"Aurevon Group LLC\"}
         ]
       }
     }")
@@ -105,35 +105,35 @@ echo "API Base:      ${BASE_URL}"
 echo ""
 
 # GENESIS
-mint_nft \
+create_template \
   "Aurevon GENESIS Pass" \
   "Live Aurevon shield NFT Monthly community membership. Aurevon Group LLC Systems Capital Infrastructure. On-chain membership pass minted on Base Ethereum L2. Verification Crossmint Stripe. 2026 Genesis Drop. Serial GEN-001-2026." \
   "$GENESIS_IMG_CID" "$GENESIS_VID_CID" \
   "001 Genesis" "Community Access" "Community" "29.99/mo" "GEN-001-2026"
 
 # CHROME
-mint_nft \
+create_template \
   "Aurevon CHROME Pass" \
   "Community lifetime access pass. Aurevon Group LLC Systems Capital Infrastructure. On-chain membership pass minted on Base Ethereum L2. Verification Crossmint Stripe. 2026 Genesis Drop. Serial CHR-004-2026." \
   "$CHROME_IMG_CID" "$CHROME_VID_CID" \
   "004 Chrome" "Lifetime Access" "Community Lifetime" "349.99" "CHR-004-2026"
 
 # INSIDER
-mint_nft \
+create_template \
   "Aurevon INSIDER Pass" \
   "Full Package RE underwriting Included with service tier. Aurevon Group LLC Systems Capital Infrastructure. On-chain membership pass minted on Base Ethereum L2. Verification Crossmint Stripe. 2026 Genesis Drop. Serial INS-250-2026." \
   "$INSIDER_IMG_CID" "$INSIDER_VID_CID" \
   "Aurevon Insider" "Full Package Access" "Underwriting" "250.00" "INS-250-2026"
 
 # EMBER
-mint_nft \
+create_template \
   "Aurevon EMBER Pass" \
   "Pro Retainer 6 underwriting deals per month. Aurevon Group LLC Systems Capital Infrastructure. On-chain membership pass minted on Base Ethereum L2. Verification Crossmint Stripe. 2026 Genesis Drop. Serial EMB-PRO-2026." \
   "$EMBER_IMG_CID" "$EMBER_VID_CID" \
   "Aurevon Ember" "Pro Retainer Access" "Pro Retainer" "1,499/mo" "EMB-PRO-2026"
 
 # OBSIDIAN
-mint_nft \
+create_template \
   "Aurevon OBSIDIAN Pass" \
   "Enterprise tier Unlimited underwriting Apex pass. Aurevon Group LLC Systems Capital Infrastructure. On-chain membership pass minted on Base Ethereum L2. Verification Crossmint Stripe. 2026 Genesis Drop. Serial OBS-APEX-2026." \
   "$OBSIDIAN_IMG_CID" "$OBSIDIAN_VID_CID" \
@@ -142,7 +142,7 @@ mint_nft \
 echo ""
 echo "=== Done! ==="
 echo "Next steps:"
-echo "1. Upload PNGs and MP4s to Pinata (Phase 1)"
-echo "2. Update CID variables in this script with real Pinata CIDs"
-echo "3. Re-run this script to update NFT metadata with real IPFS URLs"
-echo "4. Verify NFTs appear in Crossmint Console under NFTs tab"
+echo "1. Verify templates appear in Crossmint Console under NFTs > Templates tab"
+echo "2. Upload PNGs and MP4s to Pinata (Phase 1) if not done"
+echo "3. Update CID variables in this script with real Pinata CIDs"
+echo "4. Re-run this script to update template metadata with real IPFS URLs"
