@@ -1059,7 +1059,12 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 <script>
 /* ---------- config wiring ---------- */
 const CFG = window.AUREVON_CONFIG || {};
-document.getElementById('yr').textContent = new Date().getFullYear();
+function showPaymentError(msg) {
+  var el = document.getElementById('bkt-pay-error');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+  else { console.error('[Payment]', msg); }
+}
+const _yrEl = document.getElementById('yr') || document.getElementById('bktYr'); if (_yrEl) _yrEl.textContent = new Date().getFullYear();
 const mail = document.getElementById('mailLink');
 if (mail && CFG.CONTACT_EMAIL) mail.href = 'mailto:' + CFG.CONTACT_EMAIL;
 // Wire Discord buttons

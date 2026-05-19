@@ -495,7 +495,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 </footer>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-document.getElementById('yr').textContent = new Date().getFullYear();
+const _yrEl = document.getElementById('yr') || document.getElementById('bktYr'); if (_yrEl) _yrEl.textContent = new Date().getFullYear();
 const L = window.AUREVON_LINKS || {};
 document.querySelectorAll('.vcard[href]').forEach(c => {
   const h = c.getAttribute('href');

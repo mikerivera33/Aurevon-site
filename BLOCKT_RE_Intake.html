@@ -314,7 +314,7 @@ footer a{color:var(--o2);text-decoration:none;}
 
 <script>
 const CFG = window.BLOCKT_CONFIG || {};
-document.getElementById('yr').textContent = new Date().getFullYear();
+const _yrEl = document.getElementById('yr') || document.getElementById('bktYr'); if (_yrEl) _yrEl.textContent = new Date().getFullYear();
 const mail = document.getElementById('mailLink');
 if (mail && CFG.CONTACT_EMAIL) mail.href = 'mailto:' + CFG.CONTACT_EMAIL;
 
