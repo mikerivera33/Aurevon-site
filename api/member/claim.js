@@ -16,6 +16,7 @@
  *   → Returns member entitlement + sync status
  */
 
+import crypto from 'node:crypto';
 import { upsertMemberByEmail, findMemberByEmail, findActiveMintByEmail, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint } from '../_lib/airtable.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
 import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess } from '../_lib/entitlements.js';
@@ -29,11 +30,10 @@ function getReconcileSecret() {
 
 function validateReconcileSecret(req) {
   const secret = getReconcileSecret();
-  if (!secret) return true; // no secret set — allow (dev only)
-  const provided = req.query?.secret
-    ?? req.headers?.['authorization']?.replace('Bearer ', '')
-    ?? '';
-  return provided === secret;
+  if (!secret) return false;
+  const provided = req.query?.secret ?? req.headers?.['authorization']?.replace('Bearer ', '') ?? '';
+  if (provided.length !== secret.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(secret));
 }
 
 // ── POST: claim / link ───────────────────────────────────────────────────────

@@ -114,7 +114,8 @@ export default async function handler(req, res) {
     apiVersion: '2023-10-16',
   });
 
-  const BASE_URL = process.env.BASE_URL || `https://${req.headers.host}`;
+  const BASE_URL = process.env.BASE_URL;
+  if (!BASE_URL) return res.status(500).json({ error: 'BASE_URL not configured — contact support' });
 
   try {
     const sessionParams = {
