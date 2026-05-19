@@ -32,16 +32,16 @@ fi
 # ---------------------------------------------------------------------------
 GATEWAY="https://gateway.pinata.cloud/ipfs"
 
-GENESIS_IMG_CID="PLACEHOLDER_GENESIS_PNG_CID"
-GENESIS_VID_CID="PLACEHOLDER_GENESIS_MP4_CID"
-CHROME_IMG_CID="PLACEHOLDER_CHROME_PNG_CID"
-CHROME_VID_CID="PLACEHOLDER_CHROME_MP4_CID"
-INSIDER_IMG_CID="PLACEHOLDER_INSIDER_PNG_CID"
-INSIDER_VID_CID="PLACEHOLDER_INSIDER_MP4_CID"
-EMBER_IMG_CID="PLACEHOLDER_EMBER_PNG_CID"
-EMBER_VID_CID="PLACEHOLDER_EMBER_MP4_CID"
-OBSIDIAN_IMG_CID="PLACEHOLDER_OBSIDIAN_PNG_CID"
-OBSIDIAN_VID_CID="PLACEHOLDER_OBSIDIAN_MP4_CID"
+GENESIS_IMG_CID="bafkreihwovvborajwrljjuiaxhk2lev2l2nxlf5fy27yfh3p74cugt5tfi"
+GENESIS_VID_CID="bafybeictzl6vb5pyqe2vplydessfl3nod2rflzajxhqjlrvxly457bcljy"
+CHROME_IMG_CID="bafkreic3bi6gpnbhgsncizriwbpcniceipxlzn254zdgvzzilfojajlin4"
+CHROME_VID_CID="bafybeiecvoqsrxp27pq43ogp3brqzus53caz3zfbtihibs3w4jfzyqboz4"
+INSIDER_IMG_CID="bafkreidla5efyue3p23ta6djte7kps4e4aohaxuij7yc2eiundhv3pasty"
+INSIDER_VID_CID="bafybeih4nvmx4pqjvhkbaicb6ngl3jl7mr2ypghwnf26vg4mghzqjpd42m"
+EMBER_IMG_CID="bafkreifon655t7ru5vrcpnnhsodjal3jb323cjubfx7na4fnp22n6tdb54"
+EMBER_VID_CID="bafybeidcxh52iyvoymwzpm4z575rtgvlqqnznzzjpt3fqkgyc34tom2ao4"
+OBSIDIAN_IMG_CID="bafkreie7rhy5sibiocfu5cq7hhwf52tdzgesk3brmj753v2xgulannwsy4"
+OBSIDIAN_VID_CID="bafybeiguz4kqtq3uywhvnhbvlkazaacq3cdnqna6ly2yvyfhwnefhspusq"
 # ---------------------------------------------------------------------------
 
 mint_nft() {
