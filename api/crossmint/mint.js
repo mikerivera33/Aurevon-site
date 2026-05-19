@@ -40,7 +40,7 @@ export default async function handler(req, res) {
       attributes: [
         { trait_type: 'Pass Tier', value: passType },
         { trait_type: 'Network', value: 'Base' },
-        { trait_type: 'Issuer', value: 'Aurevon Group LLC' },
+        { trait_type: 'Issuer', value: 'Aurevon Labs' },
         ...(metadata?.attributes || [])
       ]
     }

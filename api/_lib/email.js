@@ -7,7 +7,7 @@ const RESEND_BASE_URL = 'https://api.resend.com';
 
 function getFromAddress() {
   const name = process.env.RESEND_FROM_NAME ?? 'Aurevon';
-  const email = process.env.RESEND_FROM_EMAIL ?? 'hello@aurevongroup.com';
+  const email = process.env.RESEND_FROM_EMAIL ?? 'hello@aurevonvc.com';
   return `${name} <${email}>`;
 }
 
@@ -167,7 +167,7 @@ function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, disc
           <tr>
             <td style="padding:24px 40px;">
               <p style="margin:0;font-size:13px;color:#52525b;line-height:1.6;">
-                Questions? Reply to this email or reach us at <a href="mailto:hello@aurevongroup.com" style="color:#3B82F6;text-decoration:none;">hello@aurevongroup.com</a>. We respond within one business day.
+                Questions? Reply to this email or reach us at <a href="mailto:hello@aurevonvc.com" style="color:#3B82F6;text-decoration:none;">hello@aurevonvc.com</a>. We respond within one business day.
               </p>
             </td>
           </tr>
@@ -175,9 +175,9 @@ function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, disc
           <!-- Footer -->
           <tr>
             <td style="background:#0A0A0A;border-top:1px solid rgba(255,255,255,0.05);padding:20px 40px;text-align:center;">
-              <p style="margin:0 0 6px;font-size:11px;color:#3f3f46;letter-spacing:1px;text-transform:uppercase;">Aurevon Group LLC &middot; ${process.env.COMPANY_ADDRESS || 'aurevonvc.com'}</p>
+              <p style="margin:0 0 6px;font-size:11px;color:#3f3f46;letter-spacing:1px;text-transform:uppercase;">Aurevon Labs &middot; ${process.env.COMPANY_ADDRESS || 'aurevonvc.com'}</p>
               <p style="margin:0;font-size:11px;color:#3f3f46;">
-                You received this because you completed a purchase on blockt.co.
+                You received this because you completed a purchase on aurevonvc.com.
               </p>
             </td>
           </tr>
@@ -211,11 +211,11 @@ ${serial ? `Serial: ${serial}\n` : ''}${editionDisplay ? `Edition: #${editionDis
 Chain: Base (Ethereum L2)
 Delivery: Email wallet (no wallet setup required)
 
-${discordInviteUrl ? `Join the operator community:\n${discordInviteUrl}\n` : ''}Questions? hello@aurevongroup.com
+${discordInviteUrl ? `Join the operator community:\n${discordInviteUrl}\n` : ''}Questions? hello@aurevonvc.com
 
 ---
-Aurevon Group LLC · ${process.env.COMPANY_ADDRESS || 'aurevonvc.com'}
-You received this because you completed a purchase on blockt.co.
+Aurevon Labs · ${process.env.COMPANY_ADDRESS || 'aurevonvc.com'}
+You received this because you completed a purchase on aurevonvc.com.
 `;
 }
 
@@ -247,7 +247,7 @@ function buildPurchaseConfirmHtml({ customerName, tier }) {
         </tr>
         <tr>
           <td style="background:#0A0A0A;border-top:1px solid rgba(255,255,255,0.05);padding:20px 40px;text-align:center;">
-            <p style="margin:0;font-size:11px;color:#3f3f46;">Aurevon Group LLC &middot; ${process.env.COMPANY_ADDRESS || 'aurevonvc.com'}</p>
+            <p style="margin:0;font-size:11px;color:#3f3f46;">Aurevon Labs &middot; ${process.env.COMPANY_ADDRESS || 'aurevonvc.com'}</p>
           </td>
         </tr>
       </table>

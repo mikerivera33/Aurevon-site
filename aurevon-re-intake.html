@@ -9,9 +9,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
 <script>
-window.BLOCKT_CONFIG = {
+window.AUREVON_CONFIG = {
   FORMSPREE_URL: "https://formspree.io/f/xykokyqe",
-  CONTACT_EMAIL: "hello@aurevongroup.com"
+  CONTACT_EMAIL: "hello@aurevonvc.com"
 };
 </script>
 
@@ -127,7 +127,7 @@ footer a{color:var(--o2);text-decoration:none;}
     <h1>Payment Required</h1>
     <p>The deal intake form opens automatically after your payment is confirmed. Please return to Aurevon Capital and complete checkout to access this page.</p>
     <a href="aurevon-re.html#pricing" class="bkt-gate-cta">← Return to Pricing</a>
-    <p class="bkt-gate-foot">Already paid but landed here by accident? <a href="aurevon-re.html#faq">See FAQ</a> or email <a href="mailto:hello@aurevongroup.com">hello@aurevongroup.com</a>.</p>
+    <p class="bkt-gate-foot">Already paid but landed here by accident? <a href="aurevon-re.html#faq">See FAQ</a> or email <a href="mailto:hello@aurevonvc.com">hello@aurevonvc.com</a>.</p>
   </div>
 </div>
 <style>
@@ -296,14 +296,14 @@ footer a{color:var(--o2);text-decoration:none;}
 </style>
 <footer class="bkt-global-foot">
   <div class="row">
-    <div>© <span id="bktYr">2026</span> Aurevon Group LLC · Systems. Capital. Infrastructure..</div>
+    <div>© <span id="bktYr">2026</span> Aurevon Ventures LLC · Systems. Capital. Infrastructure. · Aurevon RE, Aurevon Labs, and all related entities are owned and operated by Aurevon Ventures LLC.</div>
     <div class="links">
       <a href="index.html">Home</a>
       <a href="aurevon-re.html">RE Underwriting</a>
       <a href="aurevon-web3.html">Web3</a>
       <a href="aurevon-nft.html">NFTs</a>
       <a href="operator.html">Operator Hub</a>
-      <a href="blockt-crm.html">CRM</a>
+      <a href="aurevon-crm.html">CRM</a>
       <a href="portal.html">My Dashboard</a>
       <a href="merch.html">Merch</a>
     </div>
@@ -313,7 +313,7 @@ footer a{color:var(--o2);text-decoration:none;}
 </footer>
 
 <script>
-const CFG = window.BLOCKT_CONFIG || {};
+const CFG = window.AUREVON_CONFIG || {};
 document.getElementById('yr').textContent = new Date().getFullYear();
 const mail = document.getElementById('mailLink');
 if (mail && CFG.CONTACT_EMAIL) mail.href = 'mailto:' + CFG.CONTACT_EMAIL;
@@ -381,7 +381,7 @@ form.addEventListener('submit', async (e) => {
   }
 
   if (!CFG.FORMSPREE_URL || CFG.FORMSPREE_URL.includes('REPLACE_')){
-    setStatus('info', "Submissions aren't live yet. Owner: paste your Formspree endpoint into BLOCKT_CONFIG.");
+    setStatus('info', "Submissions aren't live yet. Owner: paste your Formspree endpoint into AUREVON_CONFIG.");
     return;
   }
 
@@ -406,7 +406,7 @@ form.addEventListener('submit', async (e) => {
       submitBtn.disabled = false; submitBtn.textContent = 'Submit Deal Details →';
     }
   } catch(err){
-    setStatus('err', 'Network error. Please email us directly at ' + (CFG.CONTACT_EMAIL || 'hello@aurevongroup.com') + '.');
+    setStatus('err', 'Network error. Please email us directly at ' + (CFG.CONTACT_EMAIL || 'hello@aurevonvc.com') + '.');
     submitBtn.disabled = false; submitBtn.textContent = 'Submit Deal Details →';
   }
 });

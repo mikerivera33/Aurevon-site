@@ -1082,7 +1082,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
             <span class="empty-icon">📋</span>
             <h3>No deals submitted yet</h3>
             <p>Submit a property for underwriting analysis and track it here in real time.</p>
-            <a href="BLOCKT_RE_Intake.html" class="btn btn-primary">Start a Deal at Aurevon Capital →</a>
+            <a href="aurevon-re-intake.html" class="btn btn-primary">Start a Deal at Aurevon Capital →</a>
           </div>
           <div id="deals-table-wrap" class="hidden">
             <div class="table-wrap">
@@ -1148,7 +1148,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
             <h3>Reports Coming Soon</h3>
             <p>Your completed underwriting reports will appear here once delivered. Currently, reports are sent directly to your email. We're building direct downloads — check back soon.</p>
             <div class="actions">
-              <a href="mailto:hello@aurevongroup.com" class="btn btn-secondary">
+              <a href="mailto:hello@aurevonvc.com" class="btn btn-secondary">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                 Contact Support
               </a>
@@ -1220,7 +1220,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Request Data Export
               </button>
-              <a href="mailto:hello@aurevongroup.com">
+              <a href="mailto:hello@aurevonvc.com">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                 Contact Support
               </a>
@@ -1230,7 +1230,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
               </button>
             </div>
             <div class="data-export-note" id="data-export-note">
-              To request a full export of your data, email <a href="mailto:hello@aurevongroup.com" style="color:var(--accent-solid);">hello@aurevongroup.com</a> from your registered address and we'll prepare your export within 5 business days.
+              To request a full export of your data, email <a href="mailto:hello@aurevonvc.com" style="color:var(--accent-solid);">hello@aurevonvc.com</a> from your registered address and we'll prepare your export within 5 business days.
             </div>
           </div>
 
@@ -1463,12 +1463,20 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
       const statusTag = nftStatusTag(nft.status);
       const dateStr = nft.dateSent ? formatDate(nft.dateSent) : '—';
 
+      const tierKey = (nft.type || nft.collection || '').split(' ').pop().toLowerCase();
+      const videoSrc = `/assets/nfts/${tierKey}.mp4`;
       card.innerHTML = `
         <div class="nft-image-wrap">
-          ${nft.imageUrl
-            ? `<img src="${escHtml(nft.imageUrl)}" alt="${escHtml(nft.type)} NFT" loading="lazy" />`
-            : svgPlaceholder
-          }
+          <video class="nft-video" src="${videoSrc}" autoplay loop muted playsinline
+                 oncanplay="this.style.display='block';this.nextElementSibling.style.display='none';"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='';"
+                 style="display:none;width:100%;border-radius:10px;aspect-ratio:1/1;object-fit:cover;"></video>
+          <div class="nft-fallback" style="">
+            ${nft.imageUrl
+              ? `<img src="${escHtml(nft.imageUrl)}" alt="${escHtml(nft.type)} NFT" loading="lazy" />`
+              : svgPlaceholder
+            }
+          </div>
         </div>
         <div class="nft-body">
           <div class="nft-type ${tierClass}">${escHtml(nft.type || nft.collection || 'Aurevon NFT')}</div>
@@ -1693,7 +1701,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
         showLoginMsg('success', `📨 Check your inbox — login link sent to ${email}`);
         document.getElementById('login-form-wrap').classList.add('hidden');
       } else if (res.status === 404) {
-        showLoginMsg('error', `We couldn't find a purchase with that email. Check spelling or contact <a href="mailto:hello@aurevongroup.com" style="color:var(--accent-solid)">hello@aurevongroup.com</a>.`);
+        showLoginMsg('error', `We couldn't find a purchase with that email. Check spelling or contact <a href="mailto:hello@aurevonvc.com" style="color:var(--accent-solid)">hello@aurevonvc.com</a>.`);
         btn.disabled = false;
         btn.innerHTML = 'Send Login Link →';
       } else {
@@ -1732,7 +1740,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
   }
 
   function disconnectDiscord() {
-    showToast('To disconnect Discord, contact hello@aurevongroup.com', 'info');
+    showToast('To disconnect Discord, contact hello@aurevonvc.com', 'info');
   }
 
   function requestDataExport() {

@@ -400,7 +400,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 </style>
 <footer class="bkt-global-foot">
   <div class="row">
-    <div>© <span id="bktYr">2026</span> Aurevon Group LLC · Systems. Capital. Infrastructure..</div>
+    <div>© <span id="bktYr">2026</span> Aurevon Labs · An Aurevon Ventures LLC company.</div>
     <div class="links">
       <a href="index.html">Home</a>
       <a href="aurevon-re.html">RE Underwriting</a>
@@ -438,7 +438,7 @@ const COMM_PAY = {
     comm_lifetime: "https://www.paypal.com/REPLACE_COMM_LIFETIME"
   },
   // Set your Stripe success_url / PayPal return URL to this page:
-  INTAKE_URL: "BLOCKT_RE_Intake.html"
+  INTAKE_URL: "aurevon-re-intake.html"
 };
 
 document.getElementById('yr').textContent = new Date().getFullYear();
@@ -587,7 +587,7 @@ document.querySelectorAll('[data-pay]').forEach(btn => {
     sessionStorage.setItem('bkt_paid_token', token);
     sessionStorage.setItem('bkt_paid_tier', tier);
     sessionStorage.setItem('bkt_paid_amount', amt);
-    var base = isMembership ? 'membership_confirmation.html' : 'BLOCKT_RE_Intake.html';
+    var base = isMembership ? 'membership_confirmation.html' : 'aurevon-re-intake.html';
     return base + '?paid=' + encodeURIComponent(token) + '&tier=' + encodeURIComponent(tier) + '&amount=' + encodeURIComponent(amt);
   }
 
@@ -658,7 +658,7 @@ document.querySelectorAll('[data-pay]').forEach(btn => {
             }
         if(href === '#' || href.indexOf('REPLACE_') > -1){
           e.preventDefault();
-          alert('⚙️ Owner setup needed:\n\nThe ' + method.toUpperCase() + ' payment link for "' + currentLabel + '" has not been configured yet.\n\nFor Stripe: Dashboard → Products → Create payment link → enable Cash App Pay & Afterpay.\nFor PayPal: Business → Pay Links & Buttons.\n\nThen paste the URL into AUREVON_CONFIG and set success_url/return_url to:\n' + (isMembership ? 'membership_confirmation.html' : 'BLOCKT_RE_Intake.html'));
+          alert('⚙️ Owner setup needed:\n\nThe ' + method.toUpperCase() + ' payment link for "' + currentLabel + '" has not been configured yet.\n\nFor Stripe: Dashboard → Products → Create payment link → enable Cash App Pay & Afterpay.\nFor PayPal: Business → Pay Links & Buttons.\n\nThen paste the URL into AUREVON_CONFIG and set success_url/return_url to:\n' + (isMembership ? 'membership_confirmation.html' : 'aurevon-re-intake.html'));
           return;
         }
         // Open in new tab + remember intent

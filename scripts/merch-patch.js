@@ -45,7 +45,7 @@
       var banner = document.createElement('div');
       banner.id = 'merch-setup-banner';
       banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1a1a2e;border-top:2px solid #3B82F6;color:#fff;text-align:center;padding:10px 16px;font-size:14px;z-index:9999;';
-      banner.innerHTML = '\u26a0\ufe0f <strong>Store checkout is being configured.</strong> Browse now \u2014 purchasing will be live very soon! Questions? <a href="mailto:hello@aurevongroup.com" style="color:#3B82F6">hello@aurevongroup.com</a>';
+      banner.innerHTML = '\u26a0\ufe0f <strong>Store checkout is being configured.</strong> Browse now \u2014 purchasing will be live very soon! Questions? <a href="mailto:hello@aurevonvc.com" style="color:#3B82F6">hello@aurevonvc.com</a>';
       document.body.appendChild(banner);
     }
   }

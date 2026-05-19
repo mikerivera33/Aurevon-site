@@ -22,7 +22,7 @@ function buildEmailHTML(passType, customerName, portalLink, nftLink) {
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="background:${cfg.color};border:1px solid ${cfg.accent}33;border-radius:16px;overflow:hidden;">
   <tr><td style="background:linear-gradient(135deg,${cfg.accent}22,transparent);padding:40px;text-align:center;border-bottom:1px solid ${cfg.accent}22;">
-    <p style="margin:0 0 8px;font-size:11px;letter-spacing:4px;color:${cfg.accent};text-transform:uppercase;">AUREVON GROUP LLC</p>
+    <p style="margin:0 0 8px;font-size:11px;letter-spacing:4px;color:${cfg.accent};text-transform:uppercase;">AUREVON VENTURES LLC</p>
     <h1 style="margin:0;font-size:28px;font-weight:700;color:#fff;letter-spacing:2px;">${cfg.title}</h1>
     <p style="margin:8px 0 0;font-size:13px;color:#94a3b8;letter-spacing:2px;text-transform:uppercase;">${cfg.tier}</p>
   </td></tr>
@@ -41,7 +41,7 @@ function buildEmailHTML(passType, customerName, portalLink, nftLink) {
         <a href="${nftLink || `${process.env.DOMAIN || 'https://www.aurevonvc.com'}/aurevon-nft`}" style="display:block;background:transparent;color:${cfg.accent};text-decoration:none;text-align:center;padding:13px 20px;border-radius:8px;font-size:14px;font-weight:700;letter-spacing:1px;border:1px solid ${cfg.accent}55;">VIEW NFT PASS</a>
       </td>
     </tr></table>
-    <p style="margin:32px 0 0;font-size:12px;color:#475569;text-align:center;">Aurevon Group LLC &middot; aurevonvc.com &middot; Questions? Reply to this email.</p>
+    <p style="margin:32px 0 0;font-size:12px;color:#475569;text-align:center;">Aurevon Ventures LLC &middot; aurevonvc.com &middot; Questions? Reply to this email.</p>
   </td></tr>
 </table>
 </td></tr></table></body></html>`;

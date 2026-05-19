@@ -90,7 +90,7 @@ export async function mintToEmail({
     recipient: { email },
     metadata: {
       name: `Aurevon ${pType} Pass`,
-      description: `${tierLabel(tierKey)} membership pass. Aurevon Group LLC Systems Capital Infrastructure. On-chain on ${CROSSMINT_CHAIN === 'base-sepolia' ? 'Base Sepolia (testnet)' : 'Base Ethereum L2'}. Serial: ${serial}.`,
+      description: `${tierLabel(tierKey)} membership pass. Aurevon Labs membership pass. On-chain on ${CROSSMINT_CHAIN === 'base-sepolia' ? 'Base Sepolia (testnet)' : 'Base Ethereum L2'}. Serial: ${serial}.`,
       image: `${process.env.DOMAIN || process.env.NEXT_PUBLIC_URL || 'https://www.aurevonvc.com'}/nfts/${pType.toLowerCase()}.html`,
       attributes: [
         { trait_type: 'Tier',         value: nftType },
@@ -102,7 +102,7 @@ export async function mintToEmail({
         { trait_type: 'Rarity',       value: rarity },
         { trait_type: 'Verification', value: 'Crossmint + Stripe' },
         { trait_type: 'Minted',       value: '2026 Genesis Drop' },
-        { trait_type: 'Issuer',       value: 'Aurevon Group LLC' },
+        { trait_type: 'Issuer',       value: 'Aurevon Labs' },
         { trait_type: 'Customer',     value: customerName || '' },
         { trait_type: 'Collection',   value: collectionName || 'Aurevon Genesis Drop 2026' },
       ],

@@ -423,7 +423,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 
     <!-- Support -->
     <p class="support-note">
-      Questions? Email <a href="mailto:hello@aurevongroup.com">hello@aurevongroup.com</a> or DM us in Discord.
+      Questions? Email <a href="mailto:hello@aurevonvc.com">hello@aurevonvc.com</a> or DM us in Discord.
     </p>
 
   </main>
@@ -445,14 +445,14 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 </style>
 <footer class="bkt-global-foot">
   <div class="row">
-    <div>© <span id="bktYr">2026</span> Aurevon Group LLC · Systems. Capital. Infrastructure..</div>
+    <div>© <span id="bktYr">2026</span> Aurevon Ventures LLC · Systems. Capital. Infrastructure. · Aurevon RE, Aurevon Labs, and all related entities are owned and operated by Aurevon Ventures LLC.</div>
     <div class="links">
       <a href="index.html">Home</a>
       <a href="aurevon-re.html">RE Underwriting</a>
       <a href="aurevon-web3.html">Web3</a>
       <a href="aurevon-nft.html">NFTs</a>
       <a href="operator.html">Operator Hub</a>
-      <a href="blockt-crm.html">CRM</a>
+      <a href="aurevon-crm.html">CRM</a>
       <a href="portal.html">My Dashboard</a>
       <a href="merch.html">Merch</a>
     </div>
@@ -506,7 +506,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
     '<text x="100" y="133" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="13" fill="rgba(255,255,255,0.75)" letter-spacing="3">GENESIS</text>' +
     '<text x="100" y="152" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="8" fill="rgba(255,255,255,0.45)" letter-spacing="2">AUREVON</text>' +
     '<circle cx="100" cy="68" r="16" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>' +
-    '<text x="100" y="74" text-anchor="middle" font-family="Archivo Black,sans-serif" font-size="12" fill="#fff">BV</text>' +
+    '<text x="100" y="74" text-anchor="middle" font-family="Archivo Black,sans-serif" font-size="12" fill="#fff">AV</text>' +
   '</svg>';
 
   // 004 Chrome — metallic shield
@@ -530,7 +530,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
     '<text x="100" y="133" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="13" fill="rgba(20,40,60,0.7)" letter-spacing="3">CHROME</text>' +
     '<text x="100" y="152" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="8" fill="rgba(20,40,60,0.4)" letter-spacing="2">AUREVON</text>' +
     '<circle cx="100" cy="68" r="16" fill="rgba(255,255,255,0.2)" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>' +
-    '<text x="100" y="74" text-anchor="middle" font-family="Archivo Black,sans-serif" font-size="12" fill="#1a2a3a" opacity="0.8">BV</text>' +
+    '<text x="100" y="74" text-anchor="middle" font-family="Archivo Black,sans-serif" font-size="12" fill="#1a2a3a" opacity="0.8">AV</text>' +
   '</svg>';
 
   /* ── Tier config ── */
@@ -575,13 +575,27 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 
   /* ── Render ── */
   function renderPage(params, tierCfg) {
-    // NFT preview
+    // NFT preview — show mp4 video if available, fall back to SVG shield
     var nftCard = document.getElementById("nft-preview-card");
     if (nftCard) {
+      var tierKey = (tierCfg.nftTag || '').split(' ')[1] || 'genesis';
+      tierKey = tierKey.toLowerCase();
+      var videoSrc = '/assets/nfts/' + tierKey + '.mp4';
       nftCard.innerHTML =
-        '<div class="nft-shield-wrap">' + tierCfg.nftSvg + '</div>' +
+        '<div class="nft-shield-wrap" style="position:relative;">' +
+          '<video id="nft-preview-video" src="' + videoSrc + '" autoplay loop muted playsinline' +
+          ' style="display:none;width:100%;max-width:260px;border-radius:12px;aspect-ratio:3/4;object-fit:cover;">' +
+          '</video>' +
+          '<div id="nft-svg-fallback">' + tierCfg.nftSvg + '</div>' +
+        '</div>' +
         '<div class="nft-tag">' + tierCfg.nftTag + '</div>' +
         '<p class="nft-caption">' + tierCfg.nftCaption + '</p>';
+      var vid = document.getElementById('nft-preview-video');
+      var svg = document.getElementById('nft-svg-fallback');
+      if (vid) {
+        vid.addEventListener('canplay', function() { vid.style.display = 'block'; svg.style.display = 'none'; });
+        vid.addEventListener('error', function() { vid.style.display = 'none'; svg.style.display = ''; });
+      }
     }
 
     // Receipt

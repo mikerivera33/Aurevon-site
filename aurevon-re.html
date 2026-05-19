@@ -43,7 +43,7 @@ window.AUREVON_CONFIG = {
   FORMSPREE_URL: "https://formspree.io/f/xykokyqe",
 
   // 4. (Optional) Contact email for Enterprise & misc
-  CONTACT_EMAIL: "hello@aurevongroup.com",
+  CONTACT_EMAIL: "hello@aurevonvc.com",
 
   // 5. Discord invite link — replace with your actual permanent invite
   DISCORD_URL: "https://discord.gg/2fwFjMEh",
@@ -82,8 +82,8 @@ window.AUREVON_CONFIG = {
 
   // 5. Deal intake page URL — users are redirected here after payment
   //    Set this as your Stripe success_url and PayPal return URL.
-  //    Host BLOCKT_RE_Intake.html at this URL.
-  INTAKE_URL: "BLOCKT_RE_Intake.html"
+  //    Host aurevon-re-intake.html at this URL.
+  INTAKE_URL: "aurevon-re-intake.html"
 };
 </script>
 
@@ -1040,7 +1040,7 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 </style>
 <footer class="bkt-global-foot">
   <div class="row">
-    <div>© <span id="bktYr">2026</span> Aurevon Group LLC · Systems. Capital. Infrastructure..</div>
+    <div>© <span id="bktYr">2026</span> Aurevon Ventures LLC · Systems. Capital. Infrastructure. · Aurevon RE, Aurevon Labs, and all related entities are owned and operated by Aurevon Ventures LLC.</div>
     <div class="links">
       <a href="index.html">Home</a>
       <a href="aurevon-re.html">RE Underwriting</a>
@@ -1213,7 +1213,7 @@ document.querySelectorAll('[data-pay]').forEach(btn => {
           msg += 'Set up your standard payment link in AUREVON_CONFIG.';
         }
       } else {
-        msg += 'The owner needs to paste a ' + svc + ' payment link into AUREVON_CONFIG at the top of the page.\n\nIMPORTANT: Set your Stripe success_url or PayPal return_url to your hosted BLOCKT_RE_Intake.html page.';
+        msg += 'The owner needs to paste a ' + svc + ' payment link into AUREVON_CONFIG at the top of the page.\n\nIMPORTANT: Set your Stripe success_url or PayPal return_url to your hosted aurevon-re-intake.html page.';
       }
       alert(msg);
       return;
@@ -1576,7 +1576,7 @@ targets.forEach(t => spy.observe(t));
     sessionStorage.setItem('bkt_paid_token', token);
     sessionStorage.setItem('bkt_paid_tier', tier);
     sessionStorage.setItem('bkt_paid_amount', amt);
-    var base = isMembership ? 'membership_confirmation.html' : 'BLOCKT_RE_Intake.html';
+    var base = isMembership ? 'membership_confirmation.html' : 'aurevon-re-intake.html';
     return base + '?paid=' + encodeURIComponent(token) + '&tier=' + encodeURIComponent(tier) + '&amount=' + encodeURIComponent(amt);
   }
 
@@ -1641,13 +1641,13 @@ targets.forEach(t => spy.observe(t));
                 body: JSON.stringify({ tier: tier, promoCode: promoParam, cancelPath: cancelPath })
               }).then(function(r){ return r.json(); }).then(function(data){
                 if(data.url){ sessionStorage.setItem('bkt_pending_intake', cta.getAttribute('data-success')); window.location.href = data.url; }
-                else { btn.disabled = false; btn.textContent = btn.getAttribute('data-orig-text') || 'Buy'; showPaymentError(data.error || 'Checkout failed. Please try again or contact hello@aurevongroup.com.'); }
+                else { btn.disabled = false; btn.textContent = btn.getAttribute('data-orig-text') || 'Buy'; showPaymentError(data.error || 'Checkout failed. Please try again or contact hello@aurevonvc.com.'); }
               }).catch(function(err){ btn.disabled = false; showPaymentError(err.message || 'Network error. Please check your connection and try again.'); });
               return;
             }
            if(href === '#' || href.indexOf('REPLACE_') > -1){
           e.preventDefault();
-          alert('⚙️ Owner setup needed:\n\nThe ' + method.toUpperCase() + ' payment link for "' + currentLabel + '" has not been configured yet.\n\nFor Stripe: Dashboard → Products → Create payment link → enable Cash App Pay & Afterpay.\nFor PayPal: Business → Pay Links & Buttons.\n\nThen paste the URL into AUREVON_CONFIG and set success_url/return_url to:\n' + (isMembership ? 'membership_confirmation.html' : 'BLOCKT_RE_Intake.html'));
+          alert('⚙️ Owner setup needed:\n\nThe ' + method.toUpperCase() + ' payment link for "' + currentLabel + '" has not been configured yet.\n\nFor Stripe: Dashboard → Products → Create payment link → enable Cash App Pay & Afterpay.\nFor PayPal: Business → Pay Links & Buttons.\n\nThen paste the URL into AUREVON_CONFIG and set success_url/return_url to:\n' + (isMembership ? 'membership_confirmation.html' : 'aurevon-re-intake.html'));
           return;
         }
         // Open in new tab + remember intent

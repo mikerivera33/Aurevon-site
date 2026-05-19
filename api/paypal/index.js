@@ -86,7 +86,7 @@ async function handleCreateOrder(req, res) {
           amount: { currency_code: 'USD', value: pass.amount }
         }],
         application_context: {
-          brand_name: 'Aurevon Group LLC',
+          brand_name: 'Aurevon Ventures LLC',
           return_url: returnUrl || `${SITE_URL}/portal.html?payment=success`,
           cancel_url: cancelUrl || `${SITE_URL}/aurevon-re.html?payment=cancelled`,
           user_action: 'PAY_NOW'
