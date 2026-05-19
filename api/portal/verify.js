@@ -1,6 +1,8 @@
 // api/portal/verify.js — Magic-link token verifier for Aurevon Portal
 // POST { email, token } → validates token against CustomerAuth, activates session
 
+import crypto from 'node:crypto';
+
 export default async function handler(req, res) {
   const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 
@@ -60,8 +62,9 @@ export default async function handler(req, res) {
     const record = records[0];
     const fields = record.fields;
 
-    // Validate token matches exactly
-    if (fields['Magic Link Token'] !== token) {
+    // Validate token matches exactly (timing-safe)
+    const storedToken = fields['Magic Link Token'] ?? '';
+    if (storedToken.length !== token.length || !crypto.timingSafeEqual(Buffer.from(storedToken, 'utf8'), Buffer.from(token, 'utf8'))) {
       return res.status(401).json({ error: INVALID_MSG });
     }
 
@@ -76,7 +79,10 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: INVALID_MSG });
     }
 
-    // Mark token as used and activate session
+    // Generate a fresh session token
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+
+    // Mark token as used, activate session, and store fresh session token
     const updateUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AUTH_TABLE}/${record.id}`;
     const updateResp = await fetch(updateUrl, {
       method: 'PATCH',
@@ -85,6 +91,7 @@ export default async function handler(req, res) {
         fields: {
           'Used': true,
           'Session Active': true,
+          'Session Token': sessionToken,
         },
       }),
     });
@@ -97,7 +104,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       email: normalizedEmail,
-      sessionToken: token,
+      sessionToken,
     });
 
   } catch (err) {

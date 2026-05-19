@@ -2,9 +2,11 @@
 // POST { email, sessionToken } → validates session, returns customer's payments/NFTs/profile
 // Airtable Base: appI9X8vcRcK1QZ1l (Aurevon Operations)
 
+import crypto from 'node:crypto';
+
 export default async function handler(req, res) {
   // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', process.env.DOMAIN ?? 'https://www.aurevonvc.com');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -23,6 +25,11 @@ export default async function handler(req, res) {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
+
+  if (normalizedEmail.includes('"') || normalizedEmail.includes("'")) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+
   const AIRTABLE_PAT = process.env.AIRTABLE_PAT;
   // Aurevon Operations base ID
   const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'appI9X8vcRcK1QZ1l';
@@ -77,7 +84,8 @@ export default async function handler(req, res) {
     const authFields = authRecord.fields;
 
     // Check that session is active AND token matches (prevents email-only access)
-    if (!authFields['Session Active'] || authFields['Magic Link Token'] !== sessionToken) {
+    const storedToken = authFields['Session Token'] ?? authFields['Magic Link Token'] ?? '';
+    if (!authFields['Session Active'] || !storedToken || storedToken.length !== sessionToken.length || !crypto.timingSafeEqual(Buffer.from(storedToken, 'utf8'), Buffer.from(sessionToken, 'utf8'))) {
       return res.status(401).json({ error: 'Session expired. Please log in again.' });
     }
 

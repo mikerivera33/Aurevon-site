@@ -39,6 +39,10 @@ export default async function handler(req, res) {
   const AUTH_TABLE = 'tblbCS7TL65FcOiWn';
   const normalizedEmail = email.trim().toLowerCase();
 
+  if (normalizedEmail.includes('"') || normalizedEmail.includes("'")) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+
   const airtableHeaders = {
     Authorization: `Bearer ${AIRTABLE_PAT}`,
     'Content-Type': 'application/json',
@@ -61,6 +65,19 @@ export default async function handler(req, res) {
 
     const searchData = await searchResp.json();
     const existingRecords = searchData.records || [];
+
+    // Cooldown: if a link was issued within the last minute, don't send another
+    if (existingRecords.length > 0) {
+      const existingExpiry = existingRecords[0].fields['Token Expiry'];
+      if (existingExpiry) {
+        const expiryMs = new Date(existingExpiry).getTime();
+        const msUntilExpiry = expiryMs - Date.now();
+        // 30-minute expiry — if more than 29 minutes remain, link was issued < 1 minute ago
+        if (msUntilExpiry > 29 * 60 * 1000) {
+          return res.status(200).json({ ok: true, message: 'A login link was recently sent. Please check your email.' });
+        }
+      }
+    }
 
     if (existingRecords.length > 0) {
       // Update existing record with new token
