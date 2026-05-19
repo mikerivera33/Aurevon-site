@@ -27,6 +27,15 @@ async function getAccessToken() {
   return data.access_token;
 }
 
+function isSafeRedirect(url) {
+  if (!url) return false;
+  try {
+    const allowed = new URL(process.env.NEXT_PUBLIC_URL || process.env.BASE_URL || 'https://www.aurevonvc.com');
+    const target = new URL(url);
+    return target.origin === allowed.origin;
+  } catch { return false; }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET) {
@@ -36,6 +45,9 @@ export default async function handler(req, res) {
   const { passType, customerEmail, returnUrl, cancelUrl } = req.body || {};
   const pass = PASS_PRICES[passType?.toUpperCase()];
   if (!pass) return res.status(400).json({ error: 'Invalid passType', valid: Object.keys(PASS_PRICES) });
+
+  const safeReturn = isSafeRedirect(returnUrl) ? returnUrl : `${process.env.NEXT_PUBLIC_URL || 'https://www.aurevonvc.com'}/success`;
+  const safeCancel = isSafeRedirect(cancelUrl) ? cancelUrl : `${process.env.NEXT_PUBLIC_URL || 'https://www.aurevonvc.com'}/cancel`;
 
   try {
     const accessToken = await getAccessToken();
@@ -52,8 +64,8 @@ export default async function handler(req, res) {
         }],
         application_context: {
           brand_name: 'Aurevon Group LLC',
-          return_url: returnUrl || `${process.env.NEXT_PUBLIC_URL || 'https://aurevon-site.vercel.app'}/portal.html?payment=success`,
-          cancel_url: cancelUrl || `${process.env.NEXT_PUBLIC_URL || 'https://aurevon-site.vercel.app'}/aurevon-re.html?payment=cancelled`,
+          return_url: safeReturn,
+          cancel_url: safeCancel,
           user_action: 'PAY_NOW'
         }
       })

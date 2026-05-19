@@ -38,10 +38,10 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
     .update(signedPayload, 'utf8')
     .digest('hex');
 
-  const match = crypto.timingSafeEqual(
-    Buffer.from(v1, 'hex'),
-    Buffer.from(expectedSig, 'hex')
-  );
+  const v1Buf = Buffer.from(v1, 'hex');
+  const expBuf = Buffer.from(expectedSig, 'hex');
+  if (v1Buf.length !== expBuf.length) throw new Error('Stripe signature length mismatch');
+  const match = crypto.timingSafeEqual(v1Buf, expBuf);
 
   if (!match) throw new Error('Stripe signature mismatch');
 }
