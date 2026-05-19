@@ -311,7 +311,7 @@ export default async function handler(req, res) {
 
   let rawBody;
   try { rawBody = await readRawBody(req); }
-  catch (err) { return res.status(400).json({ error: 'Failed to read body' }); }
+  catch (_err) { return res.status(400).json({ error: 'Failed to read body' }); }
 
   const provider = req.query.provider;
   if (provider === 'stripe')    return handleStripe(req, res, rawBody);
