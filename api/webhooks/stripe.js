@@ -56,6 +56,11 @@ async function handleCheckoutSessionCompleted(session) {
   const customerName = session.customer_details?.name ?? 'Aurevon Member';
   const amountTotal = session.amount_total ?? 0; // cents
 
+  if (!customerEmail) {
+    console.error(`[Stripe] No customer email on session ${sessionId} — aborting pipeline`);
+    return;
+  }
+
   console.log(`[Stripe] Processing session ${sessionId} for ${customerEmail} amount=${amountTotal}`);
 
   // 1. Resolve tier — prefer metadata, fall back to amount
@@ -135,8 +140,8 @@ async function handleCheckoutSessionCompleted(session) {
       collectionName,
       tierKey: tier,
     });
-    mintId = result.mintId;
-    imageUrl = result.imageUrl;
+    if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
+    mintId = result.actionId;
     mintStatus = 'Sent';
     console.log(`[Stripe] Mint succeeded: mintId=${mintId}, serial=${serial}`);
   } catch (err) {
@@ -163,7 +168,7 @@ async function handleCheckoutSessionCompleted(session) {
     try {
       await createNftMint({
         reference: ref,
-        customerEmail,
+        email: customerEmail,
         nftType,
         tierSource: tier,
         status: mintStatus,

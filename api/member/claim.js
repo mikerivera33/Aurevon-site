@@ -303,7 +303,7 @@ async function handleRetryMints() {
 
     try {
       const result = await mintToEmail({ email, nftType, customerName: email, templateKey, serial, collectionName, tierKey: tier });
-      await updateNftMint(record.id, { 'Mint Status': 'Sent', 'Mint ID': result.mintId, 'Retry Count': (record.fields['Retry Count'] ?? 0) + 1 });
+      await updateNftMint(record.id, { 'Mint Status': 'Sent', 'Token ID': result.actionId, 'Retry Count': (record.fields['Retry Count'] ?? 0) + 1 });
       retried.push({ email, nftType, mintId: result.mintId });
     } catch (err) {
       errors.push({ email, nftType, error: err.message });
