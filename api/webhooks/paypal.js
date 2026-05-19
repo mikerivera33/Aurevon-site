@@ -91,6 +91,11 @@ async function handleVerifiedIPN(ipn) {
   const paymentStatus = (ipn.payment_status ?? '').toLowerCase();
   const now = new Date().toISOString();
 
+  if (!customerEmail) {
+    console.error(`[PayPal IPN] No payer_email in IPN txnId=${txnId} — aborting pipeline`);
+    return;
+  }
+
   console.log(`[PayPal IPN] Processing txnId=${txnId} for ${customerEmail} amount=${amount} status=${paymentStatus}`);
 
   // Only process completed payments
@@ -101,7 +106,9 @@ async function handleVerifiedIPN(ipn) {
 
   // Validate receiver email to prevent fraud
   const businessEmail = process.env.PAYPAL_BUSINESS_EMAIL;
-  if (businessEmail && ipn.receiver_email !== businessEmail) {
+  if (!businessEmail) {
+    console.warn('[PayPal IPN] PAYPAL_BUSINESS_EMAIL not set — receiver email validation skipped');
+  } else if (ipn.receiver_email !== businessEmail) {
     console.warn(`[PayPal IPN] Receiver mismatch: got ${ipn.receiver_email}, expected ${businessEmail}`);
     return;
   }
@@ -169,8 +176,9 @@ async function handleVerifiedIPN(ipn) {
       collectionName,
       tierKey: tier,
     });
-    mintId = result.mintId;
-    imageUrl = result.imageUrl;
+    if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
+    mintId = result.actionId;
+    imageUrl = result.imageUrl ?? null;
     mintStatus = 'Sent';
     console.log(`[PayPal IPN] Mint succeeded: mintId=${mintId}, serial=${serial}`);
   } catch (err) {
@@ -196,7 +204,7 @@ async function handleVerifiedIPN(ipn) {
     try {
       await createNftMint({
         reference: ref,
-        customerEmail,
+        email: customerEmail,
         nftType,
         tierSource: tier,
         status: mintStatus,
