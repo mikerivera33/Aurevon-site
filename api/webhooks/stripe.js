@@ -214,6 +214,25 @@ async function handleCheckoutSessionCompleted(session) {
 }
 
 // ---------------------------------------------------------------------------
+// Subscription lifecycle handlers
+// ---------------------------------------------------------------------------
+
+async function handleSubscriptionDeleted(subscription) {
+  const customerEmail = subscription.customer_email
+    ?? subscription.metadata?.email
+    ?? null;
+  if (!customerEmail) {
+    console.warn('[Stripe] subscription.deleted — no email in subscription object, skipping revocation');
+    return;
+  }
+  console.log(`[Stripe] Subscription cancelled for ${customerEmail} — marking for revocation`);
+  const { updateDiscordSyncStatus } = await import('../_lib/airtable.js');
+  await updateDiscordSyncStatus(customerEmail, 'revoked').catch(e => {
+    console.error(`[Stripe] Failed to mark revocation in Airtable: ${e.message}`);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Vercel handler
 // ---------------------------------------------------------------------------
 
@@ -270,6 +289,14 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error(`[Stripe] Unhandled pipeline error: ${err.message}`, err.stack);
     }
+  } else if (event.type === 'customer.subscription.deleted') {
+    try {
+      await handleSubscriptionDeleted(event.data.object);
+    } catch (err) {
+      console.error(`[Stripe] Unhandled subscription.deleted error: ${err.message}`, err.stack);
+    }
+  } else if (event.type === 'invoice.payment_failed') {
+    console.log(`[Stripe] invoice.payment_failed for subscription ${event.data.object.subscription} — logged only`);
   } else {
     console.log(`[Stripe] Ignoring event type="${event.type}"`);
   }

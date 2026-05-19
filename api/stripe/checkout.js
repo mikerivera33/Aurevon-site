@@ -68,6 +68,19 @@ const PRODUCT_CATALOG = {
     mode: 'subscription',
     tier: 'web3_enterprise',
   },
+  // Aurevon Community tiers
+  comm_monthly: {
+    name: 'Aurevon Community — Monthly Membership',
+    priceId: process.env.STRIPE_PRICE_COMM_MONTHLY ?? '',
+    mode: 'subscription',
+    tier: 'comm_monthly',
+  },
+  comm_lifetime: {
+    name: 'Aurevon Community — Lifetime Membership (001 Genesis Pass)',
+    priceId: process.env.STRIPE_PRICE_COMM_LIFETIME ?? '',
+    mode: 'payment',
+    tier: 'comm_lifetime',
+  },
 };
 
 // -----------------------------------------------------------------------
@@ -87,6 +100,10 @@ export default async function handler(req, res) {
   const product = PRODUCT_CATALOG[tier];
   if (!product) {
     return res.status(400).json({ error: `Unknown tier: ${tier}` });
+  }
+
+  if (product.priceId === '') {
+    return res.status(503).json({ error: 'This product is not yet configured — contact support.' });
   }
 
   if (!process.env.STRIPE_SECRET_KEY) {
@@ -115,6 +132,8 @@ export default async function handler(req, res) {
         product_name: product.name,
       },
     };
+
+    if (req.body?.email) sessionParams.customer_email = req.body.email;
 
     const session = await stripe.checkout.sessions.create(sessionParams);
     return res.status(200).json({ url: session.url });
