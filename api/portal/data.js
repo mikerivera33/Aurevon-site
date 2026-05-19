@@ -76,8 +76,8 @@ export default async function handler(req, res) {
     const authRecord = authRecords[0];
     const authFields = authRecord.fields;
 
-    // Check that session is active
-    if (!authFields['Session Active']) {
+    // Check that session is active AND token matches (prevents email-only access)
+    if (!authFields['Session Active'] || authFields['Magic Link Token'] !== sessionToken) {
       return res.status(401).json({ error: 'Session expired. Please log in again.' });
     }
 
@@ -107,7 +107,7 @@ export default async function handler(req, res) {
       nftType: r.fields['NFT Type'] || '',
       tokenId: r.fields['Token ID'] || '',
       mintStatus: r.fields['Mint Status'] || 'Pending',
-      discordRoleAssigned: r.fields['Discord Role Assigned'] || false,
+      discordRoleAssigned: r.fields['Discord Synced'] || false,
       mintDate: r.fields['Mint Date'] || '',
       transactionHash: r.fields['Transaction Hash'] || '',
     }));

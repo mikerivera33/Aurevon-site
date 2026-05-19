@@ -19,6 +19,8 @@
     { "source": "/api/webhooks/paypal",        "destination": "/api/webhooks/paypal.js" },
     { "source": "/api/webhooks/crossmint",     "destination": "/api/webhooks/crossmint.js" },
     { "source": "/api/portal/data",           "destination": "/api/portal/data.js" },
+    { "source": "/api/portal/auth",           "destination": "/api/portal/auth.js" },
+    { "source": "/api/portal/verify",         "destination": "/api/portal/verify.js" },
     { "source": "/api/health",                "destination": "/api/health.js" },
     { "source": "/api/discord/auth",          "destination": "/api/discord.js?action=auth" },
     { "source": "/api/discord/callback",      "destination": "/api/discord.js?action=callback" },
