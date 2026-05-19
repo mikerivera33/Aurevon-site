@@ -91,7 +91,7 @@ export async function mintToEmail({
     metadata: {
       name: `Aurevon ${pType} Pass`,
       description: `${tierLabel(tierKey)} membership pass. Aurevon Group LLC Systems Capital Infrastructure. On-chain on ${CROSSMINT_CHAIN === 'base-sepolia' ? 'Base Sepolia (testnet)' : 'Base Ethereum L2'}. Serial: ${serial}.`,
-      image: `https://aurevon-site.vercel.app/nfts/${pType.toLowerCase()}.html`,
+      image: `${process.env.DOMAIN || process.env.NEXT_PUBLIC_URL || 'https://www.aurevonvc.com'}/nfts/${pType.toLowerCase()}.html`,
       attributes: [
         { trait_type: 'Tier',         value: nftType },
         { trait_type: 'Access Level', value: tierLabel(tierKey) },

@@ -175,7 +175,7 @@ function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, disc
           <!-- Footer -->
           <tr>
             <td style="background:#0A0A0A;border-top:1px solid rgba(255,255,255,0.05);padding:20px 40px;text-align:center;">
-              <p style="margin:0 0 6px;font-size:11px;color:#3f3f46;letter-spacing:1px;text-transform:uppercase;">Aurevon Group LLC &middot; [Your Address]</p>
+              <p style="margin:0 0 6px;font-size:11px;color:#3f3f46;letter-spacing:1px;text-transform:uppercase;">Aurevon Group LLC &middot; ${process.env.COMPANY_ADDRESS || 'aurevonvc.com'}</p>
               <p style="margin:0;font-size:11px;color:#3f3f46;">
                 You received this because you completed a purchase on blockt.co.
               </p>
@@ -214,7 +214,7 @@ Delivery: Email wallet (no wallet setup required)
 ${discordInviteUrl ? `Join the operator community:\n${discordInviteUrl}\n` : ''}Questions? hello@aurevongroup.com
 
 ---
-Aurevon Group LLC · [Your Address]
+Aurevon Group LLC · ${process.env.COMPANY_ADDRESS || 'aurevonvc.com'}
 You received this because you completed a purchase on blockt.co.
 `;
 }
@@ -247,7 +247,7 @@ function buildPurchaseConfirmHtml({ customerName, tier }) {
         </tr>
         <tr>
           <td style="background:#0A0A0A;border-top:1px solid rgba(255,255,255,0.05);padding:20px 40px;text-align:center;">
-            <p style="margin:0;font-size:11px;color:#3f3f46;">Aurevon Group LLC &middot; [Your Address]</p>
+            <p style="margin:0;font-size:11px;color:#3f3f46;">Aurevon Group LLC &middot; ${process.env.COMPANY_ADDRESS || 'aurevonvc.com'}</p>
           </td>
         </tr>
       </table>

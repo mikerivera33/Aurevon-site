@@ -38,7 +38,7 @@ function buildEmailHTML(passType, customerName, portalLink, nftLink) {
         <a href="${portalLink}" style="display:block;background:linear-gradient(135deg,${cfg.accent},${cfg.accent}cc);color:#fff;text-decoration:none;text-align:center;padding:14px 20px;border-radius:8px;font-size:14px;font-weight:700;letter-spacing:1px;">ACCESS PORTAL</a>
       </td>
       <td style="padding:0 0 0 8px;width:50%;">
-        <a href="${nftLink || 'https://aurevon-site.vercel.app/aurevon-nft.html'}" style="display:block;background:transparent;color:${cfg.accent};text-decoration:none;text-align:center;padding:13px 20px;border-radius:8px;font-size:14px;font-weight:700;letter-spacing:1px;border:1px solid ${cfg.accent}55;">VIEW NFT PASS</a>
+        <a href="${nftLink || `${process.env.DOMAIN || 'https://www.aurevonvc.com'}/aurevon-nft`}" style="display:block;background:transparent;color:${cfg.accent};text-decoration:none;text-align:center;padding:13px 20px;border-radius:8px;font-size:14px;font-weight:700;letter-spacing:1px;border:1px solid ${cfg.accent}55;">VIEW NFT PASS</a>
       </td>
     </tr></table>
     <p style="margin:32px 0 0;font-size:12px;color:#475569;text-align:center;">Aurevon Group LLC &middot; aurevonvc.com &middot; Questions? Reply to this email.</p>
@@ -48,6 +48,12 @@ function buildEmailHTML(passType, customerName, portalLink, nftLink) {
 }
 
 export default async function handler(req, res) {
+  const origin = process.env.DOMAIN || 'https://www.aurevonvc.com';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (!RESEND_API_KEY) return res.status(500).json({ error: 'RESEND_API_KEY not configured' });
 
@@ -56,7 +62,8 @@ export default async function handler(req, res) {
 
   const cfg = PASS_CONFIGS[passType] || PASS_CONFIGS.COMMUNITY;
   const emailSubject = subject || `Your Aurevon ${cfg.title} Pass Is Active`;
-  const html = buildEmailHTML(passType, customerName, portalLink || 'https://aurevon-site.vercel.app/portal.html', nftLink);
+  const siteUrl = process.env.DOMAIN || 'https://www.aurevonvc.com';
+  const html = buildEmailHTML(passType, customerName, portalLink || `${siteUrl}/portal`, nftLink);
 
   try {
     const response = await fetch('https://api.resend.com/emails', {

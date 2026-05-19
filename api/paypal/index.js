@@ -11,7 +11,7 @@ const BASE_URL = PAYPAL_MODE === 'sandbox'
   : 'https://api-m.paypal.com';
 const AIRTABLE_PAT = process.env.AIRTABLE_PAT;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const SITE_URL = process.env.NEXT_PUBLIC_URL || 'https://aurevon-site.vercel.app';
+const SITE_URL = process.env.DOMAIN || process.env.NEXT_PUBLIC_URL || 'https://www.aurevonvc.com';
 
 const PASS_PRICES = {
   OBSIDIAN: { amount: '2499.00', description: 'Aurevon OBSIDIAN EXECUTIVE Pass - Enterprise RE Tier 3' },
@@ -35,19 +35,28 @@ async function getAccessToken() {
 
 async function logToAirtable(data) {
   if (!AIRTABLE_PAT || !AIRTABLE_BASE_ID) return;
-  await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Payments`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${AIRTABLE_PAT}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ records: [{ fields: { ...data } }] })
-  });
+  try {
+    const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Payments`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${AIRTABLE_PAT}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records: [{ fields: { ...data } }] })
+    });
+    if (!res.ok) console.error(`[PayPal] Airtable log failed (${res.status}): ${await res.text()}`);
+  } catch (err) {
+    console.error(`[PayPal] Airtable log error: ${err.message}`);
+  }
 }
 
 async function sendConfirmationEmail(email, passType, name) {
-  await fetch(`${SITE_URL}/api/email/send`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ to: email, passType, customerName: name, portalLink: `${SITE_URL}/portal.html` })
-  });
+  try {
+    await fetch(`${SITE_URL}/api/email/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: email, passType, customerName: name, portalLink: `${SITE_URL}/portal.html` })
+    });
+  } catch (err) {
+    console.error(`[PayPal] Confirmation email error: ${err.message}`);
+  }
 }
 
 async function handleCreateOrder(req, res) {
@@ -135,6 +144,12 @@ async function handleCapture(req, res) {
 }
 
 export default async function handler(req, res) {
+  const origin = process.env.DOMAIN || 'https://www.aurevonvc.com';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const action = req.query.action;

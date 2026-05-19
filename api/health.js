@@ -87,7 +87,7 @@ export default function handler(req, res) {
     env_check: required,
     optional,
     airtable_base: process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l (default)',
-    function_count: 12,
+    function_count: 9,
     function_limit: 12,
   });
 }

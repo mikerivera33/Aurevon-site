@@ -3,8 +3,9 @@
 // Airtable Base: appI9X8vcRcK1QZ1l (Aurevon Operations)
 
 export default async function handler(req, res) {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS headers — restricted to the production domain
+  const origin = process.env.DOMAIN || 'https://www.aurevonvc.com';
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -24,8 +25,7 @@ export default async function handler(req, res) {
 
   const normalizedEmail = email.trim().toLowerCase();
   const AIRTABLE_PAT = process.env.AIRTABLE_PAT;
-  // Aurevon Operations base ID
-  const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'appI9X8vcRcK1QZ1l';
+  const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 
   // Aurevon Operations table IDs
   const AUTH_TABLE = 'tblbCS7TL65FcOiWn';       // CustomerAuth
@@ -33,8 +33,8 @@ export default async function handler(req, res) {
   const NFT_TABLE = 'tbliXEGJdoEIAJU06';        // NFT_Mints
   const MEMBERS_TABLE = 'tblYPn7hxnrgH723B';     // Members
 
-  if (!AIRTABLE_PAT) {
-    console.error('AIRTABLE_PAT environment variable is not set');
+  if (!AIRTABLE_PAT || !AIRTABLE_BASE_ID) {
+    console.error('AIRTABLE_PAT or AIRTABLE_BASE_ID environment variable is not set');
     return res.status(500).json({ error: 'Portal not yet configured' });
   }
 

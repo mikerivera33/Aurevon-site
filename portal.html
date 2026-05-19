@@ -1284,7 +1284,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
     const storedEmail = sessionStorage.getItem('bl_email');
     const storedToken = sessionStorage.getItem('bl_session');
     if (storedEmail && storedToken) {
-      _session = { email: storedEmail, sessionToken: storedToken, customerName: sessionStorage.getItem('bl_name') || '' };
+      _session = { email: storedEmail, sessionToken: storedToken, customerName: sessionStorage.getItem('bl_name') || localStorage.getItem('bl_name') || '' };
       await loadPortal();
       return;
     }
@@ -1719,6 +1719,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
       // need a PATCH to Airtable via a dedicated call. For now, store locally
       // and show success (a full PATCH endpoint can be added later).
       sessionStorage.setItem('bl_name', name);
+      localStorage.setItem('bl_name', name);
       document.getElementById('nav-name').textContent = name;
       document.getElementById('ov-name').textContent = name;
       const msg = document.getElementById('acc-name-msg');
