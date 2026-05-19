@@ -28,6 +28,7 @@
     { "source": "/api/discord/check-membership", "destination": "/api/discord.js?action=check-membership" },
     { "source": "/api/discord",               "destination": "/api/discord.js" },
     { "source": "/api/cron/retry-mints",      "destination": "/api/member/claim.js?action=retry-mints" },
+    { "source": "/api/cron/reconcile",         "destination": "/api/member/claim.js?action=reconcile" },
     { "source": "/api/email/send",            "destination": "/api/email/send.js" },
     { "source": "/api/crossmint/mint",        "destination": "/api/crossmint/mint.js" },
     { "source": "/api/paypal/create-order",   "destination": "/api/paypal/create-order.js" },
@@ -48,6 +49,17 @@
     { "source": "/cancel",                  "destination": "/index.html" },
     { "source": "/nfts",                    "destination": "/aurevon-web3.html" }
   ],
+  "crons": [
+    { "path": "/api/cron/retry-mints",           "schedule": "0 3 * * *" },
+    { "path": "/api/discord/check-membership",   "schedule": "0 9 * * *" },
+    { "path": "/api/member/claim?action=reconcile", "schedule": "0 2 * * *" }
+  ],
+  "functions": {
+    "api/member/claim.js":        { "maxDuration": 60 },
+    "api/webhooks/crossmint.js":  { "maxDuration": 30 },
+    "api/webhooks/stripe.js":     { "maxDuration": 30 },
+    "api/webhooks/paypal.js":     { "maxDuration": 30 }
+  },
   "headers": [
     {
       "source": "/api/(.*)",
