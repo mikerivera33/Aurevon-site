@@ -55,8 +55,8 @@ create_template() {
   local PRICING="$8"
   local SERIAL="$9"
 
-  local IMG_URL="${GATEWAY}/${IMG_CID}"
-  local VID_URL="${GATEWAY}/${VID_CID}"
+  local IMG_URL="${GATEWAY}/${IMG_CID}.png"
+  local VID_URL="${GATEWAY}/${VID_CID}.mp4"
 
   echo ""
   echo "Creating template: ${NAME}..."
