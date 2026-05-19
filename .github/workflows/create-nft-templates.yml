@@ -1,0 +1,30 @@
+name: Create Crossmint NFT Templates
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-templates:
+    name: Create all 5 Aurevon NFT tier templates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Run create-nft-templates.sh
+        env:
+          CROSSMINT_API_KEY: ${{ secrets.CROSSMINT_API_KEY }}
+          CROSSMINT_COLLECTION_ID: ${{ secrets.CROSSMINT_COLLECTION_ID }}
+          CROSSMINT_ENV: staging
+        run: |
+          chmod +x scripts/create-nft-templates.sh
+          bash scripts/create-nft-templates.sh 2>&1 | tee nft-template-output.log
+          echo "--- Template creation complete ---"
+          cat nft-template-output.log
+
+      - name: Upload output log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nft-template-output
+          path: nft-template-output.log
