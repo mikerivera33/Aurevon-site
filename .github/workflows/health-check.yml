@@ -25,30 +25,35 @@ jobs:
           HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "status=$HTTP_STATUS" >> $GITHUB_OUTPUT
-          echo "body=$BODY" >> $GITHUB_OUTPUT
+          # Use multiline safe approach for body
+          EOF_MARKER=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "body<<$EOF_MARKER" >> $GITHUB_OUTPUT
+          echo "$BODY" >> $GITHUB_OUTPUT
+          echo "$EOF_MARKER" >> $GITHUB_OUTPUT
           echo "HTTP Status: $HTTP_STATUS"
           echo "Response: $BODY"
 
       - name: Parse missing env vars
+        env:
+          HEALTH_BODY: ${{ steps.health.outputs.body }}
         run: |
-          BODY='${{ steps.health.outputs.body }}'
           echo "Health check result:"
-          echo "$BODY" | python3 << 'PYEOF'
+          echo "$HEALTH_BODY" | python3 -c "
 import sys, json
 try:
     data = json.loads(sys.stdin.read())
-    print(f"Pipeline: {data.get('pipeline', 'unknown')}")
-    print(f"Status: {data.get('status', 'unknown')}")
+    print(f\"Pipeline: {data.get('pipeline', 'unknown')}\")
+    print(f\"Status: {data.get('status', 'unknown')}\")
     env = data.get('env_check', {})
     missing = [k for k, v in env.items() if not v]
     configured = [k for k, v in env.items() if v]
-    print(f"Configured ({len(configured)}): {', '.join(configured)}")
-    print(f"Missing ({len(missing)}): {', '.join(missing)}")
+    print(f\"Configured ({len(configured)}): {', '.join(configured)}\")
+    print(f\"Missing ({len(missing)}): {', '.join(missing)}\")
     if missing:
-        print(f"\n::warning::MISSING ENV VARS: {', '.join(missing)}")
+        print(f\"\n::warning::MISSING ENV VARS: {', '.join(missing)}\")
 except Exception as e:
-    print(f"Parse error: {e}")
-PYEOF
+    print(f\"Parse error: {e}\")
+"
 
       - name: Check page routes
         env:
