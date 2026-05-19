@@ -449,7 +449,7 @@ async function handleLookup(interaction) {
   // Resolve Discord ID — prefer Airtable record, fall back to @user option
   const discordId = memberRecord?.fields?.['Discord ID'] ?? targetUser?.id ?? null;
   const nftType   = mintRecord?.fields?.['NFT Type']            ?? '—';
-  const mintStatus = mintRecord?.fields?.['Status']             ?? '—';
+  const mintStatus = mintRecord?.fields?.['Mint Status']        ?? '—';
   const reference  = mintRecord?.fields?.['Reference']          ?? '—';
   const syncSt     = memberRecord?.fields?.['Discord Sync Status'] ?? '—';
 
