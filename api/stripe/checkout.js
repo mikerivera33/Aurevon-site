@@ -70,16 +70,36 @@ const PRODUCT_CATALOG = {
   },
   // Aurevon Community tiers
   comm_monthly: {
-    name: 'Aurevon Community — Monthly Membership',
-    priceId: process.env.STRIPE_PRICE_COMM_MONTHLY ?? '',
+    name: 'Aurevon Labs — Genesis Community Pass',
+    priceId: 'price_1TUemd8e9ZIjX9wLnuEZDWjd',
     mode: 'subscription',
     tier: 'comm_monthly',
   },
   comm_lifetime: {
-    name: 'Aurevon Community — Lifetime Membership (001 Genesis Pass)',
-    priceId: process.env.STRIPE_PRICE_COMM_LIFETIME ?? '',
+    name: 'Aurevon Labs — Chrome Lifetime Pass',
+    priceId: 'price_1TUen68e9ZIjX9wLvMNuoXGJ',
     mode: 'payment',
     tier: 'comm_lifetime',
+  },
+  // Aurevon NFT standalone tiers
+  nft_insider: {
+    name: 'Aurevon NFT — Insider Underwriting Pass',
+    priceId: 'price_1TUenT8e9ZIjX9wLo0PfFvcN',
+    mode: 'payment',
+    tier: 'nft_insider',
+  },
+  nft_obsidian: {
+    name: 'Aurevon NFT — Obsidian Executive Pass',
+    priceId: 'price_1TUenl8e9ZIjX9wLtaqnc5DI',
+    mode: 'payment',
+    tier: 'nft_obsidian',
+  },
+  // Aurevon Capital — one-off deal underwriting
+  deal: {
+    name: 'Aurevon Capital — Deal Underwriting',
+    priceId: 'price_1TUemC8e9ZIjX9wLdjPkM11R',
+    mode: 'payment',
+    tier: 'deal',
   },
 };
 

@@ -17,7 +17,15 @@ const _BASE = {
   retainer:      { nft: 'Aurevon Ember',              amount: 1499,   template: 'CROSSMINT_TEMPLATE_EMBER',    serialPrefix: 'EMBER',      collectionName: 'Aurevon Ember Collection' },
   enterprise:    { nft: 'Aurevon Obsidian Executive', amount: 2499,   template: 'CROSSMINT_TEMPLATE_OBSIDIAN', serialPrefix: 'OBSIDIAN',   collectionName: 'Aurevon Obsidian Collection' },
   comm_monthly:  { nft: '001 Genesis',                amount: 29.99,  template: 'CROSSMINT_TEMPLATE_GENESIS',  serialPrefix: 'GENESIS',    collectionName: 'Aurevon Genesis Collection' },
-  comm_lifetime: { nft: '004 Chrome',                 amount: 349.99, template: 'CROSSMINT_TEMPLATE_CHROME',   serialPrefix: 'CHROME',     collectionName: 'Aurevon Chrome Collection' },
+  comm_lifetime: { nft: '004 Chrome',                 amount: 297.00, template: 'CROSSMINT_TEMPLATE_CHROME',   serialPrefix: 'CHROME',     collectionName: 'Aurevon Chrome Collection' },
+  nft_insider:   { nft: 'Aurevon Insider',            amount: 497,    template: 'CROSSMINT_TEMPLATE_INSIDER',  serialPrefix: 'INSIDER',    collectionName: 'Aurevon Insider Collection' },
+  nft_obsidian:  { nft: 'Aurevon Obsidian Executive', amount: 997,    template: 'CROSSMINT_TEMPLATE_OBSIDIAN', serialPrefix: 'OBSIDIAN',   collectionName: 'Aurevon Obsidian Collection' },
+  deal:          { nft: null,                        amount: 189.99, template: null,                         serialPrefix: null,     collectionName: null },
+  // Web3 tiers — no NFT minted; subscription access only
+  web3_starter:    { nft: null, amount: 49,    template: null, serialPrefix: null, collectionName: null },
+  web3_growth:     { nft: null, amount: 149,   template: null, serialPrefix: null, collectionName: null },
+  web3_scale:      { nft: null, amount: 349,   template: null, serialPrefix: null, collectionName: null },
+  web3_enterprise: { nft: null, amount: 799,   template: null, serialPrefix: null, collectionName: null },
 };
 
 // Alias map: checkout tier keys → canonical tier keys
@@ -27,10 +35,6 @@ const _ALIASES = {
   re_single:       'single',
   re_retainer:     'retainer',
   re_enterprise:   'enterprise',
-  web3_starter:    'comm_monthly',
-  web3_growth:     'comm_monthly',
-  web3_scale:      'full',
-  web3_enterprise: 'enterprise',
 };
 
 // Resolve aliases so callers can use any tier key
