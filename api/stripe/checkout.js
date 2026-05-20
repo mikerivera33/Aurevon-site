@@ -103,7 +103,7 @@ export default async function handler(req, res) {
     apiVersion: '2023-10-16',
   });
 
-  const BASE_URL = process.env.BASE_URL || process.env.DOMAIN || 'https://www.aurevonvc.com';
+  const BASE_URL = process.env.DOMAIN || 'https://www.aurevonvc.com';
 
   try {
     const sessionParams = {

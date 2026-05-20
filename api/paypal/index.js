@@ -11,7 +11,7 @@ const BASE_URL = PAYPAL_MODE === 'sandbox'
   : 'https://api-m.paypal.com';
 const AIRTABLE_PAT = process.env.AIRTABLE_PAT;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const SITE_URL = process.env.DOMAIN || process.env.NEXT_PUBLIC_URL || 'https://www.aurevonvc.com';
+const SITE_URL = process.env.DOMAIN || 'https://www.aurevonvc.com';
 
 const PASS_PRICES = {
   OBSIDIAN: { amount: '2499.00', description: 'Aurevon OBSIDIAN EXECUTIVE Pass - Enterprise RE Tier 3' },

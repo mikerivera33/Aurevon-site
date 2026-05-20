@@ -2,7 +2,7 @@
 // Crossmint NFT minting endpoint - mints the correct pass NFT on Base (ETH L2)
 const CROSSMINT_API_KEY = process.env.CROSSMINT_API_KEY;
 const CROSSMINT_COLLECTION_ID = process.env.CROSSMINT_COLLECTION_ID;
-const SITE_URL = process.env.DOMAIN || process.env.NEXT_PUBLIC_URL || 'https://www.aurevonvc.com';
+const SITE_URL = process.env.DOMAIN || 'https://www.aurevonvc.com';
 
 const TEMPLATE_MAP = {
   OBSIDIAN: process.env.CROSSMINT_TEMPLATE_OBSIDIAN,
