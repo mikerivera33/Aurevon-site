@@ -22,6 +22,7 @@ const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 const GUILD_ID      = process.env.DISCORD_GUILD_ID;
 const DOMAIN        = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 const STATE_SECRET  = process.env.STATE_SECRET ?? 'change-me-32-chars-placeholder!!';
+if (!process.env.STATE_SECRET) console.error('[Discord] WARNING: STATE_SECRET is not set — OAuth state HMAC is using an insecure default. Set STATE_SECRET in Vercel env vars.');
 const SYNC_SECRET   = process.env.SYNC_SECRET  ?? process.env.CRON_SECRET ?? '';
 
 const REDIRECT_URI  = `${DOMAIN}/api/discord?action=callback`;

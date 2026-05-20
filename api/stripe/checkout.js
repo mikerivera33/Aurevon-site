@@ -74,6 +74,12 @@ const PRODUCT_CATALOG = {
 // Handler
 // -----------------------------------------------------------------------
 export default async function handler(req, res) {
+  const origin = process.env.DOMAIN || 'https://www.aurevonvc.com';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -97,7 +103,7 @@ export default async function handler(req, res) {
     apiVersion: '2023-10-16',
   });
 
-  const BASE_URL = process.env.BASE_URL || `https://${req.headers.host}`;
+  const BASE_URL = process.env.DOMAIN || 'https://www.aurevonvc.com';
 
   try {
     const sessionParams = {

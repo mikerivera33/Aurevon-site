@@ -503,12 +503,12 @@
         <div class="field-group">
           <div class="field">
             <label>Your Domain <span>*</span></label>
-            <input type="text" id="domainInput" placeholder="https://aurevongroup.com" oninput="updateEnvBlock()" class="mono" />
+            <input type="text" id="domainInput" placeholder="https://aurevonvc.com" oninput="updateEnvBlock()" class="mono" />
             <div class="field-hint">Your Vercel production URL (no trailing slash)</div>
           </div>
         </div>
         <div class="code-block-wrap">
-          <div class="code-block" id="webhookUrlBlock"><span class="k">Endpoint URL:</span> <span class="v" id="webhookUrlVal">https://aurevongroup.com/api/webhooks/stripe</span>
+          <div class="code-block" id="webhookUrlBlock"><span class="k">Endpoint URL:</span> <span class="v" id="webhookUrlVal">https://aurevonvc.com/api/webhooks/stripe</span>
 
 <span class="k">Event to select:</span> <span class="v">checkout.session.completed</span>
 <span class="k">Also add:</span>     <span class="v">customer.subscription.updated</span>
@@ -554,7 +554,7 @@
 <span class="k">STRIPE_SECRET_KEY</span>=<span class="v" id="ev-stripe-sk">sk_live_...</span>
 <span class="k">NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</span>=<span class="v" id="ev-stripe-pk">pk_live_...</span>
 <span class="k">STRIPE_WEBHOOK_SECRET</span>=<span class="v" id="ev-stripe-wh">whsec_...</span>
-<span class="k">NEXT_PUBLIC_SITE_URL</span>=<span class="v" id="ev-site-url">https://aurevongroup.com</span>
+<span class="k">NEXT_PUBLIC_SITE_URL</span>=<span class="v" id="ev-site-url">https://aurevonvc.com</span>
 <span class="k">STRIPE_PRICE_IDS</span>=<span class="v" id="ev-stripe-prices">[price_ids_comma_separated]</span></pre>
           <button class="code-copy-btn" onclick="copyCodeBlock('stripeEnvBlock',this)">Copy</button>
         </div>
@@ -773,7 +773,7 @@
         <h4>Configure OAuth2 redirect URL</h4>
         <p>Under your App → <strong>OAuth2 → General</strong>, add the redirect URL below. This is what Discord uses to return users to your site after login.</p>
         <div class="code-block-wrap">
-          <pre class="code-block"><span class="k">Redirect URL:</span> <span class="v" id="discordRedirectVal">https://aurevongroup.com/api/auth/discord/callback</span>
+          <pre class="code-block"><span class="k">Redirect URL:</span> <span class="v" id="discordRedirectVal">https://aurevonvc.com/api/auth/discord/callback</span>
 <span class="k">Scopes needed:</span> <span class="v">identify, email, guilds.join</span></pre>
           <button class="code-copy-btn" onclick="copyCodeBlock('',this,document.getElementById('discordRedirectVal').textContent)">Copy URL</button>
         </div>
@@ -928,7 +928,7 @@
         </div>
         <div class="field">
           <label>Resend From Email</label>
-          <input type="text" id="resendFrom" placeholder="noreply@aurevongroup.com" oninput="updateEnvBlock()" />
+          <input type="text" id="resendFrom" placeholder="noreply@aurevonvc.com" oninput="updateEnvBlock()" />
         </div>
       </div>
       <div class="field-row" style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;">
@@ -951,7 +951,7 @@
 # ─────────────────────────────────────────────────</span>
 
 <span class="c"># ── Site Config</span>
-<span class="k">NEXT_PUBLIC_SITE_URL</span>=<span id="fev-url">https://aurevongroup.com</span>
+<span class="k">NEXT_PUBLIC_SITE_URL</span>=<span id="fev-url">https://aurevonvc.com</span>
 <span class="k">NODE_ENV</span>=<span>production</span>
 
 <span class="c"># ── Stripe</span>
@@ -985,7 +985,7 @@
 
 <span class="c"># ── Resend (email)</span>
 <span class="k">RESEND_API_KEY</span>=<span id="fev-resend">re_...</span>
-<span class="k">RESEND_FROM_EMAIL</span>=<span id="fev-resend-from">noreply@aurevongroup.com</span>
+<span class="k">RESEND_FROM_EMAIL</span>=<span id="fev-resend-from">noreply@aurevonvc.com</span>
 
 <span class="c"># ── Airtable</span>
 <span class="k">AIRTABLE_API_KEY</span>=<span id="fev-at-key">pat...</span>
@@ -1002,16 +1002,16 @@
 
 <!-- ── FOOTER ── -->
 <style>
-.bkt-global-foot{margin-top:0;padding:1.6rem 1rem;border-top:1px solid rgba(255,255,255,0.07);background:#050510;color:#6b6760;font-size:0.78rem;font-family:'DM Sans',sans-serif;}
-.bkt-global-foot .row{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;}
-.bkt-global-foot .links{display:flex;gap:1.2rem;flex-wrap:wrap;}
-.bkt-global-foot a{color:#b8b3ab;text-decoration:none;transition:color .2s;}
-.bkt-global-foot a:hover{color:#1E3A8A;}
-.bkt-global-foot .social{display:flex;gap:.8rem;align-items:center;}
+.aurevon-global-foot{margin-top:0;padding:1.6rem 1rem;border-top:1px solid rgba(255,255,255,0.07);background:#050510;color:#6b6760;font-size:0.78rem;font-family:'DM Sans',sans-serif;}
+.aurevon-global-foot .row{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;}
+.aurevon-global-foot .links{display:flex;gap:1.2rem;flex-wrap:wrap;}
+.aurevon-global-foot a{color:#b8b3ab;text-decoration:none;transition:color .2s;}
+.aurevon-global-foot a:hover{color:#1E3A8A;}
+.aurevon-global-foot .social{display:flex;gap:.8rem;align-items:center;}
 </style>
-<footer class="bkt-global-foot">
+<footer class="aurevon-global-foot">
   <div class="row">
-    <div>&#169; <span id="bktYr">2026</span> Aurevon Group LLC &middot; Setup Wizard — Internal Use Only.</div>
+    <div>&#169; <span id="aurevonYr">2026</span> Aurevon Ventures LLC &middot; Setup Wizard — Internal Use Only.</div>
     <div class="links">
       <a href="index.html">Home</a>
       <a href="merch.html">Merch</a>
@@ -1019,7 +1019,7 @@
     </div>
     <div class="social"><a href="https://x.com/AurevonLabs" target="_blank" rel="noopener" title="X / Twitter"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a><a href="https://discord.gg/2fwFjMEh" target="_blank" rel="noopener" title="Discord"><svg width="16" height="14" viewBox="0 0 71 55" fill="currentColor"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z"/></svg></a></div>
   </div>
-  <script>(function(){var y=document.getElementById('bktYr');if(y)y.textContent=new Date().getFullYear();})();</script>
+  <script>(function(){var y=document.getElementById("aurevonYr")');if(y)y.textContent=new Date().getFullYear();})();</script>
 </footer>
 
 <!-- ── SCRIPTS ── -->
@@ -1141,7 +1141,7 @@
 
   // ── Update env block spans (live)
   window.updateEnvBlock = function() {
-    var domain = getVal('domainInput') || 'https://aurevongroup.com';
+    var domain = getVal('domainInput') || 'https://aurevonvc.com';
     var strSk = getVal('stripeSecretKey') || 'sk_live_...';
     var strPk = getVal('stripePublicKey') || 'pk_live_...';
     var strWh = getVal('stripeWebhookSecret') || 'whsec_...';
@@ -1166,7 +1166,7 @@
     var dcRa = getVal('role-architect') || '...';
     var dcRs = getVal('role-sovereign') || '...';
     var resend = getVal('resendKey') || 're_...';
-    var resendFrom = getVal('resendFrom') || 'noreply@aurevongroup.com';
+    var resendFrom = getVal('resendFrom') || 'noreply@aurevonvc.com';
     var atKey = getVal('airtableKey') || 'pat...';
     var atBase = getVal('airtableBaseId') || 'appXXXXXXXXXXXXXX';
 

@@ -43,7 +43,7 @@ const PAGE_REWRITES = {
   '/aurevon-re':              'aurevon-re.html',
   '/aurevon-web3':            'aurevon-web3.html',
   '/aurevon-crm':             'aurevon-crm.html',
-  '/blockt-crm':              'blockt-crm.html',
+  '/aurevon-crm':              'aurevon-crm.html',
   '/portal':                  'portal.html',
   '/operator':                'operator.html',
   '/merch':                   'merch.html',
