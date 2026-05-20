@@ -94,12 +94,42 @@ const PRODUCT_CATALOG = {
     mode: 'payment',
     tier: 'nft_obsidian',
   },
-  // Aurevon Capital — one-off deal underwriting
-  deal: {
-    name: 'Aurevon Capital — Deal Underwriting',
-    priceId: 'price_1TUemC8e9ZIjX9wLdjPkM11R',
+  // Aurevon RE — À La Carte Add-Ons
+  addon_rush: {
+    name: 'Aurevon RE — 12-Hour Rush Delivery',
+    priceId: 'price_1TYzKN8e9ZIjX9wL9IcUXeao',
     mode: 'payment',
-    tier: 'deal',
+    tier: 'addon_rush',
+  },
+  addon_memo: {
+    name: 'Aurevon RE — Investor Memo Formatting',
+    priceId: 'price_1TYzKO8e9ZIjX9wLa5AhYOlE',
+    mode: 'payment',
+    tier: 'addon_memo',
+  },
+  addon_lender: {
+    name: 'Aurevon RE — Lender Presentation Package',
+    priceId: 'price_1TYzKO8e9ZIjX9wLsSa6KFYu',
+    mode: 'payment',
+    tier: 'addon_lender',
+  },
+  addon_sensitivity: {
+    name: 'Aurevon RE — Sensitivity Modeling',
+    priceId: 'price_1TYzKP8e9ZIjX9wLHDbMDWou',
+    mode: 'payment',
+    tier: 'addon_sensitivity',
+  },
+  addon_portfolio: {
+    name: 'Aurevon RE — Portfolio Review Bundle',
+    priceId: 'price_1TYzKP8e9ZIjX9wLP71oZzcQ',
+    mode: 'payment',
+    tier: 'addon_portfolio',
+  },
+  addon_whitelabel: {
+    name: 'Aurevon RE — White-Label Reports',
+    priceId: 'price_1TYzKQ8e9ZIjX9wLrymffEFh',
+    mode: 'payment',
+    tier: 'addon_whitelabel',
   },
 };
 

@@ -26,6 +26,13 @@ const _BASE = {
   web3_growth:     { nft: null, amount: 149,   template: null, serialPrefix: null, collectionName: null },
   web3_scale:      { nft: null, amount: 349,   template: null, serialPrefix: null, collectionName: null },
   web3_enterprise: { nft: null, amount: 799,   template: null, serialPrefix: null, collectionName: null },
+  // RE À La Carte Add-Ons — no NFT
+  addon_rush:        { nft: null, amount: 99,   template: null, serialPrefix: null, collectionName: null },
+  addon_memo:        { nft: null, amount: 149,  template: null, serialPrefix: null, collectionName: null },
+  addon_lender:      { nft: null, amount: 199,  template: null, serialPrefix: null, collectionName: null },
+  addon_sensitivity: { nft: null, amount: 125,  template: null, serialPrefix: null, collectionName: null },
+  addon_portfolio:   { nft: null, amount: 499,  template: null, serialPrefix: null, collectionName: null },
+  addon_whitelabel:  { nft: null, amount: 175,  template: null, serialPrefix: null, collectionName: null },
 };
 
 // Alias map: checkout tier keys → canonical tier keys
