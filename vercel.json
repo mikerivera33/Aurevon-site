@@ -8,10 +8,11 @@
   "trailingSlash": false,
   "redirects": [
     { "source": "/AUREVON_NFT_Collection", "destination": "/aurevon-web3", "permanent": true },
-    { "source": "/aurevon-nft",            "destination": "/aurevon-web3", "permanent": true },
     { "source": "/aurevon_nft_collection", "destination": "/aurevon-web3", "permanent": true },
     { "source": "/nft-collection",         "destination": "/aurevon-web3", "permanent": true },
-    { "source": "/nft",                    "destination": "/aurevon-web3", "permanent": true }
+    { "source": "/nft",                    "destination": "/aurevon-web3", "permanent": true },
+    { "source": "/001-genesis",            "destination": "/001_Genesis",  "permanent": false },
+    { "source": "/004-chrome",             "destination": "/004_Chrome",   "permanent": false }
   ],
   "rewrites": [
     { "source": "/api/stripe/checkout",       "destination": "/api/stripe/checkout.js" },
@@ -31,6 +32,7 @@
     { "source": "/api/paypal/create-order",   "destination": "/api/paypal/index.js?action=create-order" },
     { "source": "/api/paypal/capture",        "destination": "/api/paypal/index.js?action=capture" },
     { "source": "/api/member/claim",          "destination": "/api/member/claim.js" },
+    { "source": "/aurevon-nft",              "destination": "/aurevon-nft.html" },
     { "source": "/aurevon-re",               "destination": "/aurevon-re.html" },
     { "source": "/aurevon-web3",             "destination": "/aurevon-web3.html" },
     { "source": "/aurevon-crm",              "destination": "/aurevon-crm.html" },
