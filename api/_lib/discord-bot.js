@@ -52,7 +52,6 @@ export async function getGuildMember(discordId) {
  * @param {string} roleId
  */
 export async function addRoleToMember(discordId, roleId) {
-  console.log(`[Discord Bot] addRole userId=${discordId} roleId=${roleId}`);
   const res = await fetch(
     `${DISCORD_API}/guilds/${getGuildId()}/members/${discordId}/roles/${roleId}`,
     { method: 'PUT', headers: getBotHeaders(), body: JSON.stringify({}) },
@@ -72,7 +71,6 @@ export async function addRoleToMember(discordId, roleId) {
  * @param {string} roleId
  */
 export async function removeRoleFromMember(discordId, roleId) {
-  console.log(`[Discord Bot] removeRole userId=${discordId} roleId=${roleId}`);
   const res = await fetch(
     `${DISCORD_API}/guilds/${getGuildId()}/members/${discordId}/roles/${roleId}`,
     { method: 'DELETE', headers: getBotHeaders() },
@@ -90,7 +88,6 @@ export async function removeRoleFromMember(discordId, roleId) {
  * @param {string[]} roleIds         — roles to assign immediately on join
  */
 export async function addMemberToGuild(discordId, oauthAccessToken, roleIds = []) {
-  console.log(`[Discord Bot] addMemberToGuild userId=${discordId}`);
   const res = await fetch(`${DISCORD_API}/guilds/${getGuildId()}/members/${discordId}`, {
     method: 'PUT',
     headers: getBotHeaders(),

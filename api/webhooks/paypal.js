@@ -44,12 +44,7 @@ async function verifyPayPalIPN(rawBody) {
 // ---------------------------------------------------------------------------
 
 function parseIPN(rawBody) {
-  const params = new URLSearchParams(rawBody);
-  const out = {};
-  for (const [key, value] of params.entries()) {
-    out[key] = value;
-  }
-  return out;
+  return Object.fromEntries(new URLSearchParams(rawBody));
 }
 
 // ---------------------------------------------------------------------------
@@ -302,9 +297,9 @@ export default async function handler(req, res) {
   const txnId = ipn.txn_id;
   if (txnId) {
     try {
-      const airtableBase = process.env.AIRTABLE_BASE_ID;
+      const airtableBase = process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
       const airtablePat  = process.env.AIRTABLE_PAT;
-      const paymentsTableId = 'tbl6KlhM9fIH19W5i';
+      const paymentsTableId = process.env.AIRTABLE_TABLE_PAYMENTS ?? 'tbl6KlhM9fIH19W5i';
       const filterFormula = encodeURIComponent(`{Transaction ID}="${txnId}"`);
       const checkUrl = `https://api.airtable.com/v0/${airtableBase}/${paymentsTableId}?filterByFormula=${filterFormula}&maxRecords=1`;
       const checkRes = await fetch(checkUrl, {

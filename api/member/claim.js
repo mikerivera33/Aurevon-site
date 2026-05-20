@@ -17,7 +17,7 @@
  */
 
 import crypto from 'node:crypto';
-import { upsertMemberByEmail, findMemberByEmail, findActiveMintByEmail, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint } from '../_lib/airtable.js';
+import { upsertMemberByEmail, findMemberByEmail, findActiveMintByEmail, listNftMints, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint } from '../_lib/airtable.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
 import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
@@ -96,17 +96,13 @@ async function handleClaim(req, res) {
         'Discord Synced At': now,
       });
       roleAssigned = true;
-      console.log(`[Claim] Role assigned discordId=${discordId} roleId=${roleId}`);
     } catch (err) {
       roleError = err.message;
       await updateDiscordSyncStatus(normalizedEmail, 'failed', { error: err.message }).catch(() => {});
       console.error(`[Claim] Role assignment failed: ${err.message}`);
     }
-  } else if (discordId && !roleId) {
-    console.warn(`[Claim] Discord ID provided but no roleId for entitlement="${entitlementKey}"`);
-    await updateDiscordSyncStatus(normalizedEmail, 'pending').catch(() => {});
-  } else if (!discordId) {
-    // No Discord ID yet — prompt them to link via OAuth
+  } else {
+    if (discordId && !roleId) console.warn(`[Claim] Discord ID provided but no roleId for entitlement="${entitlementKey}"`);
     await updateDiscordSyncStatus(normalizedEmail, 'pending').catch(() => {});
   }
 
@@ -225,7 +221,6 @@ async function handleReconcile() {
 
   // 3. Find buyers who never linked Discord — send Engage reminder
   try {
-    const { listNftMints } = await import('../_lib/airtable.js');
     const cutoffDate = new Date(Date.now() - 24 * 3_600_000).toISOString(); // 24h ago
     const unlinkeds = await listNftMints(
       `AND(OR({Mint Status}="Minted",{Mint Status}="Sent"),{Discord Synced}=FALSE(),IS_BEFORE({Mint Date},"${cutoffDate}"))`,

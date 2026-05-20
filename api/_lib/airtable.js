@@ -145,7 +145,6 @@ export async function createNftMint({
   retryCount = 0,
   entitlementType = '',
 }) {
-  console.log(`[Airtable] createNftMint ref=${reference} email=${email}`);
   return createRecord(TABLE.NFT_Mints, {
     'Reference':           reference,
     'Email':               email,
@@ -166,7 +165,6 @@ export async function createNftMint({
  * Update fields on an NFT_Mints record.
  */
 export async function updateNftMint(recordId, fields) {
-  console.log(`[Airtable] updateNftMint recordId=${recordId}`);
   return updateRecord(TABLE.NFT_Mints, recordId, fields);
 }
 
@@ -219,7 +217,6 @@ export async function createPayment({
   status,
   token,
 }) {
-  console.log(`[Airtable] createPayment txn=${transactionId} email=${customerEmail}`);
   return createRecord(TABLE.Payments, {
     'Transaction ID':    transactionId,
     'Payment Provider':  method,
@@ -247,7 +244,6 @@ export async function createPayment({
 export async function upsertMemberByEmail(email, fields) {
   const normalized = email.toLowerCase().trim();
   const formula = `LOWER({Email})="${normalized}"`;
-  console.log(`[Airtable] upsertMemberByEmail email=${normalized}`);
   return upsertRecord(TABLE.Members, formula, { 'Email': normalized, ...fields });
 }
 
@@ -265,7 +261,6 @@ export async function findMemberByEmail(email) {
  * Also sets Discord Sync Status to 'pending' so the reconcile job picks it up.
  */
 export async function upsertDiscordLink(email, { discordId, discordUsername }) {
-  console.log(`[Airtable] upsertDiscordLink email=${email} discordId=${discordId}`);
   return upsertMemberByEmail(email, {
     'Discord ID':          discordId,
     'Discord Username':    discordUsername ?? '',
@@ -278,7 +273,6 @@ export async function upsertDiscordLink(email, { discordId, discordUsername }) {
  * Mark a member's Discord sync as succeeded or failed.
  */
 export async function updateDiscordSyncStatus(email, status, { error = '' } = {}) {
-  console.log(`[Airtable] updateDiscordSyncStatus email=${email} status=${status}`);
   const fields = {
     'Discord Sync Status': status,
     'Discord Sync At':     new Date().toISOString(),
@@ -308,7 +302,6 @@ export async function listOutOfSyncEntitlements({ graceDays = 7 } = {}) {
 // ── Leads ─────────────────────────────────────────────────────────────────────
 
 export async function createLead({ name, email, tier = '', source = 'Stripe' }) {
-  console.log(`[Airtable] createLead email=${email}`);
   return createRecord(TABLE.Leads, {
     'Name':        name,
     'Email':       email,

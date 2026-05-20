@@ -39,15 +39,11 @@ export default async function handler(req, res) {
     }
   };
 
-  // If templates are configured, use template-based minting
-  const endpoint = templateId
-    ? `https://www.crossmint.com/api/2022-06-09/collections/${CROSSMINT_COLLECTION_ID}/nfts`
-    : `https://www.crossmint.com/api/2022-06-09/collections/${CROSSMINT_COLLECTION_ID}/nfts`;
-
+  const url = `https://www.crossmint.com/api/2022-06-09/collections/${CROSSMINT_COLLECTION_ID}/nfts`;
   if (templateId) mintPayload.templateId = templateId;
 
   try {
-    const response = await fetch(endpoint, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'X-API-KEY': CROSSMINT_API_KEY,
