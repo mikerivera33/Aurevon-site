@@ -13,6 +13,22 @@ const CROSSMINT_BASE_URL = IS_STAGING
 
 const CROSSMINT_CHAIN = process.env.CROSSMINT_CHAIN || (IS_STAGING ? 'base-sepolia' : 'base');
 
+const NFT_IMAGES = {
+  INSIDER:  'https://gateway.pinata.cloud/ipfs/bafkreidla5efyue3p23ta6djte7kps4e4aohaxuij7yc2eiundhv3pasty',
+  EMBER:    'https://gateway.pinata.cloud/ipfs/bafkreifon655t7ru5vrcpnnhsodjal3jb323cjubfx7na4fnp22n6tdb54',
+  OBSIDIAN: 'https://gateway.pinata.cloud/ipfs/bafkreie7rhy5sibiocfu5cq7hhwf52tdzgesk3brmj753v2xgulannwsy4',
+  GENESIS:  'https://gateway.pinata.cloud/ipfs/bafkreihwovvborajwrljjuiaxhk2lev2l2nxlf5fy27yfh3p74cugt5tfi',
+  CHROME:   'https://gateway.pinata.cloud/ipfs/bafkreic3bi6gpnbhgsncizriwbpcniceipxlzn254zdgvzzilfojajlin4',
+};
+
+const NFT_ANIMATIONS = {
+  INSIDER:  'https://gateway.pinata.cloud/ipfs/bafybeih4nvmx4pqjvhkbaicb6ngl3jl7mr2ypghwnf26vg4mghzqjpd42m',
+  EMBER:    'https://gateway.pinata.cloud/ipfs/bafybeidcxh52iyvoymwzpm4z575rtgvlqqnznzzjpt3fqkgyc34tom2ao4',
+  OBSIDIAN: 'https://gateway.pinata.cloud/ipfs/bafybeiguz4kqtq3uywhvnhbvlkazaacq3cdnqna6ly2yvyfhwnefhspusq',
+  GENESIS:  'https://gateway.pinata.cloud/ipfs/bafybeictzl6vb5pyqe2vplydessfl3nod2rflzajxhqjlrvxly457bcljy',
+  CHROME:   'https://gateway.pinata.cloud/ipfs/bafybeiecvoqsrxp27pq43ogp3brqzus53caz3zfbtihibs3w4jfzyqboz4',
+};
+
 /** Map tier serial prefix to on-chain rarity trait value. */
 const RARITY_MAP = {
   INSIDER:  'Standard',
@@ -91,7 +107,8 @@ export async function mintToEmail({
     metadata: {
       name: `Aurevon ${pType} Pass`,
       description: `${tierLabel(tierKey)} membership pass. Aurevon Group LLC Systems Capital Infrastructure. On-chain on ${CROSSMINT_CHAIN === 'base-sepolia' ? 'Base Sepolia (testnet)' : 'Base Ethereum L2'}. Serial: ${serial}.`,
-      image: `https://aurevon-site.vercel.app/nfts/${pType.toLowerCase()}.html`,
+      image: NFT_IMAGES[pType] ?? NFT_IMAGES.GENESIS,
+      animation_url: NFT_ANIMATIONS[pType] ?? NFT_ANIMATIONS.GENESIS,
       attributes: [
         { trait_type: 'Tier',         value: nftType },
         { trait_type: 'Access Level', value: tierLabel(tierKey) },
@@ -129,7 +146,7 @@ export async function mintToEmail({
     }
 
     console.log(`[crossmint] Minted NFT to ${email}: actionId=${data.actionId}`);
-    return { ok: true, actionId: data.actionId, id: data.id, data };
+    return { ok: true, actionId: data.actionId, id: data.id, imageUrl: NFT_IMAGES[pType] ?? null, data };
   } catch (err) {
     console.error('[crossmint] Mint exception:', err.message);
     return { ok: false, error: err.message };

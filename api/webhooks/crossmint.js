@@ -26,7 +26,7 @@ function verifyCrossmintSignature(rawBody, sigHeader) {
   const secret = process.env.CROSSMINT_WEBHOOK_SECRET;
   if (!secret) {
     console.warn('[Crossmint Webhook] CROSSMINT_WEBHOOK_SECRET not set — skipping verification');
-    return true;
+    return false;
   }
   if (!sigHeader) {
     console.warn('[Crossmint Webhook] Missing crossmint-signature header');

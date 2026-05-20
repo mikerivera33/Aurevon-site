@@ -38,10 +38,10 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
     .update(signedPayload, 'utf8')
     .digest('hex');
 
-  const match = crypto.timingSafeEqual(
-    Buffer.from(v1, 'hex'),
-    Buffer.from(expectedSig, 'hex')
-  );
+  const v1Buf = Buffer.from(v1, 'hex');
+  const expBuf = Buffer.from(expectedSig, 'hex');
+  if (v1Buf.length !== expBuf.length) throw new Error('Stripe signature length mismatch');
+  const match = crypto.timingSafeEqual(v1Buf, expBuf);
 
   if (!match) throw new Error('Stripe signature mismatch');
 }
@@ -55,6 +55,11 @@ async function handleCheckoutSessionCompleted(session) {
   const customerEmail = session.customer_details?.email ?? session.customer_email;
   const customerName = session.customer_details?.name ?? 'Aurevon Member';
   const amountTotal = session.amount_total ?? 0; // cents
+
+  if (!customerEmail) {
+    console.error(`[Stripe] No customer email on session ${sessionId} — aborting pipeline`);
+    return;
+  }
 
   console.log(`[Stripe] Processing session ${sessionId} for ${customerEmail} amount=${amountTotal}`);
 
@@ -135,8 +140,8 @@ async function handleCheckoutSessionCompleted(session) {
       collectionName,
       tierKey: tier,
     });
-    mintId = result.mintId;
-    imageUrl = result.imageUrl;
+    if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
+    mintId = result.actionId;
     mintStatus = 'Sent';
     console.log(`[Stripe] Mint succeeded: mintId=${mintId}, serial=${serial}`);
   } catch (err) {
@@ -163,7 +168,7 @@ async function handleCheckoutSessionCompleted(session) {
     try {
       await createNftMint({
         reference: ref,
-        customerEmail,
+        email: customerEmail,
         nftType,
         tierSource: tier,
         status: mintStatus,
@@ -211,6 +216,25 @@ async function handleCheckoutSessionCompleted(session) {
   }
 
   console.log(`[Stripe] Pipeline complete for session ${sessionId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Subscription lifecycle handlers
+// ---------------------------------------------------------------------------
+
+async function handleSubscriptionDeleted(subscription) {
+  const customerEmail = subscription.customer_email
+    ?? subscription.metadata?.email
+    ?? null;
+  if (!customerEmail) {
+    console.warn('[Stripe] subscription.deleted — no email in subscription object, skipping revocation');
+    return;
+  }
+  console.log(`[Stripe] Subscription cancelled for ${customerEmail} — marking for revocation`);
+  const { updateDiscordSyncStatus } = await import('../_lib/airtable.js');
+  await updateDiscordSyncStatus(customerEmail, 'revoked').catch(e => {
+    console.error(`[Stripe] Failed to mark revocation in Airtable: ${e.message}`);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -270,6 +294,14 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error(`[Stripe] Unhandled pipeline error: ${err.message}`, err.stack);
     }
+  } else if (event.type === 'customer.subscription.deleted') {
+    try {
+      await handleSubscriptionDeleted(event.data.object);
+    } catch (err) {
+      console.error(`[Stripe] Unhandled subscription.deleted error: ${err.message}`, err.stack);
+    }
+  } else if (event.type === 'invoice.payment_failed') {
+    console.log(`[Stripe] invoice.payment_failed for subscription ${event.data.object.subscription} — logged only`);
   } else {
     console.log(`[Stripe] Ignoring event type="${event.type}"`);
   }

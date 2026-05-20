@@ -335,6 +335,9 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 .addon-price{font-family:'Archivo Black',sans-serif;color:var(--o2);white-space:nowrap;font-size:0.9rem;}
 .incl-badge{display:inline-block;background:rgba(30,58,138,0.12);color:var(--o2);padding:2px 8px;border-radius:4px;font-size:0.62rem;font-weight:700;letter-spacing:0.05em;margin:0 2px;}
 .incl-badge.ent{background:rgba(59,130,246,0.12);color:var(--o2);}
+.bkt-addon-btn{display:inline-block;padding:5px 14px;border-radius:6px;background:var(--o1);color:#fff;font-size:0.78rem;font-weight:700;text-decoration:none;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;}
+.bkt-addon-btn:hover{opacity:0.82;}
+.bkt-addon-btn[disabled]{opacity:0.5;pointer-events:none;}
 
 /* Community steps */
 .community-steps{display:flex;flex-direction:column;gap:0.8rem;margin-top:0.5rem;}
@@ -609,43 +612,49 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
     <p class="lead reveal" style="margin-bottom:1.2rem;">Bolt these onto any tier. All add-ons are per-deal unless noted. Pro Retainer and Enterprise clients get 12-hour rush and white-label included.</p>
     <div class="card reveal" style="padding:0;overflow:hidden;">
       <table class="tbl addon-tbl">
-        <thead><tr><th>Add-On</th><th>Price</th><th>Description</th><th style="text-align:center;">Included In</th></tr></thead>
+        <thead><tr><th>Add-On</th><th>Price</th><th>Description</th><th style="text-align:center;">Included In</th><th style="text-align:center;">Buy</th></tr></thead>
         <tbody>
           <tr>
             <td><strong>12-Hour Rush Delivery</strong></td>
             <td class="addon-price">$99</td>
             <td>Priority queue — underwriting delivered in 12 hours instead of 24–48h</td>
             <td style="text-align:center;"><span class="incl-badge">Pro</span><span class="incl-badge ent">Ent</span></td>
+            <td style="text-align:center;"><a class="bkt-addon-btn" href="__CHECKOUT__addon_rush" data-orig-text="Add →" data-amount="$99">Add →</a></td>
           </tr>
           <tr>
             <td><strong>Investor Memo Formatting</strong></td>
             <td class="addon-price">$149</td>
             <td>LP-ready formatted memo with branded cover page, exec summary, and key metrics layout</td>
             <td style="text-align:center;">—</td>
+            <td style="text-align:center;"><a class="bkt-addon-btn" href="__CHECKOUT__addon_memo" data-orig-text="Add →" data-amount="$149">Add →</a></td>
           </tr>
           <tr>
             <td><strong>Lender Presentation Package</strong></td>
             <td class="addon-price">$199</td>
             <td>Bank-ready package: debt service coverage, LTV analysis, and lender comparison matrix</td>
             <td style="text-align:center;">—</td>
+            <td style="text-align:center;"><a class="bkt-addon-btn" href="__CHECKOUT__addon_lender" data-orig-text="Add →" data-amount="$199">Add →</a></td>
           </tr>
           <tr>
             <td><strong>Sensitivity Modeling</strong></td>
             <td class="addon-price">$125</td>
             <td>3-scenario stress test: base, upside, and downside with variable rent growth, cap rates, and exit assumptions</td>
             <td style="text-align:center;">—</td>
+            <td style="text-align:center;"><a class="bkt-addon-btn" href="__CHECKOUT__addon_sensitivity" data-orig-text="Add →" data-amount="$125">Add →</a></td>
           </tr>
           <tr>
             <td><strong>Portfolio Review Bundle</strong></td>
             <td class="addon-price">$499</td>
             <td>3–5 assets reviewed together with cross-property comparison, portfolio-level metrics, and rebalancing recommendations</td>
             <td style="text-align:center;">—</td>
+            <td style="text-align:center;"><a class="bkt-addon-btn" href="__CHECKOUT__addon_portfolio" data-orig-text="Add →" data-amount="$499">Add →</a></td>
           </tr>
           <tr>
             <td><strong>White-Label Reports</strong></td>
             <td class="addon-price">$175<span style="font-size:0.72rem;color:var(--text-muted);"> / deal</span></td>
             <td>Your branding, your logo, your cover page — delivered as if your team built it. Ideal for brokers &amp; advisors</td>
             <td style="text-align:center;"><span class="incl-badge ent">Ent</span></td>
+            <td style="text-align:center;"><a class="bkt-addon-btn" href="__CHECKOUT__addon_whitelabel" data-orig-text="Add →" data-amount="$175">Add →</a></td>
           </tr>
         </tbody>
       </table>
@@ -1059,7 +1068,12 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 <script>
 /* ---------- config wiring ---------- */
 const CFG = window.AUREVON_CONFIG || {};
-document.getElementById('yr').textContent = new Date().getFullYear();
+function showPaymentError(msg) {
+  var el = document.getElementById('bkt-pay-error');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+  else { console.error('[Payment]', msg); }
+}
+const _yrEl = document.getElementById('yr') || document.getElementById('bktYr'); if (_yrEl) _yrEl.textContent = new Date().getFullYear();
 const mail = document.getElementById('mailLink');
 if (mail && CFG.CONTACT_EMAIL) mail.href = 'mailto:' + CFG.CONTACT_EMAIL;
 // Wire Discord buttons
@@ -1689,5 +1703,39 @@ targets.forEach(t => spy.observe(t));
 })();
 </script>
 <!-- ============ END PAYMENT TERMINAL ============ -->
+<script>
+/* ---------- Add-on buy buttons ---------- */
+document.querySelectorAll('.bkt-addon-btn').forEach(function(btn) {
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    var href = btn.getAttribute('href') || '';
+    if (!href.startsWith('__CHECKOUT__')) return;
+    var tier = href.replace('__CHECKOUT__', '');
+    var origText = btn.getAttribute('data-orig-text') || 'Add →';
+    btn.setAttribute('disabled', 'true');
+    btn.textContent = 'Redirecting…';
+    fetch('/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier: tier, cancelPath: window.location.pathname })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        btn.removeAttribute('disabled');
+        btn.textContent = origText;
+        alert('Checkout error: ' + (data.error || 'Please try again.'));
+      }
+    })
+    .catch(function(err) {
+      btn.removeAttribute('disabled');
+      btn.textContent = origText;
+      alert('Network error: ' + err.message);
+    });
+  });
+});
+</script>
 </body>
 </html>

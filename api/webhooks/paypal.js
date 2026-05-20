@@ -44,12 +44,7 @@ async function verifyPayPalIPN(rawBody) {
 // ---------------------------------------------------------------------------
 
 function parseIPN(rawBody) {
-  const params = new URLSearchParams(rawBody);
-  const out = {};
-  for (const [key, value] of params.entries()) {
-    out[key] = value;
-  }
-  return out;
+  return Object.fromEntries(new URLSearchParams(rawBody));
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +86,11 @@ async function handleVerifiedIPN(ipn) {
   const paymentStatus = (ipn.payment_status ?? '').toLowerCase();
   const now = new Date().toISOString();
 
+  if (!customerEmail) {
+    console.error(`[PayPal IPN] No payer_email in IPN txnId=${txnId} — aborting pipeline`);
+    return;
+  }
+
   console.log(`[PayPal IPN] Processing txnId=${txnId} for ${customerEmail} amount=${amount} status=${paymentStatus}`);
 
   // Only process completed payments
@@ -101,7 +101,10 @@ async function handleVerifiedIPN(ipn) {
 
   // Validate receiver email to prevent fraud
   const businessEmail = process.env.PAYPAL_BUSINESS_EMAIL;
-  if (businessEmail && ipn.receiver_email !== businessEmail) {
+  if (!businessEmail) {
+    console.error('[PayPal IPN] PAYPAL_BUSINESS_EMAIL not configured — aborting for safety. Set this env var.');
+    return;
+  } else if (ipn.receiver_email !== businessEmail) {
     console.warn(`[PayPal IPN] Receiver mismatch: got ${ipn.receiver_email}, expected ${businessEmail}`);
     return;
   }
@@ -169,8 +172,9 @@ async function handleVerifiedIPN(ipn) {
       collectionName,
       tierKey: tier,
     });
-    mintId = result.mintId;
-    imageUrl = result.imageUrl;
+    if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
+    mintId = result.actionId;
+    imageUrl = result.imageUrl ?? null;
     mintStatus = 'Sent';
     console.log(`[PayPal IPN] Mint succeeded: mintId=${mintId}, serial=${serial}`);
   } catch (err) {
@@ -196,7 +200,7 @@ async function handleVerifiedIPN(ipn) {
     try {
       await createNftMint({
         reference: ref,
-        customerEmail,
+        email: customerEmail,
         nftType,
         tierSource: tier,
         status: mintStatus,
@@ -288,6 +292,28 @@ export default async function handler(req, res) {
 
   const ipn = parseIPN(rawBody);
   console.log(`[PayPal IPN] Verified. txn_id=${ipn.txn_id}, payment_status=${ipn.payment_status}`);
+
+  // Idempotency check — skip if this txn_id has already been processed
+  const txnId = ipn.txn_id;
+  if (txnId) {
+    try {
+      const airtableBase = process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
+      const airtablePat  = process.env.AIRTABLE_PAT;
+      const paymentsTableId = process.env.AIRTABLE_TABLE_PAYMENTS ?? 'tbl6KlhM9fIH19W5i';
+      const filterFormula = encodeURIComponent(`{Transaction ID}="${txnId}"`);
+      const checkUrl = `https://api.airtable.com/v0/${airtableBase}/${paymentsTableId}?filterByFormula=${filterFormula}&maxRecords=1`;
+      const checkRes = await fetch(checkUrl, {
+        headers: { Authorization: `Bearer ${airtablePat}` },
+      });
+      const checkData = await checkRes.json();
+      if (checkData.records && checkData.records.length > 0) {
+        console.log(`[PayPal IPN] Duplicate txn_id ${txnId} — skipping`);
+        return;
+      }
+    } catch (err) {
+      console.error(`[PayPal IPN] Idempotency check failed: ${err.message} — proceeding anyway`);
+    }
+  }
 
   try {
     await handleVerifiedIPN(ipn);

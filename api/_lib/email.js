@@ -175,9 +175,9 @@ function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, disc
           <!-- Footer -->
           <tr>
             <td style="background:#0A0A0A;border-top:1px solid rgba(255,255,255,0.05);padding:20px 40px;text-align:center;">
-              <p style="margin:0 0 6px;font-size:11px;color:#3f3f46;letter-spacing:1px;text-transform:uppercase;">Aurevon Group LLC &middot; [Your Address]</p>
+              <p style="margin:0 0 6px;font-size:11px;color:#3f3f46;letter-spacing:1px;text-transform:uppercase;">Aurevon Group LLC &middot; Aurevon Group LLC, 2810 N Church Street #86952, Wilmington, DE 19802</p>
               <p style="margin:0;font-size:11px;color:#3f3f46;">
-                You received this because you completed a purchase on blockt.co.
+                You received this because you completed a purchase on aurevonvc.com.
               </p>
             </td>
           </tr>
@@ -214,8 +214,8 @@ Delivery: Email wallet (no wallet setup required)
 ${discordInviteUrl ? `Join the operator community:\n${discordInviteUrl}\n` : ''}Questions? hello@aurevongroup.com
 
 ---
-Aurevon Group LLC · [Your Address]
-You received this because you completed a purchase on blockt.co.
+Aurevon Group LLC · Aurevon Group LLC, 2810 N Church Street #86952, Wilmington, DE 19802
+You received this because you completed a purchase on aurevonvc.com.
 `;
 }
 
@@ -247,7 +247,7 @@ function buildPurchaseConfirmHtml({ customerName, tier }) {
         </tr>
         <tr>
           <td style="background:#0A0A0A;border-top:1px solid rgba(255,255,255,0.05);padding:20px 40px;text-align:center;">
-            <p style="margin:0;font-size:11px;color:#3f3f46;">Aurevon Group LLC &middot; [Your Address]</p>
+            <p style="margin:0;font-size:11px;color:#3f3f46;">Aurevon Group LLC &middot; Aurevon Group LLC, 2810 N Church Street #86952, Wilmington, DE 19802</p>
           </td>
         </tr>
       </table>
@@ -294,18 +294,25 @@ export async function sendNftDelivery({ email, customerName, nftType, mintId, nf
 
   console.log(`[Resend] Sending NFT delivery email to ${email} — "${subject}"`);
 
-  const response = await fetch(`${RESEND_BASE_URL}/emails`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  let response;
+  try {
+    response = await fetch(`${RESEND_BASE_URL}/emails`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.error(`[Resend] Network error sending NFT delivery email:`, err.message);
+    return { ok: false, error: err.message };
+  }
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Resend send failed (${response.status}): ${errText}`);
+    console.error(`[Resend] Send failed (${response.status}): ${errText}`);
+    return { ok: false, error: `Resend send failed (${response.status}): ${errText}` };
   }
 
   const data = await response.json();
@@ -332,18 +339,25 @@ export async function sendPurchaseConfirmation({ email, customerName, tier }) {
 
   console.log(`[Resend] Sending purchase confirmation email to ${email}`);
 
-  const response = await fetch(`${RESEND_BASE_URL}/emails`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  let response;
+  try {
+    response = await fetch(`${RESEND_BASE_URL}/emails`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.error(`[Resend] Network error sending purchase confirmation email:`, err.message);
+    return { ok: false, error: err.message };
+  }
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Resend send failed (${response.status}): ${errText}`);
+    console.error(`[Resend] Send failed (${response.status}): ${errText}`);
+    return { ok: false, error: `Resend send failed (${response.status}): ${errText}` };
   }
 
   const data = await response.json();

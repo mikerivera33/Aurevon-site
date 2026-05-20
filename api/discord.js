@@ -21,7 +21,11 @@ const CLIENT_ID     = process.env.DISCORD_CLIENT_ID;
 const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 const GUILD_ID      = process.env.DISCORD_GUILD_ID;
 const DOMAIN        = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
-const STATE_SECRET  = process.env.STATE_SECRET ?? 'change-me-32-chars-placeholder!!';
+const STATE_SECRET  = process.env.STATE_SECRET;
+if (!STATE_SECRET) {
+  console.error('[Discord OAuth] STATE_SECRET env var is required but not set');
+  // Will throw naturally when signState/verifyState are called
+}
 const SYNC_SECRET   = process.env.SYNC_SECRET  ?? process.env.CRON_SECRET ?? '';
 
 const REDIRECT_URI  = `${DOMAIN}/api/discord?action=callback`;
@@ -32,7 +36,7 @@ const SCOPES        = 'identify guilds.join';
 // ── HMAC state helpers ───────────────────────────────────────────────────────
 
 function signState(email) {
-  const mac = createHmac('sha256', STATE_SECRET).update(email).digest('hex').slice(0, 16);
+  const mac = createHmac('sha256', STATE_SECRET).update(email).digest('hex').slice(0, 32);
   return `${email}.${mac}`;
 }
 
@@ -41,7 +45,7 @@ function verifyState(state) {
   if (lastDot === -1) throw new Error('Invalid state format');
   const email = state.slice(0, lastDot);
   const received = state.slice(lastDot + 1);
-  const expected = createHmac('sha256', STATE_SECRET).update(email).digest('hex').slice(0, 16);
+  const expected = createHmac('sha256', STATE_SECRET).update(email).digest('hex').slice(0, 32);
   const a = Buffer.from(received.padEnd(32, '0'));
   const b = Buffer.from(expected.padEnd(32, '0'));
   if (a.length !== b.length || !timingSafeEqual(a, b)) throw new Error('State HMAC mismatch');
@@ -230,12 +234,13 @@ export default async function handler(req, res) {
 
 async function handleCheckMembership(req, res) {
   const secret = SYNC_SECRET;
-  if (secret) {
-    const auth  = req.headers?.authorization ?? '';
-    const query = req.query?.secret ?? '';
-    if (auth !== `Bearer ${secret}` && query !== secret) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+  if (!secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const auth  = req.headers?.authorization ?? '';
+  const query = req.query?.secret ?? '';
+  if (auth !== `Bearer ${secret}` && query !== secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   if (!process.env.AIRTABLE_PAT || !process.env.AIRTABLE_BASE_ID) {

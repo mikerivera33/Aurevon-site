@@ -68,6 +68,69 @@ const PRODUCT_CATALOG = {
     mode: 'subscription',
     tier: 'web3_enterprise',
   },
+  // Aurevon Community tiers
+  comm_monthly: {
+    name: 'Aurevon Labs — Genesis Community Pass',
+    priceId: 'price_1TUemd8e9ZIjX9wLnuEZDWjd',
+    mode: 'subscription',
+    tier: 'comm_monthly',
+  },
+  comm_lifetime: {
+    name: 'Aurevon Labs — Chrome Lifetime Pass',
+    priceId: 'price_1TUen68e9ZIjX9wLvMNuoXGJ',
+    mode: 'payment',
+    tier: 'comm_lifetime',
+  },
+  // Aurevon NFT standalone tiers
+  nft_insider: {
+    name: 'Aurevon NFT — Insider Underwriting Pass',
+    priceId: 'price_1TUenT8e9ZIjX9wLo0PfFvcN',
+    mode: 'payment',
+    tier: 'nft_insider',
+  },
+  nft_obsidian: {
+    name: 'Aurevon NFT — Obsidian Executive Pass',
+    priceId: 'price_1TUenl8e9ZIjX9wLtaqnc5DI',
+    mode: 'payment',
+    tier: 'nft_obsidian',
+  },
+  // Aurevon RE — À La Carte Add-Ons
+  addon_rush: {
+    name: 'Aurevon RE — 12-Hour Rush Delivery',
+    priceId: 'price_1TYzKN8e9ZIjX9wL9IcUXeao',
+    mode: 'payment',
+    tier: 'addon_rush',
+  },
+  addon_memo: {
+    name: 'Aurevon RE — Investor Memo Formatting',
+    priceId: 'price_1TYzKO8e9ZIjX9wLa5AhYOlE',
+    mode: 'payment',
+    tier: 'addon_memo',
+  },
+  addon_lender: {
+    name: 'Aurevon RE — Lender Presentation Package',
+    priceId: 'price_1TYzKO8e9ZIjX9wLsSa6KFYu',
+    mode: 'payment',
+    tier: 'addon_lender',
+  },
+  addon_sensitivity: {
+    name: 'Aurevon RE — Sensitivity Modeling',
+    priceId: 'price_1TYzKP8e9ZIjX9wLHDbMDWou',
+    mode: 'payment',
+    tier: 'addon_sensitivity',
+  },
+  addon_portfolio: {
+    name: 'Aurevon RE — Portfolio Review Bundle',
+    priceId: 'price_1TYzKP8e9ZIjX9wLP71oZzcQ',
+    mode: 'payment',
+    tier: 'addon_portfolio',
+  },
+  addon_whitelabel: {
+    name: 'Aurevon RE — White-Label Reports',
+    priceId: 'price_1TYzKQ8e9ZIjX9wLrymffEFh',
+    mode: 'payment',
+    tier: 'addon_whitelabel',
+  },
 };
 
 // -----------------------------------------------------------------------
@@ -89,6 +152,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `Unknown tier: ${tier}` });
   }
 
+  if (product.priceId === '') {
+    return res.status(503).json({ error: 'This product is not yet configured — contact support.' });
+  }
+
   if (!process.env.STRIPE_SECRET_KEY) {
     return res.status(500).json({ error: 'Stripe secret key not configured' });
   }
@@ -97,7 +164,8 @@ export default async function handler(req, res) {
     apiVersion: '2023-10-16',
   });
 
-  const BASE_URL = process.env.BASE_URL || `https://${req.headers.host}`;
+  const BASE_URL = process.env.BASE_URL;
+  if (!BASE_URL) return res.status(500).json({ error: 'BASE_URL not configured — contact support' });
 
   try {
     const sessionParams = {
@@ -115,6 +183,8 @@ export default async function handler(req, res) {
         product_name: product.name,
       },
     };
+
+    if (req.body?.email) sessionParams.customer_email = req.body.email;
 
     const session = await stripe.checkout.sessions.create(sessionParams);
     return res.status(200).json({ url: session.url });

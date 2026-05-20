@@ -1,7 +1,8 @@
 // api/email/send.js
 // Resend email sender - handles all Aurevon pass confirmation emails
+import crypto from 'node:crypto';
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@aurevongroup.com';
 const FROM_NAME = process.env.RESEND_FROM_NAME || 'Aurevon';
 
 const PASS_CONFIGS = {
@@ -49,6 +50,16 @@ function buildEmailHTML(passType, customerName, portalLink, nftLink) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const internalSecret = process.env.INTERNAL_API_SECRET;
+  if (!internalSecret) {
+    return res.status(500).json({ error: 'Server misconfiguration — email endpoint not configured' });
+  }
+  const provided = req.headers['x-internal-secret'] ?? '';
+  if (provided.length !== internalSecret.length || !crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(internalSecret))) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   if (!RESEND_API_KEY) return res.status(500).json({ error: 'RESEND_API_KEY not configured' });
 
   const { to, passType, customerName, portalLink, nftLink, subject } = req.body || {};

@@ -70,23 +70,15 @@ export default function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const required = Object.fromEntries(REQUIRED_ENV.map((k) => [k, Boolean(process.env[k])]));
-  const optional = Object.fromEntries(OPTIONAL_ENV.map((k) => [k, Boolean(process.env[k])]));
-
-  const allRequired = Object.values(required).every(Boolean);
-  const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+  const allRequired = REQUIRED_ENV.every((k) => Boolean(process.env[k]));
 
   return res.status(200).json({
     ok: true,
-    status: 'ok',
+    status: 'healthy',
     version: VERSION,
     timestamp: new Date().toISOString(),
     pipeline: 'Aurevon NFT Membership + Discord Automation',
     env: allRequired ? 'complete' : 'partial',
-    missing: missing,
-    env_check: required,
-    optional,
-    airtable_base: process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l (default)',
     function_count: 12,
     function_limit: 12,
   });
