@@ -38,22 +38,21 @@ jobs:
           HEALTH_BODY: ${{ steps.health.outputs.body }}
         run: |
           echo "Health check result:"
-          echo "$HEALTH_BODY" | python3 -c "
-import sys, json
-try:
-    data = json.loads(sys.stdin.read())
-    print(f\"Pipeline: {data.get('pipeline', 'unknown')}\")
-    print(f\"Status: {data.get('status', 'unknown')}\")
-    env = data.get('env_check', {})
-    missing = [k for k, v in env.items() if not v]
-    configured = [k for k, v in env.items() if v]
-    print(f\"Configured ({len(configured)}): {', '.join(configured)}\")
-    print(f\"Missing ({len(missing)}): {', '.join(missing)}\")
-    if missing:
-        print(f\"\n::warning::MISSING ENV VARS: {', '.join(missing)}\")
-except Exception as e:
-    print(f\"Parse error: {e}\")
-"
+          echo "$HEALTH_BODY" | python3 << 'PYEOF'
+          import sys, json
+          data = json.loads(sys.stdin.read())
+          pipeline = data.get('pipeline', 'unknown')
+          status = data.get('status', 'unknown')
+          print(f"Pipeline: {pipeline}")
+          print(f"Status: {status}")
+          env = data.get('env_check', {})
+          missing = [k for k, v in env.items() if not v]
+          configured = [k for k, v in env.items() if v]
+          print(f"Configured ({len(configured)}): {', '.join(configured)}")
+          print(f"Missing ({len(missing)}): {', '.join(missing)}")
+          if missing:
+              print(f"\n::warning::MISSING ENV VARS: {', '.join(missing)}")
+          PYEOF
 
       - name: Check page routes
         env:
