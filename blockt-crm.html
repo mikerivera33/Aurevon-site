@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <!-- Suppress wallet extension errors (MetaMask, Coinbase Wallet) -->
@@ -175,6 +175,11 @@ td.td-primary{color:var(--t1);font-weight:500}
 </style>
 <!-- Vercel Web Analytics -->
 <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+<!-- Vercel Speed Insights -->
+<script>
+  window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
+</script>
+<script defer src="/_vercel/speed-insights/script.js"></script>
 </head>
 <body>
 
@@ -284,7 +289,7 @@ function methodPill(val) {
   return `<span class="pill ${cls}">${esc(val)}</span>`;
 }
 
-// ─── FETCH ──────────────────────────────────────────────────
+// ─���─ FETCH ──────────────────────────────────────────────────
 async function fetchTable(tableId, params = '') {
   if (!state.pat) throw new Error('No PAT configured. Go to Settings.');
   const url = `https://api.airtable.com/v0/${BASE_ID}/${tableId}?${params}`;
