@@ -21,7 +21,7 @@ const CLIENT_ID     = process.env.DISCORD_CLIENT_ID;
 const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 const GUILD_ID      = process.env.DISCORD_GUILD_ID;
 const DOMAIN        = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
-const STATE_SECRET  = process.env.STATE_SECRET ?? 'change-me-32-chars-placeholder!!';
+const STATE_SECRET  = process.env.STATE_SECRET ;
 if (!process.env.STATE_SECRET) console.error('[Discord] WARNING: STATE_SECRET is not set — OAuth state HMAC is using an insecure default. Set STATE_SECRET in Vercel env vars.');
 const SYNC_SECRET   = process.env.SYNC_SECRET  ?? process.env.CRON_SECRET ?? '';
 
@@ -33,7 +33,7 @@ const SCOPES        = 'identify guilds.join';
 // ── HMAC state helpers ───────────────────────────────────────────────────────
 
 function signState(email) {
-  const mac = createHmac('sha256', STATE_SECRET).update(email).digest('hex').slice(0, 16);
+  const mac = createHmac('sha256', STATE_SECRET).update(email).digest('hex').slice(0, 32);
   return `${email}.${mac}`;
 }
 
@@ -42,7 +42,7 @@ function verifyState(state) {
   if (lastDot === -1) throw new Error('Invalid state format');
   const email = state.slice(0, lastDot);
   const received = state.slice(lastDot + 1);
-  const expected = createHmac('sha256', STATE_SECRET).update(email).digest('hex').slice(0, 16);
+  const expected = createHmac('sha256', STATE_SECRET).update(email).digest('hex').slice(0, 32);
   const a = Buffer.from(received.padEnd(32, '0'));
   const b = Buffer.from(expected.padEnd(32, '0'));
   if (a.length !== b.length || !timingSafeEqual(a, b)) throw new Error('State HMAC mismatch');
