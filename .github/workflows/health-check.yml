@@ -33,27 +33,34 @@ jobs:
           echo "HTTP Status: $HTTP_STATUS"
           echo "Response: $BODY"
 
-      - name: Parse missing env vars
+      - name: Parse health response
         env:
           HEALTH_BODY: ${{ steps.health.outputs.body }}
         run: |
           echo "Health check result:"
-          echo "$HEALTH_BODY" | python3 -c "
-import sys, json
-try:
-    data = json.loads(sys.stdin.read())
-    print(f\"Pipeline: {data.get('pipeline', 'unknown')}\")
-    print(f\"Status: {data.get('status', 'unknown')}\")
-    env = data.get('env_check', {})
-    missing = [k for k, v in env.items() if not v]
-    configured = [k for k, v in env.items() if v]
-    print(f\"Configured ({len(configured)}): {', '.join(configured)}\")
-    print(f\"Missing ({len(missing)}): {', '.join(missing)}\")
-    if missing:
-        print(f\"\n::warning::MISSING ENV VARS: {', '.join(missing)}\")
-except Exception as e:
-    print(f\"Parse error: {e}\")
-"
+          echo "$HEALTH_BODY" | python3 << 'PYEOF'
+          import sys, json, os
+          raw = os.environ.get('HEALTH_BODY', sys.stdin.read())
+          try:
+            data = json.loads(raw)
+          except Exception as e:
+            print(f"::error::Failed to parse health JSON: {e}")
+            print(f"Raw response: {raw}")
+            sys.exit(1)
+          pipeline = data.get('pipeline', 'unknown')
+          status = data.get('status', 'unknown')
+          env_status = data.get('env', 'unknown')
+          optional_env = data.get('optional_env', 'N/A')
+          fn_count = data.get('function_count', '?')
+          fn_limit = data.get('function_limit', '?')
+          print(f"Pipeline: {pipeline}")
+          print(f"Status: {status}")
+          print(f"Env (required): {env_status}")
+          print(f"Env (optional): {optional_env}")
+          print(f"Functions: {fn_count}/{fn_limit}")
+          if env_status != 'complete':
+            print(f"::warning::Required env vars are PARTIAL — some services may be degraded. Check Vercel env config.")
+          PYEOF
 
       - name: Check page routes
         env:
