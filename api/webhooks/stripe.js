@@ -16,27 +16,33 @@ import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
 // ---------------------------------------------------------------------------
 
 function verifyStripeSignature(rawBody, sigHeader, secret) {
-  if (!sigHeader) throw new Error('Missing Stripe-Signature header');
+    if (!sigHeader) throw new Error('Missing Stripe-Signature header');
+
   const parts = Object.fromEntries(
-    sigHeader.split(',').map((part) => part.split('='))
-  );
-  const timestamp = parts['t'];
-  const v1 = parts['v1'];
+        sigHeader.split(',').map((part) => part.split('='))
+      );
+    const timestamp = parts['t'];
+    const v1 = parts['v1'];
+
   if (!timestamp || !v1) throw new Error('Malformed Stripe-Signature header');
+
   // Reject events older than 5 minutes
   const now = Math.floor(Date.now() / 1000);
-  if (Math.abs(now - parseInt(timestamp, 10)) > 300) {
-    throw new Error('Stripe webhook timestamp too old — possible replay attack');
-  }
+    if (Math.abs(now - parseInt(timestamp, 10)) > 300) {
+          throw new Error('Stripe webhook timestamp too old — possible replay attack');
+    }
+
   const signedPayload = `${timestamp}.${rawBody}`;
-  const expectedSig = crypto
-    .createHmac('sha256', secret)
-    .update(signedPayload, 'utf8')
-    .digest('hex');
+    const expectedSig = crypto
+      .createHmac('sha256', secret)
+      .update(signedPayload, 'utf8')
+      .digest('hex');
+
   const v1Buf = Buffer.from(v1, 'hex');
-  const expBuf = Buffer.from(expectedSig, 'hex');
-  if (v1Buf.length !== expBuf.length) throw new Error('Stripe signature length mismatch');
-  const match = crypto.timingSafeEqual(v1Buf, expBuf);
+    const expBuf = Buffer.from(expectedSig, 'hex');
+    if (v1Buf.length !== expBuf.length) throw new Error('Stripe signature length mismatch');
+    const match = crypto.timingSafeEqual(v1Buf, expBuf);
+
   if (!match) throw new Error('Stripe signature mismatch');
 }
 
@@ -45,170 +51,190 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
 // ---------------------------------------------------------------------------
 
 async function handleCheckoutSessionCompleted(session) {
-  const sessionId = session.id;
-  const customerEmail = session.customer_details?.email ?? session.customer_email;
-  const customerName = session.customer_details?.name ?? 'Aurevon Member';
-  const amountTotal = session.amount_total ?? 0; // cents
+    const sessionId = session.id;
+    const customerEmail = session.customer_details?.email ?? session.customer_email;
+    const customerName = session.customer_details?.name ?? 'Aurevon Member';
+    const amountTotal = session.amount_total ?? 0; // cents
 
   if (!customerEmail) {
-    console.error(`[Stripe] No customer email on session ${sessionId} — aborting pipeline`);
-    return;
+        console.error(`[Stripe] No customer email on session ${sessionId} — aborting pipeline`);
+        return;
   }
+
   console.log(`[Stripe] Processing session ${sessionId} for ${customerEmail} amount=${amountTotal}`);
 
+  // 1. Resolve tier — prefer metadata, fall back to amount
   let tier = session.metadata?.tier ?? null;
-  if (!tier) {
-    tier = inferTierFromAmount(amountTotal);
-    console.log(`[Stripe] No metadata.tier — inferred tier="${tier}" from amount ${amountTotal}`);
-  }
-  if (!tier) {
-    console.warn(`[Stripe] Could not determine tier for session ${sessionId}. Treating as unknown.`);
-    tier = 'unknown';
-  }
+    if (!tier) {
+          tier = inferTierFromAmount(amountTotal);
+          console.log(`[Stripe] No metadata.tier — inferred tier="${tier}" from amount ${amountTotal}`);
+    }
+    if (!tier) {
+          console.warn(`[Stripe] Could not determine tier for session ${sessionId}. Treating as unknown.`);
+          tier = 'unknown';
+    }
 
   const amount = amountTotal / 100;
-  const token = `paid_${tier}_${Date.now()}`;
-  const now = new Date().toISOString();
+    const token = `paid_${tier}_${Date.now()}`;
+    const now = new Date().toISOString();
 
+  // 2. Write Payments row
   try {
-    await createPayment({
-      transactionId: sessionId,
-      method: 'Stripe Card',
-      tier,
-      amount,
-      customerEmail,
-      customerName,
-      status: 'Succeeded',
-      token,
-    });
+        await createPayment({
+                transactionId: sessionId,
+                method: 'Stripe Card',
+                tier,
+                amount,
+                customerEmail,
+                customerName,
+                status: 'Succeeded',
+                token,
+        });
   } catch (err) {
-    console.error(`[Stripe] Airtable createPayment failed: ${err.message}`);
+        console.error(`[Stripe] Airtable createPayment failed: ${err.message}`);
+        // Non-fatal — continue pipeline
   }
 
+  // 3. Determine NFT mapping
   const tierConfig = TIER_NFT_MAP[tier] ?? null;
-  const nftType = tierConfig?.nft ?? null;
-  const templateKey = tierConfig?.template ?? null;
-  const serialPrefix = tierConfig?.serialPrefix ?? null;
-  const collectionName = tierConfig?.collectionName ?? null;
+    const nftType = tierConfig?.nft ?? null;
+    const templateKey = tierConfig?.template ?? null;
+    const serialPrefix = tierConfig?.serialPrefix ?? null;
+    const collectionName = tierConfig?.collectionName ?? null;
 
+  // 4. No NFT tier — send confirmation only
   if (!nftType) {
-    console.log(`[Stripe] Tier "${tier}" has no NFT. Sending purchase confirmation email.`);
-    try {
-      await sendPurchaseConfirmation({ email: customerEmail, customerName, tier });
-    } catch (err) {
-      console.error(`[Stripe] Confirmation email failed: ${err.message}`);
-    }
-    return;
+        console.log(`[Stripe] Tier "${tier}" has no NFT. Sending purchase confirmation email.`);
+        try {
+                await sendPurchaseConfirmation({ email: customerEmail, customerName, tier });
+        } catch (err) {
+                console.error(`[Stripe] Confirmation email failed: ${err.message}`);
+        }
+        return;
   }
 
+  // 5. Get next serial number for this collection
   let serial = null;
-  if (serialPrefix) {
-    try {
-      serial = await getNextSerial(serialPrefix);
-      console.log(`[Stripe] Assigned serial ${serial} for tier "${tier}"`);
-    } catch (err) {
-      console.error(`[Stripe] getNextSerial failed: ${err.message}. Continuing without serial.`);
+    if (serialPrefix) {
+          try {
+                  serial = await getNextSerial(serialPrefix);
+                  console.log(`[Stripe] Assigned serial ${serial} for tier "${tier}"`);
+          } catch (err) {
+                  console.error(`[Stripe] getNextSerial failed: ${err.message}. Continuing without serial.`);
+          }
     }
-  }
 
+  // 6. Mint NFT via Crossmint
   let mintId = null;
-  const imageUrl = null;
-  let mintStatus;
-  let mintNotes = '';
+    const imageUrl = null;
+    let mintStatus;
+    let mintNotes = '';
+
   try {
-    const result = await mintToEmail({
-      email: customerEmail,
-      nftType,
-      customerName,
-      templateKey,
-      serial,
-      collectionName,
-      tierKey: tier,
-    });
-    if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
-    mintId = result.actionId;
-    mintStatus = 'Sent';
-    console.log(`[Stripe] Mint succeeded: mintId=${mintId}, serial=${serial}`);
+        const result = await mintToEmail({
+                email: customerEmail,
+                nftType,
+                customerName,
+                templateKey,
+                serial,
+                collectionName,
+                tierKey: tier,
+        });
+        if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
+        mintId = result.actionId;
+        mintStatus = 'Sent';
+        console.log(`[Stripe] Mint succeeded: mintId=${mintId}, serial=${serial}`);
   } catch (err) {
-    mintStatus = 'Failed';
-    mintNotes = `Crossmint error: ${err.message}`;
-    console.error(`[Stripe] Crossmint mint failed: ${err.message}`);
+        mintStatus = 'Failed';
+        mintNotes = `Crossmint error: ${err.message}`;
+        console.error(`[Stripe] Crossmint mint failed: ${err.message}`);
   }
 
+  // 7. Write NFT_Mints row — use serial as the reference; retry on collision (race condition guard)
   const reference = serial ?? `MINT_${sessionId.slice(-8)}_${nftType.replace(/\s+/g, '_')}`;
-  let insertedSerial = serial;
+    let insertedSerial = serial;
+
   for (let attempt = 0; attempt < 3; attempt++) {
-    const ref = attempt === 0 ? reference : (() => {
-      if (!insertedSerial) return reference;
-      const parts = insertedSerial.split('_');
-      const prefix = parts[0];
-      const num = parseInt(parts[1] ?? '0', 10) + 1;
-      insertedSerial = formatSerial(prefix, num);
-      return insertedSerial;
-    })();
-    try {
-      await createNftMint({
-        reference: ref,
-        email: customerEmail,
-        nftType,
-        tierSource: tier,
-        status: mintStatus,
-        sentDate: now,
-        emailDelivered: mintStatus === 'Sent',
-        notes: mintNotes,
-        mintId: mintId ?? '',
-        retryCount: 0,
-      });
-      console.log(`[Stripe] NFT_Mints record created with reference=${ref}`);
-      break;
-    } catch (err) {
-      const isDuplicate = err.message.includes('422') ||
-        err.message.toLowerCase().includes('already exists') ||
-        err.message.toLowerCase().includes('duplicate');
-      if (isDuplicate && attempt < 2) {
-        console.warn(`[Stripe] Reference collision on "${ref}" (attempt ${attempt + 1}) — incrementing serial and retrying`);
-      } else {
-        console.error(`[Stripe] Airtable createNftMint failed (attempt ${attempt + 1}): ${err.message}`);
-        break;
+        const ref = attempt === 0 ? reference : (() => {
+                // Extract numeric part from serial and increment
+                                                       if (!insertedSerial) return reference;
+                const parts = insertedSerial.split('_');
+                const prefix = parts[0];
+                const num = parseInt(parts[1] ?? '0', 10) + 1;
+                insertedSerial = formatSerial(prefix, num);
+                return insertedSerial;
+        })();
+
+      try {
+              await createNftMint({
+                        reference: ref,
+                        email: customerEmail,
+                        nftType,
+                        tierSource: tier,
+                        status: mintStatus,
+                        sentDate: now,
+                        emailDelivered: mintStatus === 'Sent',
+                        notes: mintNotes,
+                        mintId: mintId ?? '',
+                        retryCount: 0,
+              });
+              console.log(`[Stripe] NFT_Mints record created with reference=${ref}`);
+              break;
+      } catch (err) {
+              const isDuplicate = err.message.includes('422') || err.message.toLowerCase().includes('already exists') || err.message.toLowerCase().includes('duplicate');
+              if (isDuplicate && attempt < 2) {
+                        console.warn(`[Stripe] Reference collision on "${ref}" (attempt ${attempt + 1}) — incrementing serial and retrying`);
+              } else {
+                        console.error(`[Stripe] Airtable createNftMint failed (attempt ${attempt + 1}): ${err.message}`);
+                        break;
+              }
       }
-    }
   }
 
+  // 8. Parse edition number from serial for email
   let edition = null;
-  if (insertedSerial) {
-    const parts = insertedSerial.split('_');
-    if (parts[1]) edition = parseInt(parts[1], 10);
+    if (insertedSerial) {
+          const parts = insertedSerial.split('_');
+          if (parts[1]) edition = parseInt(parts[1], 10);
+    }
+
+  // 9. Send branded delivery email (even on mint failure — email with partial info)
+  try {
+        await sendNftDelivery({
+                email: customerEmail,
+                customerName,
+                nftType,
+                mintId: mintId ?? 'pending',
+                nftImageUrl: imageUrl,
+                discordInviteUrl: process.env.DISCORD_INVITE_URL,
+                tier,
+                serial: insertedSerial,
+                edition,
+        });
+  } catch (err) {
+        console.error(`[Stripe] Resend email failed: ${err.message}`);
   }
 
-  try {
-    await sendNftDelivery({
-      email: customerEmail,
-      customerName,
-      nftType,
-      mintId: mintId ?? 'pending',
-      nftImageUrl: imageUrl,
-      discordInviteUrl: process.env.DISCORD_INVITE_URL,
-      tier,
-      serial: insertedSerial,
-      edition,
-    });
-  } catch (err) {
-    console.error(`[Stripe] Resend email failed: ${err.message}`);
-  }
   console.log(`[Stripe] Pipeline complete for session ${sessionId}`);
 }
 
+// ---------------------------------------------------------------------------
+// Subscription lifecycle handlers
+// ---------------------------------------------------------------------------
+
 async function handleSubscriptionDeleted(subscription) {
-  const customerEmail = subscription.customer_email ?? subscription.metadata?.email ?? null;
-  if (!customerEmail) {
-    console.warn('[Stripe] subscription.deleted — no email in subscription object, skipping revocation');
-    return;
-  }
-  console.log(`[Stripe] Subscription cancelled for ${customerEmail} — marking for revocation`);
-  const { updateDiscordSyncStatus } = await import('../_lib/airtable.js');
-  await updateDiscordSyncStatus(customerEmail, 'revoked').catch(e => {
-    console.error(`[Stripe] Failed to mark revocation in Airtable: ${e.message}`);
-  });
+    const customerEmail = subscription.customer_email
+      ?? subscription.metadata?.email
+      ?? null;
+    if (!customerEmail) {
+          console.warn('[Stripe] subscription.deleted — no email in subscription object, skipping revocation');
+          return;
+    }
+    console.log(`[Stripe] Subscription cancelled for ${customerEmail} — marking for revocation`);
+    const { updateDiscordSyncStatus } = await import('../_lib/airtable.js');
+    await updateDiscordSyncStatus(customerEmail, 'revoked').catch(e => {
+          console.error(`[Stripe] Failed to mark revocation in Airtable: ${e.message}`);
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -216,63 +242,74 @@ async function handleSubscriptionDeleted(subscription) {
 // ---------------------------------------------------------------------------
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+    if (req.method !== 'POST') {
+          return res.status(405).json({ error: 'Method not allowed' });
+    }
+
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!webhookSecret) {
-    console.error('[Stripe] STRIPE_WEBHOOK_SECRET not set');
-    return res.status(500).json({ error: 'Server misconfiguration' });
-  }
+    if (!webhookSecret) {
+          console.error('[Stripe] STRIPE_WEBHOOK_SECRET not set');
+          return res.status(500).json({ error: 'Server misconfiguration' });
+    }
 
+  // Read raw body — Vercel provides req.body as Buffer when bodyParser is disabled
   let rawBody;
-  try {
-    rawBody = await new Promise((resolve, reject) => {
-      const chunks = [];
-      req.on('data', (chunk) => chunks.push(chunk));
-      req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-      req.on('error', reject);
-    });
-  } catch (err) {
-    console.error(`[Stripe] Failed to read request body: ${err.message}`);
-    return res.status(400).json({ error: 'Failed to read body' });
-  }
+    try {
+          rawBody = await new Promise((resolve, reject) => {
+                  const chunks = [];
+                  req.on('data', (chunk) => chunks.push(chunk));
+                  req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+                  req.on('error', reject);
+          });
+    } catch (err) {
+          console.error(`[Stripe] Failed to read request body: ${err.message}`);
+          return res.status(400).json({ error: 'Failed to read body' });
+    }
 
+  // Verify signature
   try {
-    verifyStripeSignature(rawBody, req.headers['stripe-signature'], webhookSecret);
+        verifyStripeSignature(rawBody, req.headers['stripe-signature'], webhookSecret);
   } catch (err) {
-    console.error(`[Stripe] Signature verification failed: ${err.message}`);
-    return res.status(400).json({ error: 'Invalid signature' });
+        console.error(`[Stripe] Signature verification failed: ${err.message}`);
+        return res.status(400).json({ error: 'Invalid signature' });
   }
 
   let event;
-  try {
-    event = JSON.parse(rawBody);
-  } catch (err) {
-    console.error(`[Stripe] Failed to parse event JSON: ${err.message}`);
-    return res.status(400).json({ error: 'Invalid JSON' });
-  }
+    try {
+          event = JSON.parse(rawBody);
+    } catch (err) {
+          console.error(`[Stripe] Failed to parse event JSON: ${err.message}`);
+          return res.status(400).json({ error: 'Invalid JSON' });
+    }
 
   console.log(`[Stripe] Received event type="${event.type}" id="${event.id}"`);
+
+  // Return 200 immediately — process asynchronously to avoid Stripe timeout
   res.status(200).json({ received: true });
 
+  // Handle relevant events
   if (event.type === 'checkout.session.completed') {
-    try {
-      await handleCheckoutSessionCompleted(event.data.object);
-    } catch (err) {
-      console.error(`[Stripe] Unhandled pipeline error: ${err.message}`, err.stack);
-    }
+        try {
+                await handleCheckoutSessionCompleted(event.data.object);
+        } catch (err) {
+                console.error(`[Stripe] Unhandled pipeline error: ${err.message}`, err.stack);
+        }
   } else if (event.type === 'customer.subscription.deleted') {
-    try {
-      await handleSubscriptionDeleted(event.data.object);
-    } catch (err) {
-      console.error(`[Stripe] Unhandled subscription.deleted error: ${err.message}`, err.stack);
-    }
+        try {
+                await handleSubscriptionDeleted(event.data.object);
+        } catch (err) {
+                console.error(`[Stripe] Unhandled subscription.deleted error: ${err.message}`, err.stack);
+        }
   } else if (event.type === 'invoice.payment_failed') {
-    console.log(`[Stripe] invoice.payment_failed for subscription ${event.data.object.subscription} — logged only`);
+        console.log(`[Stripe] invoice.payment_failed for subscription ${event.data.object.subscription} — logged only`);
   } else {
-    console.log(`[Stripe] Ignoring event type="${event.type}"`);
+        console.log(`[Stripe] Ignoring event type="${event.type}"`);
   }
 }
 
-export const config = { api: { bodyParser: false } };
+// Disable Vercel's automatic body parsing so we get the raw body for signature verification
+export const config = {
+    api: {
+          bodyParser: false,
+    },
+};

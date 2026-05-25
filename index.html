@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <!-- Suppress wallet extension errors (MetaMask, Coinbase Wallet) -->
@@ -145,6 +145,11 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 </style>
 <!-- Vercel Web Analytics -->
 <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+<!-- Vercel Speed Insights -->
+<script>
+  window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
+</script>
+<script defer src="/_vercel/speed-insights/script.js"></script>
 </head>
 <body>
 
@@ -495,7 +500,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 </footer>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-document.getElementById('yr').textContent = new Date().getFullYear();
+const _yrEl = document.getElementById('yr') || document.getElementById('bktYr'); if (_yrEl) _yrEl.textContent = new Date().getFullYear();
 const L = window.AUREVON_LINKS || {};
 document.querySelectorAll('.vcard[href]').forEach(c => {
   const h = c.getAttribute('href');

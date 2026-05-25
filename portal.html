@@ -901,6 +901,11 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
   </style>
 <!-- Vercel Web Analytics -->
 <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+<!-- Vercel Speed Insights -->
+<script>
+  window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
+</script>
+<script defer src="/_vercel/speed-insights/script.js"></script>
 </head>
 <body>
 
@@ -1783,7 +1788,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
   }
 
   function showLoading(msg) {
-    document.getElementById('loading-text') && (document.querySelector('.loading-text').textContent = msg || 'Loading…');
+    const _lt = document.querySelector('.loading-text'); if (_lt) _lt.textContent = msg || 'Loading…';
     document.getElementById('loading-overlay').classList.remove('hidden');
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('portal-shell').classList.add('hidden');

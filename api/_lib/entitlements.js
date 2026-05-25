@@ -5,8 +5,8 @@
  *
  *   monthly_membership  → 001 Genesis  (recurring, revocable)
  *   lifetime_membership → 004 Chrome   (permanent)
- *   product_a_reward    → Aurevon Insider   (permanent, product purchase)
- *   product_b_reward    → Aurevon Ember     (permanent, product purchase)
+ *   product_a_reward    → Aurevon Insider          (permanent, product purchase)
+ *   product_b_reward    → Aurevon Ember            (permanent, product purchase)
  *   product_c_reward    → Aurevon Obsidian Executive (permanent, product purchase)
  *
  * SKU aliases cover every tier key used in stripe/checkout.js, webhooks, and PayPal.
@@ -14,22 +14,16 @@
 
 /** @typedef {'monthly_membership'|'lifetime_membership'|'product_a_reward'|'product_b_reward'|'product_c_reward'} EntitlementKey */
 
-/** @type {Record<EntitlementKey, {
- *   skus: string[],
- *   nftType: string,
- *   serialPrefix: string,
- *   collectionName: string,
- *   discordRoleEnv: string,
- *   collectionEnv: string,
- *   templateEnv: string,
- *   membershipMode: 'recurring'|'lifetime'|'permanent',
- *   revokeOnCancel: boolean,
- * }>} */
+/** @type {Record} */
 export const ENTITLEMENT_MAP = {
   monthly_membership: {
     skus: [
-      'comm_monthly', 'aurevon-monthly', 'monthly-membership', 'monthly-pass',
-      'web3_starter', 'web3_growth',
+      'comm_monthly',
+      'aurevon-monthly',
+      'monthly-membership',
+      'monthly-pass',
+      'web3_starter',
+      'web3_growth',
     ],
     nftType: '001 Genesis',
     serialPrefix: 'GENESIS',
@@ -42,7 +36,10 @@ export const ENTITLEMENT_MAP = {
   },
   lifetime_membership: {
     skus: [
-      'comm_lifetime', 'aurevon-lifetime', 'lifetime-membership', 'lifetime-pass',
+      'comm_lifetime',
+      'aurevon-lifetime',
+      'lifetime-membership',
+      'lifetime-pass',
     ],
     nftType: '004 Chrome',
     serialPrefix: 'CHROME',
@@ -55,9 +52,15 @@ export const ENTITLEMENT_MAP = {
   },
   product_a_reward: {
     skus: [
-      'full', 'bogo', 're_full', 're_bogo',
-      'aurevon-product-a', 'product-a', 'insider',
+      'full',
+      'bogo',
+      're_full',
+      're_bogo',
+      'aurevon-product-a',
+      'product-a',
+      'insider',
       'web3_scale',
+      'nft_insider',        // standalone NFT purchase → same Insider entitlement
     ],
     nftType: 'Aurevon Insider',
     serialPrefix: 'INSIDER',
@@ -70,8 +73,11 @@ export const ENTITLEMENT_MAP = {
   },
   product_b_reward: {
     skus: [
-      'retainer', 're_retainer',
-      'aurevon-product-b', 'product-b', 'ember',
+      'retainer',
+      're_retainer',
+      'aurevon-product-b',
+      'product-b',
+      'ember',
     ],
     nftType: 'Aurevon Ember',
     serialPrefix: 'EMBER',
@@ -84,8 +90,13 @@ export const ENTITLEMENT_MAP = {
   },
   product_c_reward: {
     skus: [
-      'enterprise', 're_enterprise', 'web3_enterprise',
-      'aurevon-product-c', 'product-c', 'obsidian',
+      'enterprise',
+      're_enterprise',
+      'web3_enterprise',
+      'aurevon-product-c',
+      'product-c',
+      'obsidian',
+      'nft_obsidian',       // standalone NFT purchase → same Obsidian entitlement
     ],
     nftType: 'Aurevon Obsidian Executive',
     serialPrefix: 'OBSIDIAN',
@@ -114,7 +125,7 @@ for (const [key, cfg] of Object.entries(ENTITLEMENT_MAP)) {
 
 /**
  * Resolve entitlement from a SKU / tier key string.
- * Returns null for SKUs that carry no NFT entitlement (e.g. re_single, single).
+ * Returns null for SKUs that carry no NFT entitlement (e.g. re_single, single, addon_*).
  *
  * @param {string} sku
  * @returns {EntitlementKey|null}
@@ -127,7 +138,7 @@ export function resolveEntitlementFromSku(sku) {
 /**
  * Resolve entitlement from the NFT type string stored in Airtable.
  *
- * @param {string} nftType  e.g. "001 Genesis"
+ * @param {string} nftType e.g. "001 Genesis"
  * @returns {EntitlementKey|null}
  */
 export function resolveEntitlementFromNftType(nftType) {
@@ -164,10 +175,8 @@ export function shouldRevokeAccess({ membershipMode, revokeOnCancel, billingStat
   if (!revokeOnCancel) return false;
   if (membershipMode !== 'recurring') return false;
   if (billingState === 'active') return false;
-
   // Non-active billing states: cancelled, past_due, unpaid
   if (!endsAt) return true; // no end date means revoke immediately
-
   const end = new Date(endsAt);
   const graceCutoff = new Date(end.getTime() + gracePeriodDays * 86_400_000);
   return Date.now() > graceCutoff.getTime();
