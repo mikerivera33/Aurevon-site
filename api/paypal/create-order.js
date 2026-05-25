@@ -1,5 +1,6 @@
 // api/paypal/create-order.js
 // Creates a PayPal order for Aurevon pass purchases
+
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_SECRET = process.env.PAYPAL_SECRET;
 const PAYPAL_MODE = process.env.PAYPAL_MODE || 'live';
@@ -53,7 +54,11 @@ export default async function handler(req, res) {
     const accessToken = await getAccessToken();
     const response = await fetch(`${BASE_URL}/v2/checkout/orders`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'PayPal-Request-Id': `aurevon-${Date.now()}-${passType}` },
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'PayPal-Request-Id': `aurevon-${Date.now()}-${passType}`
+      },
       body: JSON.stringify({
         intent: 'CAPTURE',
         purchase_units: [{

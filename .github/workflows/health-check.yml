@@ -11,6 +11,102 @@ on:
                                       required: false
                                               default: 'production'
 
+<<<<<<< HEAD
+jobs:
+  health-check:
+    name: API Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check /api/health endpoint
+        id: health
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://www.aurevonvc.com' }}
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" "$PRODUCTION_URL/api/health")
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "status=$HTTP_STATUS" >> $GITHUB_OUTPUT
+          # Use multiline safe approach for body
+          EOF_MARKER=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "body<<$EOF_MARKER" >> $GITHUB_OUTPUT
+          echo "$BODY" >> $GITHUB_OUTPUT
+          echo "$EOF_MARKER" >> $GITHUB_OUTPUT
+          echo "HTTP Status: $HTTP_STATUS"
+          echo "Response: $BODY"
+
+      - name: Parse health response
+        env:
+          HEALTH_BODY: ${{ steps.health.outputs.body }}
+        run: |
+          echo "Health check result:"
+          echo "$HEALTH_BODY" | python3 << 'PYEOF'
+          import sys, json, os
+          raw = os.environ.get('HEALTH_BODY', sys.stdin.read())
+          try:
+            data = json.loads(raw)
+          except Exception as e:
+            print(f"::error::Failed to parse health JSON: {e}")
+            print(f"Raw response: {raw}")
+            sys.exit(1)
+          pipeline = data.get('pipeline', 'unknown')
+          status = data.get('status', 'unknown')
+          env_status = data.get('env', 'unknown')
+          optional_env = data.get('optional_env', 'N/A')
+          fn_count = data.get('function_count', '?')
+          fn_limit = data.get('function_limit', '?')
+          print(f"Pipeline: {pipeline}")
+          print(f"Status: {status}")
+          print(f"Env (required): {env_status}")
+          print(f"Env (optional): {optional_env}")
+          print(f"Functions: {fn_count}/{fn_limit}")
+          if env_status != 'complete':
+            print(f"::warning::Required env vars are PARTIAL — some services may be degraded. Check Vercel env config.")
+          PYEOF
+
+      - name: Check page routes
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://www.aurevonvc.com' }}
+        run: |
+          ROUTES=(
+            "$PRODUCTION_URL/"
+            "$PRODUCTION_URL/aurevon-re"
+            "$PRODUCTION_URL/aurevon-web3"
+            "$PRODUCTION_URL/aurevon-nft"
+            "$PRODUCTION_URL/aurevon-re-intake"
+            "$PRODUCTION_URL/aurevon-crm"
+            "$PRODUCTION_URL/merch"
+            "$PRODUCTION_URL/portal"
+            "$PRODUCTION_URL/operator"
+            "$PRODUCTION_URL/membership-confirmation"
+            "$PRODUCTION_URL/api/health"
+            "$PRODUCTION_URL/nfts/genesis"
+            "$PRODUCTION_URL/nfts/chrome"
+            "$PRODUCTION_URL/nfts/ember"
+            "$PRODUCTION_URL/nfts/insider"
+            "$PRODUCTION_URL/nfts/obsidian"
+          )
+          ALL_OK=true
+          for ROUTE in "${ROUTES[@]}"; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$ROUTE")
+            if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+              echo "OK ($STATUS): $ROUTE"
+            else
+              echo "FAIL ($STATUS): $ROUTE"
+              ALL_OK=false
+            fi
+          done
+          if [ "$ALL_OK" = false ]; then
+            echo "::error::One or more routes returned non-2xx/3xx status"
+            exit 1
+          fi
+
+      - name: Fail if health check returned non-200
+        if: steps.health.outputs.status != '200'
+        run: |
+          echo "::error::Health endpoint returned HTTP ${{ steps.health.outputs.status }} (expected 200)"
+          echo "::error::Set the PRODUCTION_URL repository variable to override the default URL"
+          exit 1
+=======
                                               jobs:
                                                 health-check:
                                                     name: API Health Check
@@ -99,3 +195,4 @@ on:
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             echo "::error::Health endpoint returned HTTP ${{ steps.health.outputs.status }} (expected 200)"
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       echo "::error::Set the PRODUCTION_URL repository variable to override the default URL"
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 exit 1
+>>>>>>> main

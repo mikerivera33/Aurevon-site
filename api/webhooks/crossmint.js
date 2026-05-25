@@ -32,31 +32,26 @@ function verifyCrossmintSignature(rawBody, sigHeader) {
     console.warn('[Crossmint Webhook] Missing crossmint-signature header');
     return false;
   }
-
   // Crossmint signature header format: "t=<timestamp>,v1=<hex>"
   const parts = Object.fromEntries(
     sigHeader.split(',').map((p) => p.split('=').map((s) => s.trim()))
   );
   const timestamp = parts['t'];
   const receivedSig = parts['v1'];
-
   if (!timestamp || !receivedSig) {
     console.warn('[Crossmint Webhook] Malformed signature header');
     return false;
   }
-
   // Reject events older than 5 minutes
   if (Math.abs(Date.now() / 1000 - parseInt(timestamp, 10)) > 300) {
     console.warn('[Crossmint Webhook] Event timestamp too old — possible replay');
     return false;
   }
-
   const signedPayload = `${timestamp}.${rawBody}`;
   const expected = crypto
     .createHmac('sha256', secret)
     .update(signedPayload, 'utf8')
     .digest('hex');
-
   return crypto.timingSafeEqual(
     Buffer.from(receivedSig, 'hex'),
     Buffer.from(expected, 'hex'),
@@ -68,58 +63,47 @@ function verifyCrossmintSignature(rawBody, sigHeader) {
 async function handleMintSuccess(event) {
   const mintId = event.data?.id ?? event.data?.actionId ?? null;
   const nftData = event.data?.nft ?? event.nft ?? {};
-  const recipientEmail = nftData.recipient?.email
-    ?? event.data?.recipient?.email
-    ?? null;
-
+  const recipientEmail = nftData.recipient?.email ?? event.data?.recipient?.email ?? null;
   console.log(`[Crossmint Webhook] Mint success mintId=${mintId} email=${recipientEmail}`);
 
-  // Find the matching NFT_Mints record by Token ID (mintId)
   let mintRecord = null;
   if (mintId) {
     const recs = await listNftMints(`{Token ID}="${mintId}"`, { maxRecords: 1 });
     mintRecord = recs[0] ?? null;
   }
-
-  // Fall back to email lookup if we didn't find by mintId
   if (!mintRecord && recipientEmail) {
     const { findActiveMintByEmail } = await import('../_lib/airtable.js');
     mintRecord = await findActiveMintByEmail(recipientEmail);
   }
-
   if (!mintRecord) {
     console.warn(`[Crossmint Webhook] No NFT_Mints record for mintId=${mintId} email=${recipientEmail}`);
     return;
   }
 
-  const recordId  = mintRecord.id;
-  const email     = mintRecord.fields['Email'] ?? recipientEmail ?? '';
-  const nftType   = mintRecord.fields['NFT Type'] ?? nftData.metadata?.name ?? '';
-  const txHash    = event.data?.onChain?.txId ?? '';
-  const now       = new Date().toISOString();
+  const recordId = mintRecord.id;
+  const email = mintRecord.fields['Email'] ?? recipientEmail ?? '';
+  const nftType = mintRecord.fields['NFT Type'] ?? nftData.metadata?.name ?? '';
+  const txHash = event.data?.onChain?.txId ?? '';
+  const now = new Date().toISOString();
 
-  // Update NFT_Mints record to Minted
   await updateNftMint(recordId, {
-    'Mint Status':      'Minted',
-    'Mint Date':        now,
+    'Mint Status': 'Minted',
+    'Mint Date': now,
     'Transaction Hash': txHash,
-    'Token ID':         mintId ?? mintRecord.fields['Token ID'] ?? '',
+    'Token ID': mintId ?? mintRecord.fields['Token ID'] ?? '',
   });
   console.log(`[Crossmint Webhook] Updated NFT_Mints recordId=${recordId} → Minted`);
 
-  // Attempt Discord role sync if the member has linked their account
   const entitlementKey = resolveEntitlementFromNftType(nftType);
   if (!entitlementKey) {
     console.warn(`[Crossmint Webhook] No entitlement key for nftType="${nftType}"`);
     return;
   }
-
   const roleId = getRoleId(entitlementKey);
   if (!roleId) {
     console.warn(`[Crossmint Webhook] No roleId for entitlement="${entitlementKey}" — check env vars`);
     return;
   }
-
   if (!email) {
     console.warn('[Crossmint Webhook] No email available for Discord sync');
     return;
@@ -127,15 +111,12 @@ async function handleMintSuccess(event) {
 
   const member = await findMemberByEmail(email).catch(() => null);
   const discordId = member?.fields?.['Discord ID'];
-
   if (discordId) {
     try {
       await addRoleToMember(discordId, roleId);
       await updateNftMint(recordId, { 'Discord Synced': true, 'Discord Synced At': now });
       await updateDiscordSyncStatus(email, 'synced');
       console.log(`[Crossmint Webhook] Discord role assigned discordId=${discordId} roleId=${roleId}`);
-
-      // Engage event
       onEntitlementActivated({
         email,
         name: member?.fields?.['Customer Name'] ?? '',
@@ -148,7 +129,6 @@ async function handleMintSuccess(event) {
       await updateDiscordSyncStatus(email, 'pending').catch(() => {});
     }
   } else {
-    // No Discord linked yet — mark pending so reconcile job picks it up
     console.log(`[Crossmint Webhook] No Discord ID for email=${email} — marking sync pending`);
     await updateDiscordSyncStatus(email, 'pending').catch(() => {});
   }
@@ -157,9 +137,7 @@ async function handleMintSuccess(event) {
 async function handleMintFailure(event) {
   const mintId = event.data?.id ?? event.data?.actionId ?? null;
   const errorMsg = event.data?.error?.message ?? JSON.stringify(event.data?.error ?? {});
-
   console.warn(`[Crossmint Webhook] Mint failed mintId=${mintId} error=${errorMsg}`);
-
   if (mintId) {
     const recs = await listNftMints(`{Token ID}="${mintId}"`, { maxRecords: 1 }).catch(() => []);
     if (recs[0]) {
@@ -171,7 +149,7 @@ async function handleMintFailure(event) {
   }
 }
 
-// ── Vercel handler ───────────────────────────────────────────────────────────
+// ── Vercel handler ────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -194,8 +172,11 @@ export default async function handler(req, res) {
   }
 
   let event;
-  try { event = JSON.parse(rawBody); }
-  catch { return res.status(400).json({ error: 'Invalid JSON' }); }
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return res.status(400).json({ error: 'Invalid JSON' });
+  }
 
   const eventType = event.type ?? '';
   console.log(`[Crossmint Webhook] Received type="${eventType}"`);

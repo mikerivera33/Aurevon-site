@@ -69,7 +69,7 @@ footer{margin-top:2rem;font-size:.75rem;color:var(--txt2);text-align:center;}
   </div>
 </div>
 
-<footer>Aurevon Group LLC &middot; <a href="mailto:hello@aurevongroup.com" style="color:var(--gold);text-decoration:none;">hello@aurevongroup.com</a></footer>
+<footer>Aurevon Ventures LLC &middot; <a href="mailto:hello@aurevonvc.com" style="color:var(--gold);text-decoration:none;">hello@aurevonvc.com</a></footer>
 
 <script>
 const DOMAIN = window.location.origin;
@@ -99,7 +99,7 @@ async function handleLookup(e) {
     const data = await r.json();
 
     if (!data.nftFound) {
-      showResult('info', `No NFT purchase found for <strong>${email}</strong>. If you just purchased, it can take a few minutes to process. Try again shortly or email <a href="mailto:hello@aurevongroup.com" style="color:#93c5fd;">hello@aurevongroup.com</a>.`);
+      showResult('info', `No NFT purchase found for <strong>${email}</strong>. If you just purchased, it can take a few minutes to process. Try again shortly or email <a href="mailto:hello@aurevonvc.com" style="color:#93c5fd;">hello@aurevonvc.com</a>.`);
       return;
     }
 
@@ -124,7 +124,7 @@ async function doClaimPost(email) {
   if (data.nftFound) {
     showStatusCard(data, email);
   } else {
-    showResult('info', `No active NFT found for <strong>${email}</strong>. Contact <a href="mailto:hello@aurevongroup.com" style="color:#93c5fd;">support</a> if you believe this is an error.`);
+    showResult('info', `No active NFT found for <strong>${email}</strong>. Contact <a href="mailto:hello@aurevonvc.com" style="color:#93c5fd;">support</a> if you believe this is an error.`);
   }
 }
 

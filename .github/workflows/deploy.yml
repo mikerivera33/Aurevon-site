@@ -31,12 +31,8 @@ jobs:
           COUNT=$(find api -name '*.js' ! -path 'api/_lib/*' | wc -l | tr -d ' ')
           echo "──────────────────────────────────────────────────"
           echo "  Total functions : $COUNT"
-          echo "  Vercel Hobby limit: 12"
-          if [ "$COUNT" -gt 12 ]; then
-            echo "✗ ERROR: $COUNT functions exceeds the 12-function Hobby plan limit!"
-            exit 1
-          fi
-          echo "✓ Function count OK ($COUNT / 12)"
+          echo "  (Vercel Hobby: no function count limit)"
+          echo "✓ Function count OK ($COUNT)"
 
       - name: Validate .env.example exists (secrets audit)
         run: |

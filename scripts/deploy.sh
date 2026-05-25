@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# BLOCKT Ventures — One-Command Production Deploy Script
+# Aurevon Ventures LLC — One-Command Production Deploy Script
 # =============================================================================
 # Usage:
 #   bash scripts/deploy.sh            # Deploy to production

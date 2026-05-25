@@ -32,9 +32,9 @@ h1,h2,h3,h4{font-family:'Archivo Black',sans-serif;line-height:1.2;}
 button{cursor:pointer;font-family:'DM Sans',sans-serif;}
 
 /* ── Top nav ──────────────────────────────────────────────────── */
-.bkt-top-nav{position:fixed;top:0;left:0;right:0;z-index:200;background:rgba(12,12,14,0.9);backdrop-filter:blur(14px);border-bottom:1px solid var(--border-gold);padding:.7rem 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;}
-.bkt-top-nav .logo{display:flex;align-items:center;gap:8px;color:var(--txt);text-decoration:none;font-family:'Archivo Black',sans-serif;font-size:1rem;}
-.bkt-top-nav .owner-badge{font-size:.7rem;color:var(--gold);background:rgba(59,130,246,.1);border:1px solid var(--border-gold);padding:4px 10px;border-radius:6px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;white-space:nowrap;}
+.aurevon-top-nav{position:fixed;top:0;left:0;right:0;z-index:200;background:rgba(12,12,14,0.9);backdrop-filter:blur(14px);border-bottom:1px solid var(--border-gold);padding:.7rem 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;}
+.aurevon-top-nav .logo{display:flex;align-items:center;gap:8px;color:var(--txt);text-decoration:none;font-family:'Archivo Black',sans-serif;font-size:1rem;}
+.aurevon-top-nav .owner-badge{font-size:.7rem;color:var(--gold);background:rgba(59,130,246,.1);border:1px solid var(--border-gold);padding:4px 10px;border-radius:6px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;white-space:nowrap;}
 
 /* ── Sticky tab bar ───────────────────────────────────────────── */
 .tab-bar{position:fixed;top:60px;left:0;right:0;z-index:150;background:rgba(6,6,10,0.97);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);height:var(--tab-h);display:flex;align-items:center;padding:0 1rem;gap:4px;overflow-x:auto;scrollbar-width:none;}
@@ -194,7 +194,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 <body>
 
 <!-- ══ TOP NAV ══════════════════════════════════════════════════ -->
-<nav class="bkt-top-nav">
+<nav class="aurevon-top-nav">
   <a href="index.html" class="logo">
             <img src="assets/aurevon A logo blue by itself.jpg" alt="Aurevon" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:cover;">
     <span>Aurevon · Operator Hub</span>
@@ -231,27 +231,27 @@ tr:hover td{background:rgba(255,255,255,0.02);}
       <div class="card-title">Backend Health</div>
       <div class="card-note">Once deployed to Vercel, this panel pings <code style="background:rgba(59,130,246,0.08);padding:1px 5px;border-radius:3px;color:var(--gold);">/api/health</code> and shows live status of every service in the autonomous pipeline. Pre-deploy it shows the wiring map.</div>
       <div style="display:grid;grid-template-columns:1fr;gap:0.6rem;margin-top:1rem;" id="backendStatusGrid">
-        <div class="bkt-svc-row" data-svc="airtable">
+        <div class="aurevon-svc-row" data-svc="airtable">
           <div class="svc-name">📋 Airtable (data layer)</div>
           <div class="svc-state" data-state="pending">Checking...</div>
         </div>
-        <div class="bkt-svc-row" data-svc="stripe">
+        <div class="aurevon-svc-row" data-svc="stripe">
           <div class="svc-name">💳 Stripe (Card · Cash App · Afterpay)</div>
           <div class="svc-state" data-state="pending">Checking...</div>
         </div>
-        <div class="bkt-svc-row" data-svc="paypal">
+        <div class="aurevon-svc-row" data-svc="paypal">
           <div class="svc-name">🅿️ PayPal Business</div>
           <div class="svc-state" data-state="pending">Checking...</div>
         </div>
-        <div class="bkt-svc-row" data-svc="crossmint">
+        <div class="aurevon-svc-row" data-svc="crossmint">
           <div class="svc-name">🎴 Crossmint (NFT minting)</div>
           <div class="svc-state" data-state="pending">Checking...</div>
         </div>
-        <div class="bkt-svc-row" data-svc="resend">
+        <div class="aurevon-svc-row" data-svc="resend">
           <div class="svc-name">📧 Resend (transactional email)</div>
           <div class="svc-state" data-state="pending">Checking...</div>
         </div>
-        <div class="bkt-svc-row" data-svc="discord">
+        <div class="aurevon-svc-row" data-svc="discord">
           <div class="svc-name">💬 Discord Bot + OAuth</div>
           <div class="svc-state" data-state="pending">Checking...</div>
         </div>
@@ -304,19 +304,19 @@ Cron jobs:
   </div>
 </section>
 <style>
-.bkt-svc-row{display:flex;justify-content:space-between;align-items:center;padding:0.7rem 1rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;}
-.bkt-svc-row .svc-name{font-size:.88rem;color:var(--txt);font-weight:600;}
-.bkt-svc-row .svc-state{font-size:.7rem;font-weight:700;letter-spacing:.06em;padding:3px 9px;border-radius:6px;}
-.bkt-svc-row .svc-state[data-state="pending"]{background:rgba(120,120,120,0.1);color:#888;}
-.bkt-svc-row .svc-state[data-state="ok"]{background:rgba(46,204,113,0.12);color:#2ecc71;}
-.bkt-svc-row .svc-state[data-state="error"]{background:rgba(231,76,60,0.12);color:#e74c3c;}
-.bkt-svc-row .svc-state[data-state="not-configured"]{background:rgba(59,130,246,0.12);color:var(--gold);}
+.aurevon-svc-row{display:flex;justify-content:space-between;align-items:center;padding:0.7rem 1rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;}
+.aurevon-svc-row .svc-name{font-size:.88rem;color:var(--txt);font-weight:600;}
+.aurevon-svc-row .svc-state{font-size:.7rem;font-weight:700;letter-spacing:.06em;padding:3px 9px;border-radius:6px;}
+.aurevon-svc-row .svc-state[data-state="pending"]{background:rgba(120,120,120,0.1);color:#888;}
+.aurevon-svc-row .svc-state[data-state="ok"]{background:rgba(46,204,113,0.12);color:#2ecc71;}
+.aurevon-svc-row .svc-state[data-state="error"]{background:rgba(231,76,60,0.12);color:#e74c3c;}
+.aurevon-svc-row .svc-state[data-state="not-configured"]{background:rgba(59,130,246,0.12);color:var(--gold);}
 </style>
 <script>
 window.bktCheckBackend = async function(){
   const grid = document.getElementById('backendStatusGrid');
   if(!grid) return;
-  const rows = grid.querySelectorAll('.bkt-svc-row');
+  const rows = grid.querySelectorAll('.aurevon-svc-row');
   rows.forEach(r => { r.querySelector('.svc-state').setAttribute('data-state','pending'); r.querySelector('.svc-state').textContent='Checking...'; });
   try {
     const r = await fetch('/api/health', { cache: 'no-store' });
@@ -452,7 +452,7 @@ document.addEventListener('DOMContentLoaded', function(){
     <div class="section-body open">
       <div class="card">
         <div class="card-title">Airtable Integration</div>
-        <p style="font-size:.83rem;color:var(--txt2);">All deal submissions from <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">BLOCKT_RE_Intake.html</code> are logged here. Connect <strong>Airtable Base ID</strong> <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">appI9X8vcRcK1QZ1l</code> Table <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">Leads</code> to populate this view.</p>
+        <p style="font-size:.83rem;color:var(--txt2);">All deal submissions from <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">aurevon-re-intake.html</code> are logged here. Connect <strong>Airtable Base ID</strong> <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">appI9X8vcRcK1QZ1l</code> Table <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">Leads</code> to populate this view.</p>
         <div class="card-note">Setup → <strong>Airtable</strong> → <code>AUREVON_CONFIG.AIRTABLE_LEADS_BASE_ID</code>. Webhook from Formspree → Airtable supported via Zapier or Make.com.</div>
       </div>
       <div class="tbl-wrap">
@@ -631,7 +631,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: Airtable new row in Leads table. Action: Post to #new-leads Slack channel with name, tier, and property.</div>
           <div class="auto-footer">
             <span class="auto-tag">Zapier / Make</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+Slack+Alert">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+Slack+Alert">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -640,7 +640,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: Stripe <code style="font-size:.73rem;">checkout.session.completed</code>. Action: Send NFT email via Postmark + assign Discord role via bot.</div>
           <div class="auto-footer">
             <span class="auto-tag">Stripe Webhook</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+NFT+Discord+Flow">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+NFT+Discord+Flow">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -649,7 +649,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: Airtable record status = In Progress AND due_date < now(). Action: Slack DM + email to owner.</div>
           <div class="auto-footer">
             <span class="auto-tag">Make.com</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+SLA+Alert">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+SLA+Alert">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -658,7 +658,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: NPS survey response ≥ 9. Action: Send personalized email requesting a review + LinkedIn recommendation.</div>
           <div class="auto-footer">
             <span class="auto-tag">Typeform + Zapier</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+Testimonial+Flow">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+Testimonial+Flow">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -667,7 +667,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: Genesis or Chrome tier payment. Action: Add to permanent Discord role, send welcome PDF packet, tag in CRM as VIP.</div>
           <div class="auto-footer">
             <span class="auto-tag">Stripe + Discord</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+Lifetime+Onboarding">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+Lifetime+Onboarding">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -676,7 +676,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: 7 days before Stripe subscription renewal. Action: Send check-in DM asking if needs persist and offering upgrade path.</div>
           <div class="auto-footer">
             <span class="auto-tag">Stripe + Postmark</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+Renewal+Check-in">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+Renewal+Check-in">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -685,7 +685,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: Every Monday 7 AM. Action: Email owner summary — leads, revenue, NPS score, deliverables, churn risk flag.</div>
           <div class="auto-footer">
             <span class="auto-tag">Make.com Schedule</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+Weekly+Digest">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+Weekly+Digest">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -694,7 +694,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: Stripe checkout session expired without payment. Action: Wait 2h, send recovery email with direct payment link.</div>
           <div class="auto-footer">
             <span class="auto-tag">Stripe + Klaviyo</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevongroup.com?subject=Setup+Abandoned+Cart">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+Abandoned+Cart">Set up →</a>
           </div>
         </div>
       </div>
@@ -804,7 +804,7 @@ document.addEventListener('DOMContentLoaded', function(){
         </div>
         <div class="check-item" data-key="stripe_success_url" onclick="toggleCheck(this)">
           <div class="check-box">✓</div>
-          <div class="check-label">Set Stripe <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">success_url</code> to <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">BLOCKT_RE_Intake.html?paid={'{CHECKOUT_SESSION_ID}'}</code> (or Web3 confirmation page for community tiers)</div>
+          <div class="check-label">Set Stripe <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">success_url</code> to <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">aurevon-re-intake.html?paid={'{CHECKOUT_SESSION_ID}'}</code> (or Web3 confirmation page for community tiers)</div>
         </div>
         <div class="check-item" data-key="paypal" onclick="toggleCheck(this)">
           <div class="check-box">✓</div>
@@ -828,7 +828,7 @@ document.addEventListener('DOMContentLoaded', function(){
         </div>
         <div class="check-item" data-key="email" onclick="toggleCheck(this)">
           <div class="check-box">✓</div>
-          <div class="check-label">Email forwarding → <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">hello@aurevongroup.com</code> → connect Postmark or Resend for transactional email</div>
+          <div class="check-label">Email forwarding → <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">hello@aurevonvc.com</code> → connect Postmark or Resend for transactional email</div>
         </div>
         <div class="check-item" data-key="slack" onclick="toggleCheck(this)">
           <div class="check-box">✓</div>
@@ -844,7 +844,7 @@ document.addEventListener('DOMContentLoaded', function(){
         </div>
         <div class="check-item" data-key="test_intake" onclick="toggleCheck(this)">
           <div class="check-box">✓</div>
-          <div class="check-label">Test the intake form gating (visit BLOCKT_RE_Intake.html directly — should be blocked without paid token)</div>
+          <div class="check-label">Test the intake form gating (visit aurevon-re-intake.html directly — should be blocked without paid token)</div>
         </div>
         <div class="check-item" data-key="test_nft" onclick="toggleCheck(this)">
           <div class="check-box">✓</div>
@@ -888,7 +888,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="lt-name">NFT Collection</div>
           <div class="lt-tag">aurevon-nft.html</div>
         </a>
-        <a href="BLOCKT_RE_Intake.html?paid=test_token_owner_preview" class="link-tile">
+        <a href="aurevon-re-intake.html?paid=test_token_owner_preview" class="link-tile">
           <div class="lt-icon">📝</div>
           <div class="lt-name">Intake Form</div>
           <div class="lt-tag">?paid=test_token_owner_preview</div>
@@ -960,16 +960,16 @@ document.addEventListener('DOMContentLoaded', function(){
 <!-- FOOTER INJECT -->
 
 <style>
-.bkt-global-foot{margin-top:0;padding:1.6rem 1rem;border-top:1px solid rgba(255,255,255,0.07);background:#050510;color:#6b6760;font-size:0.78rem;font-family:'DM Sans',sans-serif;}
-.bkt-global-foot .row{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;}
-.bkt-global-foot .links{display:flex;gap:1.2rem;flex-wrap:wrap;}
-.bkt-global-foot a{color:#b8b3ab;text-decoration:none;transition:color .2s;}
-.bkt-global-foot a:hover{color:#1E3A8A;}
-.bkt-global-foot .social{display:flex;gap:.8rem;align-items:center;}
+.aurevon-global-foot{margin-top:0;padding:1.6rem 1rem;border-top:1px solid rgba(255,255,255,0.07);background:#050510;color:#6b6760;font-size:0.78rem;font-family:'DM Sans',sans-serif;}
+.aurevon-global-foot .row{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;}
+.aurevon-global-foot .links{display:flex;gap:1.2rem;flex-wrap:wrap;}
+.aurevon-global-foot a{color:#b8b3ab;text-decoration:none;transition:color .2s;}
+.aurevon-global-foot a:hover{color:#1E3A8A;}
+.aurevon-global-foot .social{display:flex;gap:.8rem;align-items:center;}
 </style>
-<footer class="bkt-global-foot">
+<footer class="aurevon-global-foot">
   <div class="row">
-    <div>© <span id="bktYr">2026</span> Aurevon Group LLC · Systems. Capital. Infrastructure..</div>
+    <div>© <span id="aurevonYr">2026</span> Aurevon Ventures LLC · Systems. Capital. Infrastructure. · Aurevon RE, Aurevon Labs, and all related entities are owned and operated by Aurevon Ventures LLC.</div>
     <div class="links">
       <a href="index.html">Home</a>
       <a href="aurevon-re.html">RE Underwriting</a>
@@ -982,7 +982,7 @@ document.addEventListener('DOMContentLoaded', function(){
     </div>
     <div class="social"><a href="https://x.com/AurevonLabs" target="_blank" rel="noopener" title="X / Twitter"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a><a href="https://discord.gg/2fwFjMEh" target="_blank" rel="noopener" title="Discord"><svg width="16" height="14" viewBox="0 0 71 55" fill="currentColor"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z"/></svg></a></div>
   </div>
-  <script>(function(){var y=document.getElementById('bktYr');if(y)y.textContent=new Date().getFullYear();})();</script>
+  <script>(function(){var y=document.getElementById("aurevonYr")');if(y)y.textContent=new Date().getFullYear();})();</script>
 </footer>
 
 

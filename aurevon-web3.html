@@ -396,16 +396,16 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 </section>
 
 <style>
-.bkt-global-foot{margin-top:0;padding:1.6rem 1rem;border-top:1px solid rgba(255,255,255,0.07);background:#050510;color:#6b6760;font-size:0.78rem;font-family:'DM Sans',sans-serif;}
-.bkt-global-foot .row{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;}
-.bkt-global-foot .links{display:flex;gap:1.2rem;flex-wrap:wrap;}
-.bkt-global-foot a{color:#b8b3ab;text-decoration:none;transition:color .2s;}
-.bkt-global-foot a:hover{color:#1E3A8A;}
-.bkt-global-foot .social{display:flex;gap:.8rem;align-items:center;}
+.aurevon-global-foot{margin-top:0;padding:1.6rem 1rem;border-top:1px solid rgba(255,255,255,0.07);background:#050510;color:#6b6760;font-size:0.78rem;font-family:'DM Sans',sans-serif;}
+.aurevon-global-foot .row{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;}
+.aurevon-global-foot .links{display:flex;gap:1.2rem;flex-wrap:wrap;}
+.aurevon-global-foot a{color:#b8b3ab;text-decoration:none;transition:color .2s;}
+.aurevon-global-foot a:hover{color:#1E3A8A;}
+.aurevon-global-foot .social{display:flex;gap:.8rem;align-items:center;}
 </style>
-<footer class="bkt-global-foot">
+<footer class="aurevon-global-foot">
   <div class="row">
-    <div>© <span id="bktYr">2026</span> Aurevon Group LLC · Systems. Capital. Infrastructure..</div>
+    <div>© <span id="aurevonYr">2026</span> Aurevon Labs · An Aurevon Ventures LLC company.</div>
     <div class="links">
       <a href="index.html">Home</a>
       <a href="aurevon-re.html">RE Underwriting</a>
@@ -418,7 +418,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
     </div>
     <div class="social"><a href="https://x.com/AurevonLabs" target="_blank" rel="noopener" title="X / Twitter"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a><a href="https://discord.gg/2fwFjMEh" target="_blank" rel="noopener" title="Discord"><svg width="16" height="14" viewBox="0 0 71 55" fill="currentColor"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z"/></svg></a></div>
   </div>
-  <script>(function(){var y=document.getElementById('bktYr');if(y)y.textContent=new Date().getFullYear();})();</script>
+  <script>(function(){var y=document.getElementById("aurevonYr")');if(y)y.textContent=new Date().getFullYear();})();</script>
 </footer>
 
 <script>
@@ -443,7 +443,7 @@ const COMM_PAY = {
     comm_lifetime: "https://www.paypal.com/REPLACE_COMM_LIFETIME"
   },
   // Set your Stripe success_url / PayPal return URL to this page:
-  INTAKE_URL: "BLOCKT_RE_Intake.html"
+  INTAKE_URL: "aurevon-re-intake.html"
 };
 
 document.getElementById('yr').textContent = new Date().getFullYear();
@@ -484,47 +484,47 @@ document.querySelectorAll('[data-pay]').forEach(btn => {
 });
 </script>
 <!-- ============ Aurevon UNIFIED PAYMENT TERMINAL ============ -->
-<div id="bktPayModal" class="bkt-pay-modal" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="bkt-pay-overlay"></div>
-  <div class="bkt-pay-card">
-    <button class="bkt-pay-close" type="button" aria-label="Close">&times;</button>
-    <div class="bkt-pay-head">
-      <div class="bkt-pay-logo">
+<div id="bktPayModal" class="aurevon-pay-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="aurevon-pay-overlay"></div>
+  <div class="aurevon-pay-card">
+    <button class="aurevon-pay-close" type="button" aria-label="Close">&times;</button>
+    <div class="aurevon-pay-head">
+      <div class="aurevon-pay-logo">
         <svg width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:8px;flex-shrink:0;"><rect width="40" height="40" rx="8" fill="#1E3A8A"/><path fill-rule="evenodd" fill="white" d="M14 5L21 4L31 36L27 36L23 23L16 27L13 36L8.5 36Z M19 7L23 23L16 27Z"/></svg>
         <div>
-          <div class="bkt-pay-brand">Aurevon</div>
-          <div class="bkt-pay-secure">Secure Checkout · 256-bit TLS</div>
+          <div class="aurevon-pay-brand">Aurevon</div>
+          <div class="aurevon-pay-secure">Secure Checkout · 256-bit TLS</div>
         </div>
       </div>
     </div>
-    <div class="bkt-pay-body">
-      <div class="bkt-pay-summary" id="bktPaySummary">
-        <div class="bkt-pay-tier" id="bktPayTier">Tier</div>
-        <div class="bkt-pay-amount" id="bktPayAmount">$0.00</div>
-        <div class="bkt-pay-desc" id="bktPayDesc">Description</div>
+    <div class="aurevon-pay-body">
+      <div class="aurevon-pay-summary" id="bktPaySummary">
+        <div class="aurevon-pay-tier" id="bktPayTier">Tier</div>
+        <div class="aurevon-pay-amount" id="bktPayAmount">$0.00</div>
+        <div class="aurevon-pay-desc" id="bktPayDesc">Description</div>
       </div>
-      <div class="bkt-pay-tabs">
-        <button class="bkt-pay-tab active" data-method="stripe" type="button">
+      <div class="aurevon-pay-tabs">
+        <button class="aurevon-pay-tab active" data-method="stripe" type="button">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#635BFF"/><path d="M13.5 9.5c0-.6.5-.85 1.3-.85 1.15 0 2.6.35 3.75.95V6.05C17.4 5.55 16.2 5.35 14.8 5.35c-3.4 0-5.65 1.75-5.65 4.7 0 4.55 6.3 3.85 6.3 5.85 0 .7-.6.95-1.5.95-1.25 0-2.85-.5-4.15-1.2v3.5c1.45.6 2.9.85 4.15.85 3.5 0 5.85-1.7 5.85-4.75-.05-4.85-6.3-4.05-6.3-5.95z" fill="white"/></svg>
           <span>Card</span>
         </button>
-        <button class="bkt-pay-tab" data-method="paypal" type="button">
+        <button class="aurevon-pay-tab" data-method="paypal" type="button">
           <svg width="22" height="22" viewBox="0 0 24 24"><path d="M7.4 21.4l.4-2.5h2.7l1.3-7.5h2.7c2.8 0 5.1-.7 6.4-3.5.5-1.2.6-2.4.4-3.4-.1-.8-.5-1.5-1-2C19.3.7 17.7 0 15.5 0H8.7c-.4 0-.8.3-.9.7L5 19.5c0 .3.1.5.2.7.2.2.4.3.6.3h1.5z" fill="#003087"/><path d="M21.3 4.5c-.1.7-.3 1.5-.6 2.4-1.1 3.5-3.6 4.7-7.1 4.7H12c-.4 0-.8.3-.9.7l-1 6.4-.3 1.7c0 .2.1.5.3.6.2.2.4.3.6.3h2.8c.4 0 .7-.3.8-.7l.1-.2.5-3.2.1-.2c.1-.4.4-.7.8-.7h.5c3.1 0 5.5-1.3 6.2-4.9.3-1.5.2-2.8-.6-3.7-.2-.3-.5-.6-.8-.8z" fill="#0070BA"/></svg>
           <span>PayPal</span>
         </button>
-        <button class="bkt-pay-tab" data-method="cashapp" type="button">
+        <button class="aurevon-pay-tab" data-method="cashapp" type="button">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#00D632"/><path d="M16.6 9.3c-.4-.4-1.5-1.4-3.7-1.4-.9 0-1.6.4-1.6 1.1 0 .6.4.9 1.6 1.4 2.2.9 4 1.6 4 3.9 0 2.5-2.1 3.6-4.4 3.6-2.5 0-4.2-1.2-4.7-1.8-.2-.2-.2-.4 0-.6l.7-.7c.2-.2.4-.2.6 0 .5.4 1.7 1.2 3.2 1.2 1 0 1.8-.4 1.8-1.2 0-.7-.6-1.1-2.2-1.7-1.7-.7-3.3-1.5-3.3-3.6 0-2 1.7-3.3 4-3.3 2 0 3.4.9 4 1.4.2.1.2.4 0 .6l-.7.7c-.1.1-.4.1-.5 0z" fill="white"/><path d="M14.9 5.3l.4-1.5c.1-.2-.1-.4-.3-.4h-1.6c-.2 0-.4.1-.5.3l-.3 1.5h2.3zM10 18.7l-.4 1.5c-.1.2.1.4.3.4h1.6c.2 0 .4-.1.5-.3l.3-1.5H10z" fill="white"/></svg>
           <span>Cash App</span>
         </button>
-        <button class="bkt-pay-tab" data-method="afterpay" type="button">
+        <button class="aurevon-pay-tab" data-method="afterpay" type="button">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#B2FCE4"/><path d="M16.5 7.4l-3.6-2.1c-.6-.3-1.3.1-1.3.8v1.1c0 .1-.1.3-.2.3l-3.7 2.1c-.6.3-.6 1.2 0 1.5l3.7 2.1c.1.1.2.2.2.3v1.1c0 .7.7 1.1 1.3.8l3.6-2.1c.6-.3.6-1.2 0-1.5l-3.6-2.1c-.1-.1-.2-.2-.2-.3v-.4c0-.1.1-.2.2-.3l3.6-2.1c.6-.3.6-1.2 0-1.5z" fill="#000"/></svg>
           <span>Afterpay</span>
         </button>
       </div>
-      <div class="bkt-pay-content" id="bktPayContent">
+      <div class="aurevon-pay-content" id="bktPayContent">
         <!-- dynamic content rendered by JS -->
       </div>
-      <div class="bkt-pay-trust">
+      <div class="aurevon-pay-trust">
         <span>🔒 Encrypted</span>
         <span>·</span>
         <span>📧 Receipt to your email</span>
@@ -536,44 +536,44 @@ document.querySelectorAll('[data-pay]').forEach(btn => {
 </div>
 
 <style>
-.bkt-pay-modal{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;}
-.bkt-pay-modal.open{display:flex;}
-.bkt-pay-overlay{position:absolute;inset:0;background:rgba(6,6,8,0.86);backdrop-filter:blur(8px);}
-.bkt-pay-card{position:relative;background:linear-gradient(180deg,#111827,#0A0A0A);border:1px solid rgba(59,130,246,0.18);border-radius:18px;width:min(520px,92vw);max-height:92vh;overflow:hidden;box-shadow:0 30px 80px rgba(30,58,138,0.18),0 0 0 1px rgba(59,130,246,0.08);display:flex;flex-direction:column;}
-.bkt-pay-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#1E3A8A,#3B82F6,#1E40AF);}
-.bkt-pay-close{position:absolute;top:12px;right:14px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#f0ede8;font-size:1.4rem;line-height:1;cursor:pointer;z-index:2;transition:background .2s;}
-.bkt-pay-close:hover{background:rgba(30,58,138,0.2);border-color:rgba(30,58,138,0.4);}
-.bkt-pay-head{padding:1.4rem 1.6rem 1rem;border-bottom:1px solid rgba(255,255,255,0.05);}
-.bkt-pay-logo{display:flex;align-items:center;gap:0.7rem;}
-.bkt-pay-brand{font-family:'Archivo Black',sans-serif;font-size:1.05rem;color:#f0ede8;letter-spacing:-0.02em;}
-.bkt-pay-secure{font-size:0.7rem;color:#6b6760;letter-spacing:0.06em;}
-.bkt-pay-body{padding:1.2rem 1.6rem 1.6rem;overflow-y:auto;}
-.bkt-pay-summary{background:linear-gradient(180deg,rgba(30,58,138,0.08),rgba(30,58,138,0.02));border:1px solid rgba(30,58,138,0.18);border-radius:12px;padding:1rem 1.1rem;margin-bottom:1.1rem;}
-.bkt-pay-tier{font-size:0.7rem;color:#3B82F6;text-transform:uppercase;letter-spacing:0.14em;font-weight:700;margin-bottom:0.35rem;}
-.bkt-pay-amount{font-family:'Archivo Black',sans-serif;font-size:1.8rem;color:#f0ede8;line-height:1;margin-bottom:0.35rem;}
-.bkt-pay-desc{font-size:0.78rem;color:#b8b3ab;line-height:1.5;}
-.bkt-pay-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:5px;margin-bottom:1.1rem;}
-.bkt-pay-tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0.6rem 0.4rem;background:transparent;border:none;border-radius:7px;color:#b8b3ab;font-size:0.72rem;font-weight:600;cursor:pointer;transition:background .2s,color .2s;font-family:inherit;}
-.bkt-pay-tab:hover{background:rgba(255,255,255,0.04);color:#f0ede8;}
-.bkt-pay-tab.active{background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#0A0A0A;font-weight:700;box-shadow:0 4px 14px rgba(30,58,138,0.35);}
-.bkt-pay-tab.active svg rect:first-child{filter:brightness(0.9);}
-.bkt-pay-content{min-height:140px;}
-.bkt-pay-cta{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0.95rem 1.4rem;border:none;border-radius:10px;font-family:'Archivo Black',sans-serif;font-size:0.95rem;cursor:pointer;text-decoration:none;background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#0A0A0A;box-shadow:0 8px 24px rgba(30,58,138,0.32);transition:transform .2s,box-shadow .2s;letter-spacing:0.02em;margin-top:0.4rem;}
-.bkt-pay-cta:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(30,58,138,0.45);color:#0A0A0A;}
-.bkt-pay-info{font-size:0.85rem;color:#b8b3ab;line-height:1.6;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.85rem 1rem;margin-bottom:0.7rem;}
-.bkt-pay-info strong{color:#f0ede8;}
-.bkt-pay-info .pmlogo{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,rgba(30,58,138,0.1),rgba(59,130,246,0.05));padding:3px 9px;border-radius:6px;margin-bottom:0.55rem;font-weight:700;color:#3B82F6;font-size:0.7rem;letter-spacing:0.06em;text-transform:uppercase;}
-.bkt-pay-trust{margin-top:1rem;display:flex;justify-content:center;align-items:center;gap:0.55rem;flex-wrap:wrap;font-size:0.68rem;color:#6b6760;}
-@media(max-width:520px){.bkt-pay-tabs{grid-template-columns:repeat(2,1fr);}}
+.aurevon-pay-modal{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;}
+.aurevon-pay-modal.open{display:flex;}
+.aurevon-pay-overlay{position:absolute;inset:0;background:rgba(6,6,8,0.86);backdrop-filter:blur(8px);}
+.aurevon-pay-card{position:relative;background:linear-gradient(180deg,#111827,#0A0A0A);border:1px solid rgba(59,130,246,0.18);border-radius:18px;width:min(520px,92vw);max-height:92vh;overflow:hidden;box-shadow:0 30px 80px rgba(30,58,138,0.18),0 0 0 1px rgba(59,130,246,0.08);display:flex;flex-direction:column;}
+.aurevon-pay-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#1E3A8A,#3B82F6,#1E40AF);}
+.aurevon-pay-close{position:absolute;top:12px;right:14px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#f0ede8;font-size:1.4rem;line-height:1;cursor:pointer;z-index:2;transition:background .2s;}
+.aurevon-pay-close:hover{background:rgba(30,58,138,0.2);border-color:rgba(30,58,138,0.4);}
+.aurevon-pay-head{padding:1.4rem 1.6rem 1rem;border-bottom:1px solid rgba(255,255,255,0.05);}
+.aurevon-pay-logo{display:flex;align-items:center;gap:0.7rem;}
+.aurevon-pay-brand{font-family:'Archivo Black',sans-serif;font-size:1.05rem;color:#f0ede8;letter-spacing:-0.02em;}
+.aurevon-pay-secure{font-size:0.7rem;color:#6b6760;letter-spacing:0.06em;}
+.aurevon-pay-body{padding:1.2rem 1.6rem 1.6rem;overflow-y:auto;}
+.aurevon-pay-summary{background:linear-gradient(180deg,rgba(30,58,138,0.08),rgba(30,58,138,0.02));border:1px solid rgba(30,58,138,0.18);border-radius:12px;padding:1rem 1.1rem;margin-bottom:1.1rem;}
+.aurevon-pay-tier{font-size:0.7rem;color:#3B82F6;text-transform:uppercase;letter-spacing:0.14em;font-weight:700;margin-bottom:0.35rem;}
+.aurevon-pay-amount{font-family:'Archivo Black',sans-serif;font-size:1.8rem;color:#f0ede8;line-height:1;margin-bottom:0.35rem;}
+.aurevon-pay-desc{font-size:0.78rem;color:#b8b3ab;line-height:1.5;}
+.aurevon-pay-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:5px;margin-bottom:1.1rem;}
+.aurevon-pay-tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0.6rem 0.4rem;background:transparent;border:none;border-radius:7px;color:#b8b3ab;font-size:0.72rem;font-weight:600;cursor:pointer;transition:background .2s,color .2s;font-family:inherit;}
+.aurevon-pay-tab:hover{background:rgba(255,255,255,0.04);color:#f0ede8;}
+.aurevon-pay-tab.active{background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#0A0A0A;font-weight:700;box-shadow:0 4px 14px rgba(30,58,138,0.35);}
+.aurevon-pay-tab.active svg rect:first-child{filter:brightness(0.9);}
+.aurevon-pay-content{min-height:140px;}
+.aurevon-pay-cta{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0.95rem 1.4rem;border:none;border-radius:10px;font-family:'Archivo Black',sans-serif;font-size:0.95rem;cursor:pointer;text-decoration:none;background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#0A0A0A;box-shadow:0 8px 24px rgba(30,58,138,0.32);transition:transform .2s,box-shadow .2s;letter-spacing:0.02em;margin-top:0.4rem;}
+.aurevon-pay-cta:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(30,58,138,0.45);color:#0A0A0A;}
+.aurevon-pay-info{font-size:0.85rem;color:#b8b3ab;line-height:1.6;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.85rem 1rem;margin-bottom:0.7rem;}
+.aurevon-pay-info strong{color:#f0ede8;}
+.aurevon-pay-info .pmlogo{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,rgba(30,58,138,0.1),rgba(59,130,246,0.05));padding:3px 9px;border-radius:6px;margin-bottom:0.55rem;font-weight:700;color:#3B82F6;font-size:0.7rem;letter-spacing:0.06em;text-transform:uppercase;}
+.aurevon-pay-trust{margin-top:1rem;display:flex;justify-content:center;align-items:center;gap:0.55rem;flex-wrap:wrap;font-size:0.68rem;color:#6b6760;}
+@media(max-width:520px){.aurevon-pay-tabs{grid-template-columns:repeat(2,1fr);}}
 </style>
 
 <script>
 (function(){
   var modal = document.getElementById('bktPayModal');
   if(!modal) return;
-  var overlay = modal.querySelector('.bkt-pay-overlay');
-  var closeBtn = modal.querySelector('.bkt-pay-close');
-  var tabs = modal.querySelectorAll('.bkt-pay-tab');
+  var overlay = modal.querySelector('.aurevon-pay-overlay');
+  var closeBtn = modal.querySelector('.aurevon-pay-close');
+  var tabs = modal.querySelectorAll('.aurevon-pay-tab');
   var content = document.getElementById('bktPayContent');
   var amountEl = document.getElementById('bktPayAmount');
   var tierEl = document.getElementById('bktPayTier');
@@ -592,7 +592,7 @@ document.querySelectorAll('[data-pay]').forEach(btn => {
     sessionStorage.setItem('bkt_paid_token', token);
     sessionStorage.setItem('bkt_paid_tier', tier);
     sessionStorage.setItem('bkt_paid_amount', amt);
-    var base = isMembership ? 'membership_confirmation.html' : 'BLOCKT_RE_Intake.html';
+    var base = isMembership ? 'membership_confirmation.html' : 'aurevon-re-intake.html';
     return base + '?paid=' + encodeURIComponent(token) + '&tier=' + encodeURIComponent(tier) + '&amount=' + encodeURIComponent(amt);
   }
 
@@ -625,22 +625,22 @@ document.querySelectorAll('[data-pay]').forEach(btn => {
 
     var html = '';
     if(method === 'stripe'){
-      html = '<div class="bkt-pay-info"><span class="pmlogo">💳 Stripe Checkout</span><strong>Pay securely with your debit or credit card.</strong> Stripe processes your payment in seconds. After confirmation, you will be auto-redirected to ' + (isMembership ? 'your membership confirmation page' : 'the deal intake form') + '.</div>';
-      html += '<a class="bkt-pay-cta" href="' + (stripeUrl || '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with Card →</a>';
+      html = '<div class="aurevon-pay-info"><span class="pmlogo">💳 Stripe Checkout</span><strong>Pay securely with your debit or credit card.</strong> Stripe processes your payment in seconds. After confirmation, you will be auto-redirected to ' + (isMembership ? 'your membership confirmation page' : 'the deal intake form') + '.</div>';
+      html += '<a class="aurevon-pay-cta" href="' + (stripeUrl || '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with Card →</a>';
     } else if(method === 'paypal'){
-      html = '<div class="bkt-pay-info"><span class="pmlogo">🅿 PayPal</span><strong>Pay with your PayPal balance, bank, or any major card.</strong> No PayPal account? You can still check out as a guest. After payment confirmation, you will be auto-redirected.</div>';
-      html += '<a class="bkt-pay-cta" href="' + (paypalUrl || '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with PayPal →</a>';
+      html = '<div class="aurevon-pay-info"><span class="pmlogo">🅿 PayPal</span><strong>Pay with your PayPal balance, bank, or any major card.</strong> No PayPal account? You can still check out as a guest. After payment confirmation, you will be auto-redirected.</div>';
+      html += '<a class="aurevon-pay-cta" href="' + (paypalUrl || '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with PayPal →</a>';
     } else if(method === 'cashapp'){
-      html = '<div class="bkt-pay-info"><span class="pmlogo">💵 Cash App Pay</span><strong>Tap to pay with Cash App.</strong> Cash App Pay is processed through Stripe — open the Cash App on your phone, scan the QR or confirm in-app, and you are done. Available on the same Stripe checkout page.</div>';
-      html += '<a class="bkt-pay-cta" href="' + (stripeUrl ? stripeUrl + (stripeUrl.indexOf("?")>-1?"&":"?") + 'payment_method=cashapp' : '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with Cash App →</a>';
+      html = '<div class="aurevon-pay-info"><span class="pmlogo">💵 Cash App Pay</span><strong>Tap to pay with Cash App.</strong> Cash App Pay is processed through Stripe — open the Cash App on your phone, scan the QR or confirm in-app, and you are done. Available on the same Stripe checkout page.</div>';
+      html += '<a class="aurevon-pay-cta" href="' + (stripeUrl ? stripeUrl + (stripeUrl.indexOf("?")>-1?"&":"?") + 'payment_method=cashapp' : '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with Cash App →</a>';
     } else if(method === 'afterpay'){
-      html = '<div class="bkt-pay-info"><span class="pmlogo">⏰ Afterpay · Buy Now, Pay Later</span><strong>Split your purchase into 4 interest-free payments.</strong> Afterpay is processed through Stripe — pay just <strong>$' + (Math.round((parseFloat(currentAmount.replace(/[^0-9.]/g,""))/4)*100)/100).toFixed(2) + '</strong> today, then 3 equal payments every 2 weeks. No interest, no hidden fees.</div>';
-      html += '<a class="bkt-pay-cta" href="' + (stripeUrl ? stripeUrl + (stripeUrl.indexOf("?")>-1?"&":"?") + 'payment_method=afterpay_clearpay' : '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with Afterpay →</a>';
+      html = '<div class="aurevon-pay-info"><span class="pmlogo">⏰ Afterpay · Buy Now, Pay Later</span><strong>Split your purchase into 4 interest-free payments.</strong> Afterpay is processed through Stripe — pay just <strong>$' + (Math.round((parseFloat(currentAmount.replace(/[^0-9.]/g,""))/4)*100)/100).toFixed(2) + '</strong> today, then 3 equal payments every 2 weeks. No interest, no hidden fees.</div>';
+      html += '<a class="aurevon-pay-cta" href="' + (stripeUrl ? stripeUrl + (stripeUrl.indexOf("?")>-1?"&":"?") + 'payment_method=afterpay_clearpay' : '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with Afterpay →</a>';
     }
     content.innerHTML = html;
 
     // Wire CTA — if URL is REPLACE_xxx, show owner setup hint
-    var cta = content.querySelector('.bkt-pay-cta[data-action="goto"]');
+    var cta = content.querySelector('.aurevon-pay-cta[data-action="goto"]');
     if(cta){
       cta.addEventListener('click', function(e){
         var href = cta.getAttribute('href') || '';
@@ -663,7 +663,7 @@ document.querySelectorAll('[data-pay]').forEach(btn => {
             }
         if(href === '#' || href.indexOf('REPLACE_') > -1){
           e.preventDefault();
-          alert('⚙️ Owner setup needed:\n\nThe ' + method.toUpperCase() + ' payment link for "' + currentLabel + '" has not been configured yet.\n\nFor Stripe: Dashboard → Products → Create payment link → enable Cash App Pay & Afterpay.\nFor PayPal: Business → Pay Links & Buttons.\n\nThen paste the URL into AUREVON_CONFIG and set success_url/return_url to:\n' + (isMembership ? 'membership_confirmation.html' : 'BLOCKT_RE_Intake.html'));
+          alert('⚙️ Owner setup needed:\n\nThe ' + method.toUpperCase() + ' payment link for "' + currentLabel + '" has not been configured yet.\n\nFor Stripe: Dashboard → Products → Create payment link → enable Cash App Pay & Afterpay.\nFor PayPal: Business → Pay Links & Buttons.\n\nThen paste the URL into AUREVON_CONFIG and set success_url/return_url to:\n' + (isMembership ? 'membership_confirmation.html' : 'aurevon-re-intake.html'));
           return;
         }
         // Open in new tab + remember intent
