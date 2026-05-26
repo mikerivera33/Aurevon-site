@@ -10,13 +10,14 @@ The bot needs a **persistent WebSocket connection** to Discord's gateway. Vercel
 
 ## Phase 1 — Discord Developer Portal (one-time)
 
-- [ ] Open [discord.com/developers/applications](https://discord.com/developers/applications) → select the Aurevon Ventures app (Client ID `1505819653602148372`)
+- [ ] Open [discord.com/developers/applications](https://discord.com/developers/applications) → select **Aurevon Labs Community** (Client ID `1506515165003255889`). This is the same app already wired to Vercel for the website OAuth flow.
 - [ ] **Bot** tab → confirm **SERVER MEMBERS INTENT**, **MESSAGE CONTENT INTENT**, and **PRESENCE INTENT** are all ✅ enabled
 - [ ] If you need a new token: **Reset Token** → copy → save for Phase 3
 - [ ] Bot must already be in the Aurevon server (Guild ID `1499526813490221207`). If not, build invite URL:
   ```
-  https://discord.com/oauth2/authorize?client_id=1505819653602148372&scope=bot+applications.commands&permissions=8
+  https://discord.com/oauth2/authorize?client_id=1506515165003255889&scope=bot+applications.commands&permissions=1099780189206
   ```
+  (Permission integer `1099780189206` matches the app's installed defaults: Manage Roles, Kick, Ban, Moderate Members, Manage Messages, View Channels, Send Messages, Embed Links, Read History, Mention Everyone, Use Application Commands.)
 
 ## Phase 2 — Railway project setup
 
@@ -36,7 +37,7 @@ In Railway → service → **Variables** → paste each. Use the **same values**
 ```
 DISCORD_BOT_TOKEN=               # from Phase 1
 DISCORD_GUILD_ID=1499526813490221207
-DISCORD_CLIENT_ID=1505819653602148372
+DISCORD_CLIENT_ID=1506515165003255889
 SITE_URL=https://www.aurevonvc.com
 
 DISCORD_ROLE_MONTHLY=            # Role ID for 001 Genesis

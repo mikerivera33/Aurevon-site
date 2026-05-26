@@ -98,7 +98,7 @@
  *
  *  DISCORD_BOT_TOKEN=               ← Bot → Reset Token
  *  DISCORD_GUILD_ID=1499526813490221207
- *  DISCORD_CLIENT_ID=1505819653602148372
+ *  DISCORD_CLIENT_ID=1506515165003255889   ← Aurevon Labs Community
  *  SITE_URL=https://www.aurevonvc.com
  *
  *  # Role IDs (right-click role in Discord → Copy Role ID)
@@ -145,7 +145,7 @@ import {
 
 const TOKEN     = process.env.DISCORD_BOT_TOKEN;
 const GUILD_ID  = process.env.DISCORD_GUILD_ID  ?? '1499526813490221207';
-const CLIENT_ID = process.env.DISCORD_CLIENT_ID ?? '1505819653602148372';
+const CLIENT_ID = process.env.DISCORD_CLIENT_ID ?? '1506515165003255889';
 const SITE_URL  = process.env.SITE_URL          ?? 'https://www.aurevonvc.com';
 
 const AT_PAT     = process.env.AIRTABLE_PAT;
