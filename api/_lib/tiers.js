@@ -21,9 +21,9 @@ const _BASE = {
   nft_insider:    { nft: 'Aurevon Insider',               amount: 497,    template: 'CROSSMINT_TEMPLATE_INSIDER',  serialPrefix: 'INSIDER',  collectionName: 'Aurevon Insider Collection' },
   nft_obsidian:   { nft: 'Aurevon Obsidian Executive',    amount: 997,    template: 'CROSSMINT_TEMPLATE_OBSIDIAN', serialPrefix: 'OBSIDIAN', collectionName: 'Aurevon Obsidian Collection' },
   deal:           { nft: null,                           amount: 189.99, template: null,                          serialPrefix: null,       collectionName: null },
-  // Web3 tiers — subscription access; NFT minted based on equivalent canonical tier
-  web3_starter:   { nft: '001 Genesis',                  amount: 49,     template: null, serialPrefix: null, collectionName: null },
-  web3_growth:    { nft: '001 Genesis',                  amount: 149,    template: null, serialPrefix: null, collectionName: null },
+  // Web3 tiers — subscription access; NFT collections not yet configured, send confirmation only
+  web3_starter:   { nft: null, amount: 49,  template: null, serialPrefix: null, collectionName: null },
+  web3_growth:    { nft: null, amount: 149, template: null, serialPrefix: null, collectionName: null },
   web3_scale:     { nft: 'Aurevon Insider',              amount: 349,    template: null, serialPrefix: null, collectionName: null },
   web3_enterprise: { nft: 'Aurevon Obsidian Executive', amount: 799,    template: null, serialPrefix: null, collectionName: null },
   // RE À La Carte Add-Ons — no NFT

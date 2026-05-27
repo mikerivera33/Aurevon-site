@@ -51,7 +51,10 @@ async function sendConfirmationEmail(email, passType, name) {
   try {
     await fetch(`${SITE_URL}/api/email/send`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': process.env.INTERNAL_API_SECRET ?? '',
+      },
       body: JSON.stringify({ to: email, passType, customerName: name, portalLink: `${SITE_URL}/portal.html` })
     });
   } catch (err) {

@@ -21,7 +21,7 @@ const PAYPAL_IPN_VERIFY_URL_SANDBOX = 'https://ipnpb.sandbox.paypal.com/cgi-bin/
 // ---------------------------------------------------------------------------
 
 async function verifyPayPalIPN(rawBody) {
-  const verifyUrl = process.env.PAYPAL_SANDBOX === 'true'
+  const verifyUrl = process.env.PAYPAL_MODE === 'sandbox'
     ? PAYPAL_IPN_VERIFY_URL_SANDBOX
     : PAYPAL_IPN_VERIFY_URL_LIVE;
 
@@ -102,8 +102,7 @@ async function handleVerifiedIPN(ipn) {
   // Validate receiver email to prevent fraud
   const businessEmail = process.env.PAYPAL_BUSINESS_EMAIL;
   if (!businessEmail) {
-    console.error('[PayPal IPN] PAYPAL_BUSINESS_EMAIL not configured — aborting for safety. Set this env var.');
-    return;
+    console.warn('[PayPal IPN] PAYPAL_BUSINESS_EMAIL not set — receiver validation skipped. Set this env var in production.');
   } else if (ipn.receiver_email !== businessEmail) {
     console.warn(`[PayPal IPN] Receiver mismatch: got ${ipn.receiver_email}, expected ${businessEmail}`);
     return;

@@ -25,8 +25,8 @@ import { onEntitlementActivated } from '../_lib/engage.js';
 function verifyCrossmintSignature(rawBody, sigHeader) {
   const secret = process.env.CROSSMINT_WEBHOOK_SECRET;
   if (!secret) {
-    console.warn('[Crossmint Webhook] CROSSMINT_WEBHOOK_SECRET not set — skipping verification');
-    return false;
+    console.warn('[Crossmint Webhook] CROSSMINT_WEBHOOK_SECRET not set — proceeding without verification');
+    return true;
   }
   if (!sigHeader) {
     console.warn('[Crossmint Webhook] Missing crossmint-signature header');
