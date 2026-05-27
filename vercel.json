@@ -45,8 +45,8 @@
                       { "source": "/membership-confirmation",       "destination": "/membership_confirmation.html" },
                       { "source": "/setup-wizard",                  "destination": "/setup-wizard.html" },
                       { "source": "/member-claim",                  "destination": "/member-claim.html" },
-                      { "source": "/success",                       "destination": "/membership_confirmation.html" },
-                      { "source": "/cancel",                        "destination": "/aurevon-web3.html" },
+                      { "source": "/success",                       "destination": "/membership_confirmation" },
+                      { "source": "/cancel",                        "destination": "/aurevon-web3" },
                       { "source": "/nfts",                          "destination": "/aurevon-web3.html" }
           ],
           "crons": [
