@@ -161,6 +161,8 @@ const PRODUCT_CATALOG = {
 
 // Community tiers land on confirmation page; all others return to RE/NFT page
 const COMMUNITY_TIERS = new Set(['comm_monthly', 'comm_lifetime']);
+const WEB3_TIERS = new Set(['web3_starter', 'web3_growth', 'web3_scale', 'web3_enterprise']);
+const NFT_TIERS = new Set(['nft_insider', 'nft_obsidian']);
 
 // -----------------------------------------------------------------------
 // Handler
@@ -207,8 +209,14 @@ export default async function handler(req, res) {
             // Stripe replaces {CHECKOUT_SESSION_ID} at redirect time
             successUrl = `${BASE_URL}/success?paid=paid_${product.tier}_{CHECKOUT_SESSION_ID}&tier=${product.tier}&amount=${product.amount}`;
                   cancelUrl = `${BASE_URL}/cancel`;
+        } else if (WEB3_TIERS.has(product.tier)) {
+            successUrl = `${BASE_URL}/aurevon-web3?purchased=${product.tier}&session_id={CHECKOUT_SESSION_ID}`;
+                  cancelUrl = `${BASE_URL}/aurevon-web3`;
+        } else if (NFT_TIERS.has(product.tier)) {
+            successUrl = `${BASE_URL}/aurevon-nft?purchased=${product.tier}&session_id={CHECKOUT_SESSION_ID}`;
+                  cancelUrl = `${BASE_URL}/aurevon-nft`;
         } else {
-                  // RE / NFT / Web3 tiers: return to product page with purchase confirmation
+                  // RE tiers and add-ons
             successUrl = `${BASE_URL}/aurevon-re?purchased=${product.tier}&session_id={CHECKOUT_SESSION_ID}`;
                   cancelUrl = `${BASE_URL}/aurevon-re`;
         }

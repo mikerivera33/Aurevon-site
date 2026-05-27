@@ -64,11 +64,14 @@ function inferTierFromIPN(ipn) {
   }
 
   // Fallback: infer from mc_gross (payment amount)
+  // Only check PayPal-eligible tiers (RE + Community) to avoid amount collisions
+  // with web3/addon tiers that share the same dollar amounts
+  const IPN_ELIGIBLE_TIERS = ['single', 'full', 'bogo', 'retainer', 'enterprise', 'comm_monthly', 'comm_lifetime'];
   const amount = parseFloat(ipn.mc_gross ?? '0');
-  const tolerance = 1;
 
-  for (const [tier, config] of Object.entries(TIER_NFT_MAP)) {
-    if (Math.abs(amount - config.amount) <= tolerance) return tier;
+  for (const tierId of IPN_ELIGIBLE_TIERS) {
+    const config = TIER_NFT_MAP[tierId];
+    if (config && amount === config.amount) return tierId;
   }
 
   return null;
