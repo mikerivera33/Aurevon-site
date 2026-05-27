@@ -59,12 +59,13 @@ html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-seri
 
 /* ── CTA SECTION ── */
 .cta-section{max-width:860px;margin:0 auto 80px;padding:0 24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;}
-@media(max-width:560px){.cta-section{grid-template-columns:1fr;}}
+@media(max-width:860px){.cta-section{grid-template-columns:1fr 1fr!important;}}
+@media(max-width:560px){.cta-section{grid-template-columns:1fr!important;}}
 .cta-card{background:var(--surface);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:28px 24px;text-align:center;transition:transform .3s,border-color .3s;}
 .cta-card:hover{transform:translateY(-3px);border-color:rgba(30,58,138,0.3);}
 .cta-card h3{font-family:'Archivo Black',sans-serif;font-size:1rem;margin-bottom:8px;color:var(--text);}
 .cta-card p{font-size:0.8rem;color:var(--muted);margin-bottom:18px;line-height:1.5;}
-.cta-btn{display:inline-block;background:linear-gradient(135deg,var(--o1),var(--o2));color:#fff;text-decoration:none;font-family:'Archivo Black',sans-serif;font-size:0.82rem;padding:10px 22px;border-radius:8px;letter-spacing:0.04em;transition:opacity .2s;}
+.cta-btn{display:inline-block;background:linear-gradient(135deg,var(--o1),var(--o2));color:#fff;text-decoration:none;font-family:'Archivo Black',sans-serif;font-size:0.82rem;padding:10px 22px;border-radius:8px;letter-spacing:0.04em;transition:opacity .2s;cursor:pointer;border:none;}
 .cta-btn:hover{opacity:0.88;}
 .cta-btn.ghost{background:transparent;border:1px solid rgba(30,58,138,0.4);color:var(--o1);}
 .cta-btn.ghost:hover{background:rgba(30,58,138,0.08);}
@@ -225,11 +226,19 @@ html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-seri
 </div>
 
 <!-- CTAs -->
-<div class="cta-section">
+<div class="cta-section" style="grid-template-columns:repeat(3,1fr);max-width:1100px;">
   <div class="cta-card">
     <h3>Get an Underwriting Pass</h3>
     <p>Passes are awarded automatically when you purchase any Aurevon Capital underwriting service — Full Package, Pro Retainer, or Enterprise.</p>
     <a class="cta-btn" href="aurevon-re.html#pricing">View RE Pricing</a>
+  </div>
+  <div class="cta-card">
+    <h3>Buy Standalone NFT</h3>
+    <p>Acquire the Insider ($497) or Obsidian Executive ($997) pass directly — includes all Discord access and holder benefits.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:auto;">
+      <button class="cta-btn nft-buy-btn" data-tier="nft_insider" data-orig="Insider Pass — $497">Insider Pass — $497</button>
+      <button class="cta-btn ghost nft-buy-btn" data-tier="nft_obsidian" data-orig="Obsidian Pass — $997">Obsidian Pass — $997</button>
+    </div>
   </div>
   <div class="cta-card">
     <h3>Get a Community Pass</h3>
@@ -278,6 +287,25 @@ html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-seri
       if(e.isIntersecting){e.target.style.opacity='1';e.target.style.transform='translateY(0)';io.unobserve(e.target);}});
   },{threshold:0.12});
   cards.forEach(function(c){io.observe(c);});
+})();
+</script>
+<script>
+(function(){
+  document.querySelectorAll('.nft-buy-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var tier=btn.getAttribute('data-tier');
+      var orig=btn.getAttribute('data-orig')||'Buy';
+      btn.disabled=true;btn.textContent='Redirecting…';
+      fetch('/api/stripe/checkout',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({tier:tier})
+      }).then(function(r){return r.json();}).then(function(d){
+        if(d.url){window.location.href=d.url;}
+        else{btn.disabled=false;btn.textContent=orig;alert('Checkout error: '+(d.error||'Please try again.'));}
+      }).catch(function(err){btn.disabled=false;btn.textContent=orig;alert('Network error: '+err.message);});
+    });
+  });
 })();
 </script>
 <script src="nft-pass-links.js"></script>
