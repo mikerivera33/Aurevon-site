@@ -95,6 +95,21 @@ async function handleCheckoutSessionCompleted(session) {
         // Non-fatal — continue pipeline
   }
 
+  // If subscription mode, save customer email in subscription metadata
+  // so customer.subscription.deleted events can identify the customer
+  if (session.mode === 'subscription' && session.subscription && customerEmail) {
+    try {
+      const StripeSDK = (await import('stripe')).default;
+      const stripeClient = new StripeSDK(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+      await stripeClient.subscriptions.update(session.subscription, {
+        metadata: { email: customerEmail },
+      });
+      console.log(`[Stripe] Saved email to subscription ${session.subscription} metadata`);
+    } catch (err) {
+      console.error(`[Stripe] Could not update subscription metadata: ${err.message}`);
+    }
+  }
+
   // 3. Determine NFT mapping
   const tierConfig = TIER_NFT_MAP[tier] ?? null;
     const nftType = tierConfig?.nft ?? null;
@@ -126,7 +141,7 @@ async function handleCheckoutSessionCompleted(session) {
 
   // 6. Mint NFT via Crossmint
   let mintId = null;
-    const imageUrl = null;
+    let imageUrl = null;
     let mintStatus;
     let mintNotes = '';
 
@@ -142,6 +157,7 @@ async function handleCheckoutSessionCompleted(session) {
         });
         if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
         mintId = result.actionId;
+        imageUrl = result.imageUrl ?? null;
         mintStatus = 'Sent';
         console.log(`[Stripe] Mint succeeded: mintId=${mintId}, serial=${serial}`);
   } catch (err) {
@@ -223,8 +239,7 @@ async function handleCheckoutSessionCompleted(session) {
 // ---------------------------------------------------------------------------
 
 async function handleSubscriptionDeleted(subscription) {
-    const customerEmail = subscription.customer_email
-      ?? subscription.metadata?.email
+    const customerEmail = subscription.metadata?.email
       ?? null;
     if (!customerEmail) {
           console.warn('[Stripe] subscription.deleted — no email in subscription object, skipping revocation');

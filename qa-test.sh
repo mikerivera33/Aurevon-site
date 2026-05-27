@@ -59,7 +59,7 @@ if [[ -f ".env.local" ]]; then
 fi
 
 echo ""
-echo -e "${BOLD}BLOCKT Ventures QA Test Harness${RESET}"
+echo -e "${BOLD}Aurevon QA Test Harness${RESET}"
 echo "Target: ${BASE_URL}"
 echo "Full pipeline: ${FULL_PIPELINE}"
 echo "Started: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -105,7 +105,7 @@ PAGES=(
   "/aurevon-re.html"
   "/001_Genesis.html"
   "/004_Chrome.html"
-  "/BLOCKT_RE_Intake.html"
+  "/aurevon-re-intake.html"
   "/membership_confirmation.html"
   "/operator.html"
   "/portal.html"
@@ -375,7 +375,7 @@ fi
 echo ""
 
 if [[ $FAIL -eq 0 ]]; then
-  echo -e "${GREEN}${BOLD}All tests passed. BLOCKT Ventures is ready to deploy.${RESET}"
+  echo -e "${GREEN}${BOLD}All tests passed. Aurevon is ready to deploy.${RESET}"
   exit 0
 else
   echo -e "${RED}${BOLD}${FAIL} test(s) failed. Review the output above and fix before going live.${RESET}"

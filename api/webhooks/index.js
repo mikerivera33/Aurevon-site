@@ -66,7 +66,7 @@ async function runMintPipeline({ label, txnId, customerEmail, customerName, amou
   let mintId = null, imageUrl = null, mintStatus, mintNotes = '';
   try {
     const result = await mintToEmail({ email: customerEmail, nftType, customerName, templateKey, serial, collectionName, tierKey: tier });
-    mintId = result.mintId; imageUrl = result.imageUrl; mintStatus = 'Sent';
+    mintId = result.actionId; imageUrl = result.imageUrl; mintStatus = 'Sent';
     console.log(`[${label}] Mint succeeded: mintId=${mintId}, serial=${serial}`);
   } catch (err) {
     mintStatus = 'Failed'; mintNotes = `Crossmint error: ${err.message}`;

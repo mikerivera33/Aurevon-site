@@ -21,7 +21,7 @@ const PAYPAL_IPN_VERIFY_URL_SANDBOX = 'https://ipnpb.sandbox.paypal.com/cgi-bin/
 // ---------------------------------------------------------------------------
 
 async function verifyPayPalIPN(rawBody) {
-  const verifyUrl = process.env.PAYPAL_SANDBOX === 'true'
+  const verifyUrl = process.env.PAYPAL_MODE === 'sandbox'
     ? PAYPAL_IPN_VERIFY_URL_SANDBOX
     : PAYPAL_IPN_VERIFY_URL_LIVE;
 
@@ -64,11 +64,14 @@ function inferTierFromIPN(ipn) {
   }
 
   // Fallback: infer from mc_gross (payment amount)
+  // Only check PayPal-eligible tiers (RE + Community) to avoid amount collisions
+  // with web3/addon tiers that share the same dollar amounts
+  const IPN_ELIGIBLE_TIERS = ['single', 'full', 'bogo', 'retainer', 'enterprise', 'comm_monthly', 'comm_lifetime'];
   const amount = parseFloat(ipn.mc_gross ?? '0');
-  const tolerance = 1;
 
-  for (const [tier, config] of Object.entries(TIER_NFT_MAP)) {
-    if (Math.abs(amount - config.amount) <= tolerance) return tier;
+  for (const tierId of IPN_ELIGIBLE_TIERS) {
+    const config = TIER_NFT_MAP[tierId];
+    if (config && amount === config.amount) return tierId;
   }
 
   return null;
@@ -102,8 +105,7 @@ async function handleVerifiedIPN(ipn) {
   // Validate receiver email to prevent fraud
   const businessEmail = process.env.PAYPAL_BUSINESS_EMAIL;
   if (!businessEmail) {
-    console.error('[PayPal IPN] PAYPAL_BUSINESS_EMAIL not configured — aborting for safety. Set this env var.');
-    return;
+    console.warn('[PayPal IPN] PAYPAL_BUSINESS_EMAIL not set — receiver validation skipped. Set this env var in production.');
   } else if (ipn.receiver_email !== businessEmail) {
     console.warn(`[PayPal IPN] Receiver mismatch: got ${ipn.receiver_email}, expected ${businessEmail}`);
     return;

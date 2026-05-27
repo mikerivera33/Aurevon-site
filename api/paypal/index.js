@@ -17,7 +17,7 @@ const PASS_PRICES = {
   OBSIDIAN: { amount: '2499.00', description: 'Aurevon OBSIDIAN EXECUTIVE Pass - Enterprise RE Tier 3' },
   EMBER:    { amount: '1499.00', description: 'Aurevon EMBER Pass - RE Tier 2' },
   INSIDER:  { amount: '250.00',  description: 'Aurevon INSIDER Pass - RE Tier 1' },
-  CHROME:   { amount: '150.00',  description: 'Aurevon CHROME Pass - Tier 2' },
+  CHROME:   { amount: '349.99',  description: 'Aurevon CHROME Pass - Lifetime Community' },
   GENESIS:  { amount: '500.00',  description: 'Aurevon GENESIS Founder Pass - All Access Lifetime' },
   COMMUNITY:{ amount: '29.99',   description: 'Aurevon GENESIS COMMUNITY Pass - Monthly' },
 };
@@ -51,7 +51,10 @@ async function sendConfirmationEmail(email, passType, name) {
   try {
     await fetch(`${SITE_URL}/api/email/send`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': process.env.INTERNAL_API_SECRET ?? '',
+      },
       body: JSON.stringify({ to: email, passType, customerName: name, portalLink: `${SITE_URL}/portal.html` })
     });
   } catch (err) {
@@ -125,14 +128,15 @@ async function handleCapture(req, res) {
     const email = customerEmail || unit?.custom_id || '';
 
     await logToAirtable({
+      'Transaction ID':  orderId,
       'Payment Provider': 'PayPal',
-      'Order ID': orderId,
-      'Pass Type': capturedPassType,
-      'Amount': parseFloat(amount) || 0,
-      'Customer Email': email,
-      'Customer Name': customerName || '',
-      'Status': 'Completed',
-      'Timestamp': new Date().toISOString()
+      'Pass Type':       capturedPassType,
+      'Amount':          parseFloat(amount) || 0,
+      'Customer Email':  email,
+      'Customer Name':   customerName || '',
+      'Status':          'Succeeded',
+      'Token':           `paid_${capturedPassType}_${Date.now()}`,
+      'Payment Date':    new Date().toISOString(),
     });
 
     if (email) await sendConfirmationEmail(email, capturedPassType, customerName);

@@ -32,8 +32,8 @@ describe('TIER_NFT_MAP', () => {
   });
 
   it('resolves web3_* alias tiers via proxy', () => {
-    expect(TIER_NFT_MAP['web3_starter'].nft).toBe('001 Genesis');
-    expect(TIER_NFT_MAP['web3_growth'].nft).toBe('001 Genesis');
+    expect(TIER_NFT_MAP['web3_starter'].nft).toBeNull();
+    expect(TIER_NFT_MAP['web3_growth'].nft).toBeNull();
     expect(TIER_NFT_MAP['web3_scale'].nft).toBe('Aurevon Insider');
     expect(TIER_NFT_MAP['web3_enterprise'].nft).toBe('Aurevon Obsidian Executive');
   });
