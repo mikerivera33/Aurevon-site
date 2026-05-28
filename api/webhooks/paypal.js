@@ -191,7 +191,10 @@ async function handleVerifiedIPN(ipn) {
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const ref = attempt === 0 ? reference : (() => {
-      if (!insertedSerial) return reference;
+      if (!insertedSerial) {
+        // Null-serial tier (no serialPrefix): append retry index to avoid identical retries
+        return `${reference}_r${attempt}`;
+      }
       const parts = insertedSerial.split('_');
       const prefix = parts[0];
       const num = parseInt(parts[1] ?? '0', 10) + 1;

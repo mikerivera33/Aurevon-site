@@ -22,10 +22,10 @@ const _BASE = {
   nft_obsidian:   { nft: 'Aurevon Obsidian Executive',    amount: 997,    template: 'CROSSMINT_TEMPLATE_OBSIDIAN', serialPrefix: 'OBSIDIAN', collectionName: 'Aurevon Obsidian Collection' },
   deal:           { nft: null,                           amount: 189.99, template: null,                          serialPrefix: null,       collectionName: null },
   // Web3 tiers — subscription access; NFT collections not yet configured, send confirmation only
-  web3_starter:   { nft: null, amount: 49,  template: null, serialPrefix: null, collectionName: null },
-  web3_growth:    { nft: null, amount: 149, template: null, serialPrefix: null, collectionName: null },
-  web3_scale:     { nft: 'Aurevon Insider',              amount: 349,    template: null, serialPrefix: null, collectionName: null },
-  web3_enterprise: { nft: 'Aurevon Obsidian Executive', amount: 799,    template: null, serialPrefix: null, collectionName: null },
+  web3_starter:    { nft: null, amount: 49,  template: null, serialPrefix: null, collectionName: null },
+  web3_growth:     { nft: null, amount: 149, template: null, serialPrefix: null, collectionName: null },
+  web3_scale:      { nft: null, amount: 349, template: null, serialPrefix: null, collectionName: null },
+  web3_enterprise: { nft: null, amount: 799, template: null, serialPrefix: null, collectionName: null },
   // RE À La Carte Add-Ons — no NFT
   addon_rush:         { nft: null, amount: 99,  template: null, serialPrefix: null, collectionName: null },
   addon_memo:         { nft: null, amount: 149, template: null, serialPrefix: null, collectionName: null },
@@ -84,6 +84,11 @@ export async function getNextSerial(prefix) {
  */
 export function inferTierFromAmount(amountCents) {
   const dollars = amountCents / 100;
+  // Exact match first to avoid tolerance collisions (e.g. web3_scale $349 vs comm_lifetime $349.99)
+  for (const [tier, cfg] of Object.entries(_BASE)) {
+    if (dollars === cfg.amount) return tier;
+  }
+  // Tolerance fallback for payment processors that round cents
   const tolerance = 1;
   for (const [tier, cfg] of Object.entries(_BASE)) {
     if (Math.abs(dollars - cfg.amount) <= tolerance) return tier;

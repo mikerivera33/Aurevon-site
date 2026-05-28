@@ -10,6 +10,8 @@ import { TIER_NFT_MAP, inferTierFromAmount, getNextSerial, formatSerial } from '
 import { mintToEmail } from '../_lib/crossmint.js';
 import { createPayment, createNftMint } from '../_lib/airtable.js';
 import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
+import { resolveEntitlementFromSku, getRoleId } from '../_lib/entitlements.js';
+import { removeRoleFromMember } from '../_lib/discord-bot.js';
 
 // ---------------------------------------------------------------------------
 // Stripe signature verification (no Stripe SDK dependency)
@@ -102,7 +104,7 @@ async function handleCheckoutSessionCompleted(session) {
       const StripeSDK = (await import('stripe')).default;
       const stripeClient = new StripeSDK(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
       await stripeClient.subscriptions.update(session.subscription, {
-        metadata: { email: customerEmail },
+        metadata: { email: customerEmail, tier },
       });
       console.log(`[Stripe] Saved email to subscription ${session.subscription} metadata`);
     } catch (err) {
@@ -172,8 +174,10 @@ async function handleCheckoutSessionCompleted(session) {
 
   for (let attempt = 0; attempt < 3; attempt++) {
         const ref = attempt === 0 ? reference : (() => {
-                // Extract numeric part from serial and increment
-                                                       if (!insertedSerial) return reference;
+                if (!insertedSerial) {
+                        // Null-serial tier (no serialPrefix): append retry index to avoid identical retries
+                        return `${reference}_r${attempt}`;
+                }
                 const parts = insertedSerial.split('_');
                 const prefix = parts[0];
                 const num = parseInt(parts[1] ?? '0', 10) + 1;
@@ -239,17 +243,40 @@ async function handleCheckoutSessionCompleted(session) {
 // ---------------------------------------------------------------------------
 
 async function handleSubscriptionDeleted(subscription) {
-    const customerEmail = subscription.metadata?.email
-      ?? null;
-    if (!customerEmail) {
-          console.warn('[Stripe] subscription.deleted — no email in subscription object, skipping revocation');
-          return;
+  const customerEmail = subscription.metadata?.email ?? null;
+  const tier = subscription.metadata?.tier ?? null;
+  if (!customerEmail) {
+    console.warn('[Stripe] subscription.deleted — no email in subscription metadata, skipping revocation');
+    return;
+  }
+  console.log(`[Stripe] Subscription cancelled for ${customerEmail} tier=${tier} — revoking access`);
+
+  const { updateDiscordSyncStatus, findMemberByEmail } = await import('../_lib/airtable.js');
+
+  // Mark revoked in Airtable
+  await updateDiscordSyncStatus(customerEmail, 'revoked').catch(e => {
+    console.error(`[Stripe] Failed to mark revocation in Airtable: ${e.message}`);
+  });
+
+  // Immediately remove Discord role
+  const entitlementKey = tier ? resolveEntitlementFromSku(tier) : null;
+  const roleId = entitlementKey ? getRoleId(entitlementKey) : null;
+  if (roleId) {
+    try {
+      const member = await findMemberByEmail(customerEmail).catch(() => null);
+      const discordId = member?.fields?.['Discord ID'];
+      if (discordId) {
+        await removeRoleFromMember(discordId, roleId);
+        console.log(`[Stripe] Removed Discord role ${roleId} from discordId=${discordId}`);
+      } else {
+        console.log(`[Stripe] No Discord ID for ${customerEmail} — role removal skipped`);
+      }
+    } catch (err) {
+      console.error(`[Stripe] Discord role removal failed: ${err.message}`);
     }
-    console.log(`[Stripe] Subscription cancelled for ${customerEmail} — marking for revocation`);
-    const { updateDiscordSyncStatus } = await import('../_lib/airtable.js');
-    await updateDiscordSyncStatus(customerEmail, 'revoked').catch(e => {
-          console.error(`[Stripe] Failed to mark revocation in Airtable: ${e.message}`);
-    });
+  } else {
+    console.log(`[Stripe] No revocable entitlement for tier="${tier}" — Discord role not removed`);
+  }
 }
 
 // ---------------------------------------------------------------------------
