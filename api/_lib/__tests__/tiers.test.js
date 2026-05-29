@@ -34,8 +34,8 @@ describe('TIER_NFT_MAP', () => {
   it('resolves web3_* alias tiers via proxy', () => {
     expect(TIER_NFT_MAP['web3_starter'].nft).toBeNull();
     expect(TIER_NFT_MAP['web3_growth'].nft).toBeNull();
-    expect(TIER_NFT_MAP['web3_scale'].nft).toBe('Aurevon Insider');
-    expect(TIER_NFT_MAP['web3_enterprise'].nft).toBe('Aurevon Obsidian Executive');
+    expect(TIER_NFT_MAP['web3_scale'].nft).toBeNull();
+    expect(TIER_NFT_MAP['web3_enterprise'].nft).toBeNull();
   });
 
   it('returns undefined for unknown tiers', () => {
@@ -62,6 +62,12 @@ describe('inferTierFromAmount', () => {
   it('infers within $1 tolerance', () => {
     expect(inferTierFromAmount(25050)).toBe('full');  // $250.50 within $1 of $250
     expect(inferTierFromAmount(24950)).toBe('full');  // $249.50 within $1 of $250
+  });
+
+  it('prefers exact match over tolerance match to prevent amount collisions', () => {
+    // web3_scale ($349.00) must not be misidentified as comm_lifetime ($349.99, within $1 tolerance)
+    expect(inferTierFromAmount(34900)).toBe('web3_scale');   // $349.00 exact
+    expect(inferTierFromAmount(34999)).toBe('comm_lifetime'); // $349.99 exact
   });
 
   it('returns null for unrecognized amounts', () => {

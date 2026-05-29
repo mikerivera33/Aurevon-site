@@ -52,10 +52,15 @@ function verifyCrossmintSignature(rawBody, sigHeader) {
     .createHmac('sha256', secret)
     .update(signedPayload, 'utf8')
     .digest('hex');
-  return crypto.timingSafeEqual(
-    Buffer.from(receivedSig, 'hex'),
-    Buffer.from(expected, 'hex'),
-  );
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(receivedSig, 'hex'),
+      Buffer.from(expected, 'hex'),
+    );
+  } catch {
+    console.warn('[Crossmint Webhook] Signature comparison failed (malformed hex in header) — rejecting');
+    return false;
+  }
 }
 
 // ── Mint success handler ─────────────────────────────────────────────────────
