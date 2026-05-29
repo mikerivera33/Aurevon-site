@@ -26,7 +26,7 @@ import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
 import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
 
-const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
+const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevongroup.com';
 
 function getReconcileSecret() {
   return process.env.RECONCILE_SECRET ?? process.env.CRON_SECRET ?? '';
