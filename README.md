@@ -27,7 +27,7 @@
 
 Aurevon is a fully autonomous investment education and Web3 membership platform. Once deployed, it operates without manual intervention:
 
-- **Customers visit** `aurevongroup.com` and select a membership tier (Insider, Ember, Obsidian Executive, 001 Genesis, 004 Chrome) or a Real Estate service (Pro Retainer, Enterprise).
+- **Customers visit** `aurevonvc.com` and select a membership tier (Insider, Ember, Obsidian Executive, 001 Genesis, 004 Chrome) or a Real Estate service (Pro Retainer, Enterprise).
 - **They pay** via Stripe (card, Cash App Pay, Afterpay) or PayPal.
 - **A webhook fires** to the Aurevon backend (Vercel serverless function), which verifies the payment signature.
 - **Crossmint mints** the corresponding NFT membership token directly to the customer's email address — no crypto wallet required.
@@ -75,7 +75,7 @@ Aurevon is a fully autonomous investment education and Web3 membership platform.
 
   CUSTOMER JOURNEY
   ────────────────
-  Customer visits aurevongroup.com
+  Customer visits aurevonvc.com
            │
            ▼
   Selects tier & clicks "Join Now"
@@ -422,7 +422,7 @@ Resend is a developer-first transactional email service. It handles all Aurevon 
 
 1. Sign up at https://resend.com/signup
 2. Go to **Settings → Domains → Add Domain**
-3. Enter your domain (e.g., `aurevongroup.com`)
+3. Enter your domain (e.g., `aurevonvc.com`)
 4. Resend shows you DNS records to add:
    - **SPF record** (TXT): add to your DNS provider (Cloudflare, GoDaddy, etc.)
    - **DKIM record** (TXT): two records, add both

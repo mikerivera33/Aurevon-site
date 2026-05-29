@@ -74,7 +74,7 @@ async function handleMint(req, res) {
       attributes: [
         { trait_type: 'Pass Tier', value: passType },
         { trait_type: 'Network', value: 'Base' },
-        { trait_type: 'Issuer', value: 'Aurevon Group LLC' },
+        { trait_type: 'Issuer', value: 'Aurevon Ventures LLC' },
         ...(metadata?.attributes || [])
       ]
     }

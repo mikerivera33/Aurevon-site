@@ -175,7 +175,7 @@ function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, disc
           <!-- Footer -->
           <tr>
             <td style="background:#0A0A0A;border-top:1px solid rgba(255,255,255,0.05);padding:20px 40px;text-align:center;">
-              <p style="margin:0 0 6px;font-size:11px;color:#3f3f46;letter-spacing:1px;text-transform:uppercase;">Aurevon Group LLC &middot; Aurevon Group LLC, 2810 N Church Street #86952, Wilmington, DE 19802</p>
+              <p style="margin:0 0 6px;font-size:11px;color:#3f3f46;letter-spacing:1px;text-transform:uppercase;">Aurevon Ventures LLC &middot; 2810 N Church Street #86952, Wilmington, DE 19802</p>
               <p style="margin:0;font-size:11px;color:#3f3f46;">
                 You received this because you completed a purchase on aurevonvc.com.
               </p>
@@ -214,7 +214,7 @@ Delivery: Email wallet (no wallet setup required)
 ${discordInviteUrl ? `Join the operator community:\n${discordInviteUrl}\n` : ''}Questions? mike@aurevonvc.com
 
 ---
-Aurevon Group LLC · Aurevon Group LLC, 2810 N Church Street #86952, Wilmington, DE 19802
+Aurevon Ventures LLC · 2810 N Church Street #86952, Wilmington, DE 19802
 You received this because you completed a purchase on aurevonvc.com.
 `;
 }
@@ -222,8 +222,37 @@ You received this because you completed a purchase on aurevonvc.com.
 /**
  * Build a generic "thanks for your purchase" email (no NFT — e.g. Second Opinion tier).
  */
+// Friendly customer-facing labels for tier/add-on identifiers
+const TIER_DISPLAY_NAMES = {
+  bogo:              'First-Timer BOGO — 2 Full Package Deals',
+  single:            'Second Opinion — Underwriting + Analysis',
+  full:              'Full Package — All 3 Documents + Aurevon Insider NFT',
+  retainer:          'Pro Retainer — Membership',
+  enterprise:        'Enterprise — Unlimited Deals',
+  comm_monthly:      '001 Genesis Community — Monthly Member',
+  comm_lifetime:     '004 Chrome Community — Lifetime Member',
+  nft_insider:       'Aurevon Insider Pass (NFT)',
+  nft_obsidian:      'Aurevon Obsidian Executive Pass (NFT)',
+  addon_rush:        '12-Hour Rush Delivery Add-On',
+  addon_memo:        'Investor Memo Formatting Add-On',
+  addon_lender:      'Lender Presentation Package Add-On',
+  addon_sensitivity: 'Sensitivity Modeling Add-On',
+  addon_portfolio:   'Portfolio Review Bundle Add-On',
+  addon_whitelabel:  'White-Label Reports Add-On',
+};
+
+function tierDisplay(tier) {
+  return TIER_DISPLAY_NAMES[tier] ?? (tier ?? '').toUpperCase();
+}
+
 function buildPurchaseConfirmHtml({ customerName, tier }) {
   const firstName = customerName?.split(' ')[0] ?? 'Client';
+  const tierLabel = tierDisplay(tier);
+  const isAddon = (tier ?? '').startsWith('addon_');
+  const heading = isAddon ? 'Add-On Confirmed.' : 'Purchase Confirmed.';
+  const blurb = isAddon
+    ? `${firstName}, your add-on payment has been received. It's now attached to your active deal — we'll fold it into your delivery.`
+    : `${firstName}, your payment has been received. We'll be in touch within one business day with next steps and your intake form.`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -240,14 +269,15 @@ function buildPurchaseConfirmHtml({ customerName, tier }) {
         </tr>
         <tr>
           <td style="padding:0 40px 32px;">
-            <h1 style="margin:0 0 16px;font-family:'Archivo Black',Impact,sans-serif;font-size:28px;color:#3B82F6;">Purchase Confirmed.</h1>
-            <p style="margin:0 0 16px;font-size:16px;color:#d4d4d8;line-height:1.6;">${firstName}, your payment has been received. We'll be in touch within one business day with next steps and your intake form.</p>
-            <p style="margin:0;font-size:15px;color:#a1a1aa;">Tier: <strong style="color:#3B82F6;">${(tier ?? '').toUpperCase()}</strong></p>
+            <h1 style="margin:0 0 16px;font-family:'Archivo Black',Impact,sans-serif;font-size:28px;color:#3B82F6;">${heading}</h1>
+            <p style="margin:0 0 16px;font-size:16px;color:#d4d4d8;line-height:1.6;">${blurb}</p>
+            <p style="margin:0 0 12px;font-size:15px;color:#a1a1aa;">Item: <strong style="color:#3B82F6;">${tierLabel}</strong></p>
+            <p style="margin:0;font-size:13px;color:#71717a;">Questions? Reply to this email, call <a href="tel:+18566938249" style="color:#3B82F6;text-decoration:none;">(856) 693-8249</a>, or visit <a href="https://www.aurevonvc.com" style="color:#3B82F6;text-decoration:none;">www.aurevonvc.com</a>.</p>
           </td>
         </tr>
         <tr>
           <td style="background:#0A0A0A;border-top:1px solid rgba(255,255,255,0.05);padding:20px 40px;text-align:center;">
-            <p style="margin:0;font-size:11px;color:#3f3f46;">Aurevon Group LLC &middot; Aurevon Group LLC, 2810 N Church Street #86952, Wilmington, DE 19802</p>
+            <p style="margin:0;font-size:11px;color:#3f3f46;">Aurevon Ventures LLC &middot; 2810 N Church Street #86952, Wilmington, DE 19802</p>
           </td>
         </tr>
       </table>
@@ -327,14 +357,16 @@ export async function sendPurchaseConfirmation({ email, customerName, tier }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error('Missing RESEND_API_KEY env var');
 
-  const subject = 'Your Aurevon purchase is confirmed';
+  const subject = (tier ?? '').startsWith('addon_')
+    ? `Your Aurevon add-on (${tierDisplay(tier)}) is confirmed`
+    : 'Your Aurevon purchase is confirmed';
 
   const payload = {
     from: getFromAddress(),
     to: [email],
     subject,
     html: buildPurchaseConfirmHtml({ customerName, tier }),
-    text: `${customerName?.split(' ')[0] ?? 'Client'}, your payment has been received. We'll be in touch within one business day.\n\nTier: ${tier}\n\n— Aurevon`,
+    text: `${customerName?.split(' ')[0] ?? 'Client'}, your payment has been received. We'll be in touch within one business day.\n\nItem: ${tierDisplay(tier)}\n\nQuestions? mike@aurevonvc.com · (856) 693-8249 · www.aurevonvc.com\n\n— Aurevon Ventures LLC`,
   };
 
   console.log(`[Resend] Sending purchase confirmation email to ${email}`);

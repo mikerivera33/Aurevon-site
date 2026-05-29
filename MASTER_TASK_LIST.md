@@ -171,7 +171,7 @@ From `/api/health` audit — currently configured: `STRIPE_SECRET_KEY`, `STRIPE_
 
 **Steps:**
 1. `resend.com → Domains → Add Domain`
-2. Add `aurevongroup.com`
+2. Add `aurevonvc.com`
 3. Add the DNS records Resend provides (SPF, DKIM, DMARC)
 4. Verify domain → status turns green
 5. Update `RESEND_FROM_EMAIL` to `mike@aurevonvc.com` in Vercel
@@ -246,7 +246,7 @@ Step 2: Add 13 missing Vercel env vars (RESEND, CROSSMINT, PAYPAL, DISCORD)
 Step 3: Verify Airtable table structure matches expected fields
    → Portal + payment records work
 
-Step 4: Verify Resend domain (aurevongroup.com)
+Step 4: Verify Resend domain (aurevonvc.com)
    → Email delivery works
 
 Step 5: Register Stripe + PayPal webhooks with production URLs
