@@ -337,9 +337,9 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 .addon-price{font-family:'Archivo Black',sans-serif;color:var(--o2);white-space:nowrap;font-size:0.9rem;}
 .incl-badge{display:inline-block;background:rgba(30,58,138,0.12);color:var(--o2);padding:2px 8px;border-radius:4px;font-size:0.62rem;font-weight:700;letter-spacing:0.05em;margin:0 2px;}
 .incl-badge.ent{background:rgba(59,130,246,0.12);color:var(--o2);}
-.bkt-addon-btn{display:inline-block;padding:5px 14px;border-radius:6px;background:var(--o1);color:#fff;font-size:0.78rem;font-weight:700;text-decoration:none;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;}
-.bkt-addon-btn:hover{opacity:0.82;}
-.bkt-addon-btn[disabled]{opacity:0.5;pointer-events:none;}
+.addon-btn{display:inline-block;padding:5px 14px;border-radius:6px;background:var(--o1);color:#fff;font-size:0.78rem;font-weight:700;text-decoration:none;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;}
+.addon-btn:hover{opacity:0.82;}
+.addon-btn[disabled]{opacity:0.5;pointer-events:none;}
 
 /* Community steps */
 .community-steps{display:flex;flex-direction:column;gap:0.8rem;margin-top:0.5rem;}
@@ -682,42 +682,42 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
             <td class="addon-price">$99</td>
             <td>Priority queue — underwriting delivered in 12 hours instead of 24–48h</td>
             <td style="text-align:center;"><span class="incl-badge">Pro</span><span class="incl-badge ent">Ent</span></td>
-            <td style="text-align:center;"><a class="bkt-addon-btn" href="__CHECKOUT__addon_rush" data-orig-text="Add →" data-amount="$99">Add →</a></td>
+            <td style="text-align:center;"><a class="addon-btn" href="__CHECKOUT__addon_rush" data-orig-text="Add →" data-amount="$99">Add →</a></td>
           </tr>
           <tr>
             <td><strong>Investor Memo Formatting</strong></td>
             <td class="addon-price">$149</td>
             <td>LP-ready formatted memo with branded cover page, exec summary, and key metrics layout</td>
             <td style="text-align:center;">—</td>
-            <td style="text-align:center;"><a class="bkt-addon-btn" href="__CHECKOUT__addon_memo" data-orig-text="Add →" data-amount="$149">Add →</a></td>
+            <td style="text-align:center;"><a class="addon-btn" href="__CHECKOUT__addon_memo" data-orig-text="Add →" data-amount="$149">Add →</a></td>
           </tr>
           <tr>
             <td><strong>Lender Presentation Package</strong></td>
             <td class="addon-price">$199</td>
             <td>Bank-ready package: debt service coverage, LTV analysis, and lender comparison matrix</td>
             <td style="text-align:center;">—</td>
-            <td style="text-align:center;"><a class="bkt-addon-btn" href="__CHECKOUT__addon_lender" data-orig-text="Add →" data-amount="$199">Add →</a></td>
+            <td style="text-align:center;"><a class="addon-btn" href="__CHECKOUT__addon_lender" data-orig-text="Add →" data-amount="$199">Add →</a></td>
           </tr>
           <tr>
             <td><strong>Sensitivity Modeling</strong></td>
             <td class="addon-price">$125</td>
             <td>3-scenario stress test: base, upside, and downside with variable rent growth, cap rates, and exit assumptions</td>
             <td style="text-align:center;">—</td>
-            <td style="text-align:center;"><a class="bkt-addon-btn" href="__CHECKOUT__addon_sensitivity" data-orig-text="Add →" data-amount="$125">Add →</a></td>
+            <td style="text-align:center;"><a class="addon-btn" href="__CHECKOUT__addon_sensitivity" data-orig-text="Add →" data-amount="$125">Add →</a></td>
           </tr>
           <tr>
             <td><strong>Portfolio Review Bundle</strong></td>
             <td class="addon-price">$499</td>
             <td>3–5 assets reviewed together with cross-property comparison, portfolio-level metrics, and rebalancing recommendations</td>
             <td style="text-align:center;">—</td>
-            <td style="text-align:center;"><a class="bkt-addon-btn" href="__CHECKOUT__addon_portfolio" data-orig-text="Add →" data-amount="$499">Add →</a></td>
+            <td style="text-align:center;"><a class="addon-btn" href="__CHECKOUT__addon_portfolio" data-orig-text="Add →" data-amount="$499">Add →</a></td>
           </tr>
           <tr>
             <td><strong>White-Label Reports</strong></td>
             <td class="addon-price">$175<span style="font-size:0.72rem;color:var(--text-muted);"> / deal</span></td>
             <td>Your branding, your logo, your cover page — delivered as if your team built it. Ideal for brokers &amp; advisors</td>
             <td style="text-align:center;"><span class="incl-badge ent">Ent</span></td>
-            <td style="text-align:center;"><a class="bkt-addon-btn" href="__CHECKOUT__addon_whitelabel" data-orig-text="Add →" data-amount="$175">Add →</a></td>
+            <td style="text-align:center;"><a class="addon-btn" href="__CHECKOUT__addon_whitelabel" data-orig-text="Add →" data-amount="$175">Add →</a></td>
           </tr>
         </tbody>
       </table>
@@ -1769,7 +1769,7 @@ targets.forEach(t => spy.observe(t));
 <!-- ============ END PAYMENT TERMINAL ============ -->
 <script>
 /* ---------- Add-on buy buttons ---------- */
-document.querySelectorAll('.bkt-addon-btn').forEach(function(btn) {
+document.querySelectorAll('.addon-btn').forEach(function(btn) {
   btn.addEventListener('click', function(e) {
     e.preventDefault();
     var href = btn.getAttribute('href') || '';
