@@ -58,6 +58,7 @@ function verifyCrossmintSignature(rawBody, sigHeader) {
       Buffer.from(expected, 'hex'),
     );
   } catch {
+    console.warn('[Crossmint Webhook] Signature comparison failed (malformed hex in header) — rejecting');
     return false;
   }
 }
