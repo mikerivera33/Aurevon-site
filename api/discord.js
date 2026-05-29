@@ -20,7 +20,7 @@ import { onEntitlementActivated } from './_lib/engage.js';
 const CLIENT_ID     = process.env.DISCORD_CLIENT_ID;
 const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 const GUILD_ID      = process.env.DISCORD_GUILD_ID;
-const DOMAIN        = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
+const DOMAIN        = process.env.DOMAIN ?? 'https://www.aurevongroup.com';
 const STATE_SECRET  = process.env.STATE_SECRET;
 if (!STATE_SECRET) {
   console.error('[Discord OAuth] STATE_SECRET env var is required but not set');
