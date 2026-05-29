@@ -265,7 +265,7 @@ function buildWelcomeDm() {
     .addFields(
       { name: '1️⃣  Member Portal', value: `[Open here →](${SITE_URL}/member-claim.html) — sign in with your purchase email.`, inline: false },
       { name: '2️⃣  Connect Discord', value: 'Click **Connect Discord** in the portal. Your tier role is assigned automatically.', inline: false },
-      { name: '❓  Need help?',       value: 'Email **support@aurevongroup.com** or open a ticket in the server.', inline: false },
+      { name: '❓  Need help?',       value: 'Email **mike@aurevonvc.com** or open a ticket in the server.', inline: false },
     )
     .setFooter({ text: 'Aurevon Ventures LLC' });
 }
@@ -700,7 +700,7 @@ async function cmdBan(i) {
   const gm = await i.guild.members.fetch(target.id).catch(() => null);
   if (gm) {
     await gm.send({ embeds: [redEmbed('🔨  You have been banned')
-      .setDescription(`You were banned from **Aurevon Ventures**.\n\n**Reason:** ${reason}\n\nIf you believe this is an error, email support@aurevongroup.com`)] }).catch(() => {});
+      .setDescription(`You were banned from **Aurevon Ventures**.\n\n**Reason:** ${reason}\n\nIf you believe this is an error, email mike@aurevonvc.com`)] }).catch(() => {});
   }
 
   await i.guild.members.ban(target.id, { reason, deleteMessageDays: deleteDays });
@@ -1366,7 +1366,7 @@ async function cmdTicketSetup(i) {
       'Click the button below to open a private support channel — a moderator will respond as soon as possible.'
     )
     .addFields(
-      { name: '📋  Common questions', value: '`/member-claim` → verify membership\n`/sync-member` → fix role assignment\nEmail: support@aurevongroup.com', inline: false },
+      { name: '📋  Common questions', value: '`/member-claim` → verify membership\n`/sync-member` → fix role assignment\nEmail: mike@aurevonvc.com', inline: false },
     );
 
   await i.channel.send({ embeds: [embed], components: [row] });

@@ -2,7 +2,7 @@
 // Resend email sender - handles all Aurevon pass confirmation emails
 import crypto from 'node:crypto';
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@aurevongroup.com';
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'mike@aurevonvc.com';
 const FROM_NAME = process.env.RESEND_FROM_NAME || 'Aurevon';
 
 const PASS_CONFIGS = {

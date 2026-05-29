@@ -435,7 +435,7 @@ Resend is a developer-first transactional email service. It handles all Aurevon 
 2. Name it: `BLOCKT Production`
 3. Permission: **Full access** (needed to send and check email status)
 4. Copy the key → add to `RESEND_API_KEY`
-5. Set `RESEND_FROM_EMAIL=noreply@aurevongroup.com` (must be on your verified domain)
+5. Set `RESEND_FROM_EMAIL=mike@aurevonvc.com` (must be on your verified domain)
 
 ### 7.3 Email Templates
 

@@ -51,7 +51,7 @@ From `/api/health` audit — currently configured: `STRIPE_SECRET_KEY`, `STRIPE_
 | `CROSSMINT_TEMPLATE_GENESIS` | Genesis NFT template ID | crossmint.com → Templates |
 | `CROSSMINT_TEMPLATE_CHROME` | Chrome NFT template ID | crossmint.com → Templates |
 | `RESEND_API_KEY` | All transactional emails (magic links, NFT delivery, confirmations) | resend.com → API Keys |
-| `RESEND_FROM_EMAIL` | Email sender address | e.g. `hello@aurevongroup.com` (must be verified in Resend) |
+| `RESEND_FROM_EMAIL` | Email sender address | e.g. `mike@aurevonvc.com` (must be verified in Resend) |
 | `RESEND_FROM_NAME` | Email sender display name | e.g. `Aurevon Group` |
 | `DISCORD_INVITE_URL` | Discord link in NFT delivery emails | Your Discord server invite link |
 
@@ -174,7 +174,7 @@ From `/api/health` audit — currently configured: `STRIPE_SECRET_KEY`, `STRIPE_
 2. Add `aurevongroup.com`
 3. Add the DNS records Resend provides (SPF, DKIM, DMARC)
 4. Verify domain → status turns green
-5. Update `RESEND_FROM_EMAIL` to `hello@aurevongroup.com` in Vercel
+5. Update `RESEND_FROM_EMAIL` to `mike@aurevonvc.com` in Vercel
 
 ---
 

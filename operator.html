@@ -196,7 +196,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 <!-- ══ TOP NAV ══════════════════════════════════════════════════ -->
 <nav class="aurevon-top-nav">
   <a href="index.html" class="logo">
-            <img src="assets/aurevon A logo blue by itself.jpg" alt="Aurevon" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:cover;">
+            <img src="assets/aurevon_logo_nav.png" alt="Aurevon" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:contain;">
     <span>Aurevon · Operator Hub</span>
   </a>
   <div class="owner-badge">🔒 Owner Only</div>
@@ -631,7 +631,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: Airtable new row in Leads table. Action: Post to #new-leads Slack channel with name, tier, and property.</div>
           <div class="auto-footer">
             <span class="auto-tag">Zapier / Make</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+Slack+Alert">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:mike@aurevonvc.com?subject=Setup+Slack+Alert">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -640,7 +640,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: Stripe <code style="font-size:.73rem;">checkout.session.completed</code>. Action: Send NFT email via Postmark + assign Discord role via bot.</div>
           <div class="auto-footer">
             <span class="auto-tag">Stripe Webhook</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+NFT+Discord+Flow">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:mike@aurevonvc.com?subject=Setup+NFT+Discord+Flow">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -649,7 +649,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: Airtable record status = In Progress AND due_date < now(). Action: Slack DM + email to owner.</div>
           <div class="auto-footer">
             <span class="auto-tag">Make.com</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+SLA+Alert">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:mike@aurevonvc.com?subject=Setup+SLA+Alert">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -658,7 +658,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: NPS survey response ≥ 9. Action: Send personalized email requesting a review + LinkedIn recommendation.</div>
           <div class="auto-footer">
             <span class="auto-tag">Typeform + Zapier</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+Testimonial+Flow">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:mike@aurevonvc.com?subject=Setup+Testimonial+Flow">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -667,7 +667,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: Genesis or Chrome tier payment. Action: Add to permanent Discord role, send welcome PDF packet, tag in CRM as VIP.</div>
           <div class="auto-footer">
             <span class="auto-tag">Stripe + Discord</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+Lifetime+Onboarding">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:mike@aurevonvc.com?subject=Setup+Lifetime+Onboarding">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -676,7 +676,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: 7 days before Stripe subscription renewal. Action: Send check-in DM asking if needs persist and offering upgrade path.</div>
           <div class="auto-footer">
             <span class="auto-tag">Stripe + Postmark</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+Renewal+Check-in">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:mike@aurevonvc.com?subject=Setup+Renewal+Check-in">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -685,7 +685,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: Every Monday 7 AM. Action: Email owner summary — leads, revenue, NPS score, deliverables, churn risk flag.</div>
           <div class="auto-footer">
             <span class="auto-tag">Make.com Schedule</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+Weekly+Digest">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:mike@aurevonvc.com?subject=Setup+Weekly+Digest">Set up →</a>
           </div>
         </div>
         <div class="auto-tile">
@@ -694,7 +694,7 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="auto-desc">Trigger: Stripe checkout session expired without payment. Action: Wait 2h, send recovery email with direct payment link.</div>
           <div class="auto-footer">
             <span class="auto-tag">Stripe + Klaviyo</span>
-            <a class="btn" style="font-size:.72rem;" href="mailto:hello@aurevonvc.com?subject=Setup+Abandoned+Cart">Set up →</a>
+            <a class="btn" style="font-size:.72rem;" href="mailto:mike@aurevonvc.com?subject=Setup+Abandoned+Cart">Set up →</a>
           </div>
         </div>
       </div>
@@ -828,7 +828,7 @@ document.addEventListener('DOMContentLoaded', function(){
         </div>
         <div class="check-item" data-key="email" onclick="toggleCheck(this)">
           <div class="check-box">✓</div>
-          <div class="check-label">Email forwarding → <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">hello@aurevonvc.com</code> → connect Postmark or Resend for transactional email</div>
+          <div class="check-label">Email forwarding → <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">mike@aurevonvc.com</code> → connect Postmark or Resend for transactional email</div>
         </div>
         <div class="check-item" data-key="slack" onclick="toggleCheck(this)">
           <div class="check-box">✓</div>
@@ -982,7 +982,7 @@ document.addEventListener('DOMContentLoaded', function(){
     </div>
     <div class="social"><a href="https://x.com/AurevonLabs" target="_blank" rel="noopener" title="X / Twitter"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a><a href="https://discord.gg/2fwFjMEh" target="_blank" rel="noopener" title="Discord"><svg width="16" height="14" viewBox="0 0 71 55" fill="currentColor"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z"/></svg></a></div>
   </div>
-  <script>(function(){var y=document.getElementById("aurevonYr")');if(y)y.textContent=new Date().getFullYear();})();</script>
+  <script>(function(){var y=document.getElementById("aurevonYr");if(y)y.textContent=new Date().getFullYear();})();</script>
 </footer>
 
 

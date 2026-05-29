@@ -147,8 +147,8 @@ Module 2: Airtable → Update a Record
 - **Body:**
   ```json
   {
-    "from": "alerts@aurevongroup.com",
-    "to": ["owner@aurevongroup.com"],
+    "from": "mike@aurevonvc.com",
+    "to": ["mike@aurevonvc.com"],
     "subject": "SLA Breach: {{count}} leads pending > 24h",
     "html": "<p>The following leads have been pending for more than 24 hours:</p><ul>{{#each records}}<li>{{name}} — {{service}} — {{created_at}}</li>{{/each}}</ul><p>Log in to Operator Hub to take action.</p>"
   }

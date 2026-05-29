@@ -1,0 +1,22 @@
+User-agent: *
+Allow: /
+
+# Internal / owner-only & utility pages — keep out of search results
+Disallow: /operator
+Disallow: /operator.html
+Disallow: /setup-wizard
+Disallow: /setup-wizard.html
+Disallow: /aurevon-crm
+Disallow: /aurevon-crm.html
+Disallow: /blockt-crm
+Disallow: /blockt-crm.html
+Disallow: /portal
+Disallow: /portal.html
+Disallow: /member-claim
+Disallow: /member-claim.html
+Disallow: /discord-welcome
+Disallow: /membership-confirmation
+Disallow: /membership_confirmation.html
+Disallow: /api/
+
+Sitemap: https://www.aurevonvc.com/sitemap.xml

@@ -7,7 +7,7 @@ const RESEND_BASE_URL = 'https://api.resend.com';
 
 function getFromAddress() {
   const name = process.env.RESEND_FROM_NAME ?? 'Aurevon';
-  const email = process.env.RESEND_FROM_EMAIL ?? 'hello@aurevongroup.com';
+  const email = process.env.RESEND_FROM_EMAIL ?? 'mike@aurevonvc.com';
   return `${name} <${email}>`;
 }
 
@@ -167,7 +167,7 @@ function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, disc
           <tr>
             <td style="padding:24px 40px;">
               <p style="margin:0;font-size:13px;color:#52525b;line-height:1.6;">
-                Questions? Reply to this email or reach us at <a href="mailto:hello@aurevongroup.com" style="color:#3B82F6;text-decoration:none;">hello@aurevongroup.com</a>. We respond within one business day.
+                Questions? Reply to this email or reach us at <a href="mailto:mike@aurevonvc.com" style="color:#3B82F6;text-decoration:none;">mike@aurevonvc.com</a>. We respond within one business day.
               </p>
             </td>
           </tr>
@@ -211,7 +211,7 @@ ${serial ? `Serial: ${serial}\n` : ''}${editionDisplay ? `Edition: #${editionDis
 Chain: Base (Ethereum L2)
 Delivery: Email wallet (no wallet setup required)
 
-${discordInviteUrl ? `Join the operator community:\n${discordInviteUrl}\n` : ''}Questions? hello@aurevongroup.com
+${discordInviteUrl ? `Join the operator community:\n${discordInviteUrl}\n` : ''}Questions? mike@aurevonvc.com
 
 ---
 Aurevon Group LLC · Aurevon Group LLC, 2810 N Church Street #86952, Wilmington, DE 19802
