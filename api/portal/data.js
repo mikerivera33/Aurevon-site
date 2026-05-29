@@ -11,7 +11,7 @@
 
 import crypto from 'node:crypto';
 
-const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
+const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevongroup.com';
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
 const AUTH_TABLE = process.env.AIRTABLE_TABLE_CUSTOMER_AUTH ?? 'tblbCS7TL65FcOiWn';
 const PAYMENTS_TABLE = process.env.AIRTABLE_TABLE_PAYMENTS ?? 'tbl6KlhM9fIH19W5i';
