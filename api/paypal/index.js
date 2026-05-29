@@ -127,6 +127,10 @@ async function handleCapture(req, res) {
     const amount = unit?.payments?.captures?.[0]?.amount?.value;
     const email = customerEmail || unit?.custom_id || '';
 
+    if (amount === undefined) {
+      console.warn(`[PayPal] Capture amount missing from PayPal response for orderId=${orderId} — logging $0`);
+    }
+
     await logToAirtable({
       'Transaction ID':  orderId,
       'Payment Provider': 'PayPal',
