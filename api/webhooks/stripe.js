@@ -8,9 +8,9 @@
 import crypto from 'node:crypto';
 import { TIER_NFT_MAP, inferTierFromAmount, getNextSerial, formatSerial } from '../_lib/tiers.js';
 import { mintToEmail } from '../_lib/crossmint.js';
-import { createPayment, createNftMint } from '../_lib/airtable.js';
+import { createPayment, createNftMint, updateDiscordSyncStatus, findMemberByEmail } from '../_lib/airtable.js';
 import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
-import { resolveEntitlementFromSku, getRoleId } from '../_lib/entitlements.js';
+import { resolveEntitlementFromSku, getRoleId, ENTITLEMENT_MAP } from '../_lib/entitlements.js';
 import { removeRoleFromMember } from '../_lib/discord-bot.js';
 
 // ---------------------------------------------------------------------------
@@ -198,6 +198,7 @@ async function handleCheckoutSessionCompleted(session) {
                         mintId: mintId ?? '',
                         retryCount: 0,
               });
+              if (!insertedSerial) insertedSerial = ref; // track actual ref for null-serial tiers
               console.log(`[Stripe] NFT_Mints record created with reference=${ref}`);
               break;
       } catch (err) {
@@ -251,16 +252,15 @@ async function handleSubscriptionDeleted(subscription) {
   }
   console.log(`[Stripe] Subscription cancelled for ${customerEmail} tier=${tier} — revoking access`);
 
-  const { updateDiscordSyncStatus, findMemberByEmail } = await import('../_lib/airtable.js');
-
   // Mark revoked in Airtable
   await updateDiscordSyncStatus(customerEmail, 'revoked').catch(e => {
     console.error(`[Stripe] Failed to mark revocation in Airtable: ${e.message}`);
   });
 
-  // Immediately remove Discord role
+  // Immediately remove Discord role — only for entitlements that allow revocation on cancellation
   const entitlementKey = tier ? resolveEntitlementFromSku(tier) : null;
-  const roleId = entitlementKey ? getRoleId(entitlementKey) : null;
+  const entitlementCfg = entitlementKey ? ENTITLEMENT_MAP[entitlementKey] : null;
+  const roleId = entitlementCfg?.revokeOnCancel ? getRoleId(entitlementKey) : null;
   if (roleId) {
     try {
       const member = await findMemberByEmail(customerEmail).catch(() => null);
@@ -275,7 +275,7 @@ async function handleSubscriptionDeleted(subscription) {
       console.error(`[Stripe] Discord role removal failed: ${err.message}`);
     }
   } else {
-    console.log(`[Stripe] No revocable entitlement for tier="${tier}" — Discord role not removed`);
+    console.log(`[Stripe] Entitlement "${entitlementKey}" for tier="${tier}" is not revocable — Discord role retained`);
   }
 }
 

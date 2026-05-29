@@ -215,6 +215,7 @@ async function handleVerifiedIPN(ipn) {
         mintId: mintId ?? '',
         retryCount: 0,
       });
+      if (!insertedSerial) insertedSerial = ref; // track actual ref for null-serial tiers
       console.log(`[PayPal IPN] NFT_Mints record created with reference=${ref}`);
       break;
     } catch (err) {
