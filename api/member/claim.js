@@ -26,7 +26,7 @@ import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
 import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
 
-const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevongroup.com';
+const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 
 function getReconcileSecret() {
   return process.env.RECONCILE_SECRET ?? process.env.CRON_SECRET ?? '';
@@ -74,7 +74,7 @@ async function handleMint(req, res) {
       attributes: [
         { trait_type: 'Pass Tier', value: passType },
         { trait_type: 'Network', value: 'Base' },
-        { trait_type: 'Issuer', value: 'Aurevon Group LLC' },
+        { trait_type: 'Issuer', value: 'Aurevon Ventures LLC' },
         ...(metadata?.attributes || [])
       ]
     }

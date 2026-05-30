@@ -8,7 +8,9 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 (function(){try{localStorage.getItem('_t');}catch(e){var m={};window.localStorage={getItem:function(k){return m[k]||null;},setItem:function(k,v){m[k]=String(v);},removeItem:function(k){delete m[k];},clear:function(){m={};}};}}());
 </script>
 <meta charset="UTF-8" />
+<meta name="robots" content="noindex,nofollow">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" type="image/png" href="/assets/aurevon_logo_nav.png"><link rel="apple-touch-icon" href="/assets/aurevon_shield_logo_1k.png">
   <title>Aurevon Dashboard — My Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -911,7 +913,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 
   <!-- ─── LOADING OVERLAY ─── -->
   <div id="loading-overlay">
-              <div class="loading-logo"><img src="assets/Aurevon LOGO1.jpg" alt="Aurevon" style="height:48px;border-radius:4px;"></div>
+              <div class="loading-logo"><img src="assets/aurevon_logo_nav.png" alt="Aurevon" style="height:48px;border-radius:4px;"></div>
     <div class="loading-spinner"></div>
     <div class="loading-text">Loading your dashboard…</div>
   </div>
@@ -920,7 +922,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
   <div id="login-screen" class="hidden">
     <div class="login-card fade-in">
       <div class="login-logo">
-                  <img src="assets/aurevon A logo blue by itself.jpg" alt="Aurevon" class="shield" style="width:48px;height:48px;border-radius:8px;object-fit:cover;">
+                  <img src="assets/aurevon_logo_nav.png" alt="Aurevon" class="shield" style="width:48px;height:48px;border-radius:8px;object-fit:contain;">
         <span class="brand-name">Aurevon</span>
       </div>
       <h1>Your Aurevon Dashboard</h1>
@@ -950,7 +952,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
     <!-- TOP NAV -->
     <nav id="topnav">
       <div class="nav-brand">
-                  <img src="assets/aurevon A logo blue by itself.jpg" alt="Aurevon" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:cover;">
+                  <img src="assets/aurevon_logo_nav.png" alt="Aurevon" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:contain;">
         <div class="nav-brand-text">
           <span class="AUREVON">Aurevon</span>
           <span class="dash-label">My Dashboard</span>
@@ -1153,7 +1155,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
             <h3>Reports Coming Soon</h3>
             <p>Your completed underwriting reports will appear here once delivered. Currently, reports are sent directly to your email. We're building direct downloads — check back soon.</p>
             <div class="actions">
-              <a href="mailto:hello@aurevongroup.com" class="btn btn-secondary">
+              <a href="mailto:mike@aurevonvc.com" class="btn btn-secondary">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                 Contact Support
               </a>
@@ -1225,7 +1227,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Request Data Export
               </button>
-              <a href="mailto:hello@aurevongroup.com">
+              <a href="mailto:mike@aurevonvc.com">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                 Contact Support
               </a>
@@ -1235,7 +1237,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
               </button>
             </div>
             <div class="data-export-note" id="data-export-note">
-              To request a full export of your data, email <a href="mailto:hello@aurevongroup.com" style="color:var(--accent-solid);">hello@aurevongroup.com</a> from your registered address and we'll prepare your export within 5 business days.
+              To request a full export of your data, email <a href="mailto:mike@aurevonvc.com" style="color:var(--accent-solid);">mike@aurevonvc.com</a> from your registered address and we'll prepare your export within 5 business days.
             </div>
           </div>
 
@@ -1706,7 +1708,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
         showLoginMsg('success', `📨 Check your inbox — login link sent to ${email}`);
         document.getElementById('login-form-wrap').classList.add('hidden');
       } else if (res.status === 404) {
-        showLoginMsg('error', `We couldn't find a purchase with that email. Check spelling or contact <a href="mailto:hello@aurevongroup.com" style="color:var(--accent-solid)">hello@aurevongroup.com</a>.`);
+        showLoginMsg('error', `We couldn't find a purchase with that email. Check spelling or contact <a href="mailto:mike@aurevonvc.com" style="color:var(--accent-solid)">mike@aurevonvc.com</a>.`);
         btn.disabled = false;
         btn.innerHTML = 'Send Login Link →';
       } else {
@@ -1745,7 +1747,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
   }
 
   function disconnectDiscord() {
-    showToast('To disconnect Discord, contact hello@aurevongroup.com', 'info');
+    showToast('To disconnect Discord, contact mike@aurevonvc.com', 'info');
   }
 
   function requestDataExport() {

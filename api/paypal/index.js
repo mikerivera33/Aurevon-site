@@ -20,6 +20,13 @@ const PASS_PRICES = {
   CHROME:   { amount: '349.99',  description: 'Aurevon CHROME Pass - Lifetime Community' },
   GENESIS:  { amount: '500.00',  description: 'Aurevon GENESIS Founder Pass - All Access Lifetime' },
   COMMUNITY:{ amount: '29.99',   description: 'Aurevon GENESIS COMMUNITY Pass - Monthly' },
+  // À La Carte add-ons (no NFT) — mirror of the Stripe add-on products
+  ADDON_RUSH:        { amount: '99.00',  description: 'Aurevon RE - 12-Hour Rush Delivery (Add-On)' },
+  ADDON_MEMO:        { amount: '149.00', description: 'Aurevon RE - Investor Memo Formatting (Add-On)' },
+  ADDON_LENDER:      { amount: '199.00', description: 'Aurevon RE - Lender Presentation Package (Add-On)' },
+  ADDON_SENSITIVITY: { amount: '125.00', description: 'Aurevon RE - Sensitivity Modeling (Add-On)' },
+  ADDON_PORTFOLIO:   { amount: '499.00', description: 'Aurevon RE - Portfolio Review Bundle (Add-On)' },
+  ADDON_WHITELABEL:  { amount: '175.00', description: 'Aurevon RE - White-Label Reports (Add-On)' },
 };
 
 async function getAccessToken() {

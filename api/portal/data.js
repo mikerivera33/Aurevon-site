@@ -11,7 +11,7 @@
 
 import crypto from 'node:crypto';
 
-const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevongroup.com';
+const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
 const AUTH_TABLE = process.env.AIRTABLE_TABLE_CUSTOMER_AUTH ?? 'tblbCS7TL65FcOiWn';
 const PAYMENTS_TABLE = process.env.AIRTABLE_TABLE_PAYMENTS ?? 'tbl6KlhM9fIH19W5i';
@@ -61,7 +61,7 @@ async function handleAuth(req, res) {
     const AIRTABLE_PAT = process.env.AIRTABLE_PAT;
     if (!AIRTABLE_PAT) return res.status(500).json({ error: 'Portal not yet configured' });
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
-    const RESEND_FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@aurevongroup.com';
+    const RESEND_FROM = process.env.RESEND_FROM_EMAIL ?? 'mike@aurevonvc.com';
 
   const normalizedEmail = email.trim().toLowerCase();
     if (normalizedEmail.includes('"') || normalizedEmail.includes("'")) {

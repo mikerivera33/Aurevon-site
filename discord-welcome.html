@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+<meta name="robots" content="noindex,nofollow">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" type="image/png" href="/assets/aurevon_logo_nav.png"><link rel="apple-touch-icon" href="/assets/aurevon_shield_logo_1k.png">
   <title>You're In, Operator — Aurevon</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -280,7 +282,7 @@
 
   <!-- Header -->
   <header class="header">
-    <div class="logo"><img src="assets/aurevon A logo blue by itself.jpg" alt="Aurevon" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:cover;">Aurevon<span> Ventures</span></div>
+    <div class="logo"><img src="assets/aurevon_logo_nav.png" alt="Aurevon" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:contain;">Aurevon<span> Ventures</span></div>
     <div class="header-label">Operator Portal</div>
   </header>
 
@@ -322,12 +324,13 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <span>Aurevon &copy; 2024</span>
+    <span>Aurevon &copy; <span id="aurevonYr">2026</span></span>
     <span>Confidential — Operator Access Only</span>
   </footer>
 </div>
 
 <script>
+(function(){var y=document.getElementById("aurevonYr");if(y)y.textContent=new Date().getFullYear();})();
 (function () {
   const params = new URLSearchParams(window.location.search);
   const role = params.get('role') || '';

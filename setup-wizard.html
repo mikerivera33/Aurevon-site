@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+<meta name="robots" content="noindex,nofollow">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" type="image/png" href="/assets/aurevon_logo_nav.png"><link rel="apple-touch-icon" href="/assets/aurevon_shield_logo_1k.png">
   <title>Aurevon Setup Wizard — Configure Stripe, Crossmint & Discord</title>
   <meta name="description" content="Interactive one-page wizard to configure Stripe payments, Crossmint NFT drops, and Discord roles for your Aurevon site." />
   <!-- Suppress wallet extension errors (MetaMask, Coinbase Wallet, etc.) in sandboxed iframes -->
@@ -933,7 +935,7 @@
         </div>
         <div class="field">
           <label>Resend From Email</label>
-          <input type="text" id="resendFrom" placeholder="noreply@aurevonvc.com" oninput="updateEnvBlock()" />
+          <input type="text" id="resendFrom" placeholder="mike@aurevonvc.com" oninput="updateEnvBlock()" />
         </div>
       </div>
       <div class="field-row" style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;">
@@ -990,7 +992,7 @@
 
 <span class="c"># ── Resend (email)</span>
 <span class="k">RESEND_API_KEY</span>=<span id="fev-resend">re_...</span>
-<span class="k">RESEND_FROM_EMAIL</span>=<span id="fev-resend-from">noreply@aurevonvc.com</span>
+<span class="k">RESEND_FROM_EMAIL</span>=<span id="fev-resend-from">mike@aurevonvc.com</span>
 
 <span class="c"># ── Airtable</span>
 <span class="k">AIRTABLE_API_KEY</span>=<span id="fev-at-key">pat...</span>
@@ -1024,7 +1026,7 @@
     </div>
     <div class="social"><a href="https://x.com/AurevonLabs" target="_blank" rel="noopener" title="X / Twitter"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a><a href="https://discord.gg/2fwFjMEh" target="_blank" rel="noopener" title="Discord"><svg width="16" height="14" viewBox="0 0 71 55" fill="currentColor"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z"/></svg></a></div>
   </div>
-  <script>(function(){var y=document.getElementById("aurevonYr")');if(y)y.textContent=new Date().getFullYear();})();</script>
+  <script>(function(){var y=document.getElementById("aurevonYr");if(y)y.textContent=new Date().getFullYear();})();</script>
 </footer>
 
 <!-- ── SCRIPTS ── -->
@@ -1171,7 +1173,7 @@
     var dcRa = getVal('role-architect') || '...';
     var dcRs = getVal('role-sovereign') || '...';
     var resend = getVal('resendKey') || 're_...';
-    var resendFrom = getVal('resendFrom') || 'noreply@aurevonvc.com';
+    var resendFrom = getVal('resendFrom') || 'mike@aurevonvc.com';
     var atKey = getVal('airtableKey') || 'pat...';
     var atBase = getVal('airtableBaseId') || 'appXXXXXXXXXXXXXX';
 

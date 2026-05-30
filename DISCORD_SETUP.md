@@ -13,7 +13,7 @@ roles and channels, connecting the bot, and wiring everything into the Vercel ba
 
 1. Open Discord → click the **+** icon in the server list → **Create My Own**.
 2. Choose **For a club or community**.
-3. Name it **BLOCKT Operators**.
+3. Name it **Aurevon Operators**.
 4. Upload the Aurevon logo as the server icon (use the gold-on-black logo variant).
 5. Click **Create**.
 
@@ -113,7 +113,7 @@ DISCORD_ROLE_CHROME=<id for 004 Chrome>
 ## 5. Create the Discord Application and Bot
 
 1. Go to [discord.com/developers/applications](https://discord.com/developers/applications).
-2. Click **New Application** → name it **BLOCKT Bot** → **Create**.
+2. Click **New Application** → name it **Aurevon Bot** → **Create**.
 3. Go to **Bot** → **Add Bot** → confirm.
 4. Under **Bot**:
    - Uncheck **Public Bot** (so only you can invite it).
@@ -138,9 +138,9 @@ https://discord.com/api/oauth2/authorize
 
 Replace `YOUR_BOT_CLIENT_ID` with the value on the **General Information** page.
 
-Open the URL in your browser, select **BLOCKT Operators** from the server dropdown, and click **Authorize**.
+Open the URL in your browser, select **Aurevon Operators** from the server dropdown, and click **Authorize**.
 
-**Critical:** The **BLOCKT Bot** role must sit ABOVE all member roles in the role list (step 3), or Discord will return 403 when assigning roles.
+**Critical:** The **Aurevon Bot** role must sit ABOVE all member roles in the role list (step 3), or Discord will return 403 when assigning roles.
 
 ---
 

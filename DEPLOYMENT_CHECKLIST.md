@@ -22,7 +22,7 @@
 
 | # | Item | Done | Notes |
 |---|---|---|---|
-| 2.1 | Custom domain added in Vercel → Domains | [ ] | e.g., aurevongroup.com |
+| 2.1 | Custom domain added in Vercel → Domains | [ ] | e.g., aurevonvc.com |
 | 2.2 | DNS records pointed to Vercel (A record or CNAME) | [ ] | Check with `dig yourdomain.com` |
 | 2.3 | DNS propagation complete (may take up to 48 hours) | [ ] | Use https://dnschecker.org |
 | 2.4 | SSL certificate issued and active (green padlock) | [ ] | Vercel auto-provisions via Let's Encrypt |

@@ -314,7 +314,7 @@ function buildVerifyEmbed() {
           inline: true,
         },
       ],
-      footer: { text: 'Questions? Email support@aurevonvc.com' },
+      footer: { text: 'Questions? Email mike@aurevonvc.com' },
     }],
     components: [{
       type: 1,

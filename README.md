@@ -27,7 +27,7 @@
 
 Aurevon is a fully autonomous investment education and Web3 membership platform. Once deployed, it operates without manual intervention:
 
-- **Customers visit** `aurevongroup.com` and select a membership tier (Insider, Ember, Obsidian Executive, 001 Genesis, 004 Chrome) or a Real Estate service (Pro Retainer, Enterprise).
+- **Customers visit** `aurevonvc.com` and select a membership tier (Insider, Ember, Obsidian Executive, 001 Genesis, 004 Chrome) or a Real Estate service (Pro Retainer, Enterprise).
 - **They pay** via Stripe (card, Cash App Pay, Afterpay) or PayPal.
 - **A webhook fires** to the Aurevon backend (Vercel serverless function), which verifies the payment signature.
 - **Crossmint mints** the corresponding NFT membership token directly to the customer's email address — no crypto wallet required.
@@ -43,12 +43,12 @@ Aurevon is a fully autonomous investment education and Web3 membership platform.
 | Page | Purpose |
 |---|---|
 | `index.html` | Main landing — hero, tiers, pricing |
-| `BLOCKT_Web3.html` | Web3/NFT membership detail |
-| `BLOCKT_NFT_Collection.html` | NFT collection gallery |
+| `aurevon-web3.html` | Web3/NFT membership detail |
+| `aurevon-nft.html` | NFT collection gallery |
 | `001_Genesis.html` | 001 Genesis tier detail |
 | `004_Chrome.html` | 004 Chrome tier detail |
-| `BLOCKT_RE_Final.html` | Real Estate services |
-| `BLOCKT_RE_Intake.html` | Gated intake form (leads) |
+| `aurevon-re.html` | Real Estate services |
+| `aurevon-re-intake.html` | Gated intake form (leads) |
 | `membership_confirmation.html` | Post-payment confirmation |
 | `operator.html` | Owner-only dashboard (Airtable-powered) |
 
@@ -75,7 +75,7 @@ Aurevon is a fully autonomous investment education and Web3 membership platform.
 
   CUSTOMER JOURNEY
   ────────────────
-  Customer visits aurevongroup.com
+  Customer visits aurevonvc.com
            │
            ▼
   Selects tier & clicks "Join Now"
@@ -166,8 +166,8 @@ Follow these steps in order. Each step has a time estimate.
 ### Step 1 — Fork / Clone the Repo (1 min)
 
 ```bash
-git clone https://github.com/YOUR_ORG/blockt-ventures-site.git
-cd blockt-ventures-site/site
+git clone https://github.com/YOUR_ORG/aurevon-site.git
+cd aurevon-site/site
 npm install
 ```
 
@@ -219,7 +219,7 @@ npm run deploy
 vercel --prod
 ```
 
-Vercel prints your deployment URL (e.g., `https://blockt-ventures-xxxx.vercel.app`). Add your custom domain in the Vercel dashboard.
+Vercel prints your deployment URL (e.g., `https://aurevon-site-xxxx.vercel.app`). Add your custom domain in the Vercel dashboard.
 
 ### Step 6 — Configure Webhooks (2 min)
 
@@ -256,13 +256,22 @@ Each Aurevon membership tier needs its own Stripe Payment Link so the customer l
 1. Go to **Stripe Dashboard → Products → Payment Links → New**
 2. Create a product for each tier with the correct price:
 
-| Tier | Price | Billing |
+**Real Estate underwriting services** (only Full Package / Pro Retainer / Enterprise include an NFT):
+
+| Tier | Price | Billing | NFT |
+|---|---|---|---|
+| First-Timer BOGO | $299.99 | One-time (new customers) | — |
+| Second Opinion | $189.99 | Per deal | — |
+| Full Package | $250 | Per deal | Tier 1 — Aurevon Insider |
+| Pro Retainer | $1,499 | Monthly | Tier 2 — Aurevon Ember |
+| Enterprise | $2,499 | Monthly | Tier 3 — Aurevon Obsidian Executive |
+
+**Community NFTs (Aurevon Labs)** — standalone passes for people who want the NFT + Discord without paying for underwriting:
+
+| Pass | Price | Billing |
 |---|---|---|
-| Insider | $297 | One-time |
-| Ember | $497 | One-time |
-| Obsidian Executive | $997 | One-time |
-| 001 Genesis | $2,497 | One-time |
-| 004 Chrome | $4,997 | One-time |
+| 001 Genesis Community Pass | $29.99 | Monthly |
+| 004 Chrome Community Pass | $349.99 | One-time (lifetime) |
 | RE Pro Retainer | $2,500 | Monthly |
 | RE Enterprise | $5,000 | Monthly |
 
@@ -353,10 +362,10 @@ Crossmint allows you to mint NFTs directly to a customer's email — they can cl
 3. Submit your business details (takes 1–2 business days for approval)
 4. While waiting, you can develop on **Staging** environment
 
-### 6.2 Create the "BLOCKT Genesis Drop" Collection
+### 6.2 Create the "Aurevon Genesis Drop" Collection
 
 1. **Crossmint Console → Collections → Create Collection**
-2. Name: `BLOCKT Genesis Drop`
+2. Name: `Aurevon Genesis Drop`
 3. Chain: `polygon` (recommended — fees average $0.01–0.05 per mint)
 4. Collection type: `Semi-fungible (ERC-1155)` — allows multiple copies of each template
 5. Upload a collection banner image
@@ -370,27 +379,27 @@ For each membership tier, create a template in the collection:
 2. Use these names and descriptions:
 
 **Insider Template**
-- Name: `BLOCKT Insider`
+- Name: `Aurevon Insider`
 - Description: `Foundation access to the Aurevon ecosystem. Community, education, and deal flow.`
 - Image: Upload insider artwork (750×750px recommended)
 
 **Ember Template**
-- Name: `BLOCKT Ember`
+- Name: `Aurevon Ember`
 - Description: `Elevated access with live Q&As, monthly deal breakdowns, and priority support.`
 - Image: Upload ember artwork
 
 **Obsidian Executive Template**
-- Name: `BLOCKT Obsidian Executive`
+- Name: `Aurevon Obsidian Executive`
 - Description: `Premium membership with 1:1 advisory sessions, vetted deal access, and co-investment rights.`
 - Image: Upload obsidian artwork
 
 **001 Genesis Template**
-- Name: `BLOCKT 001 Genesis`
+- Name: `Aurevon 001 Genesis`
 - Description: `Founding member of the Aurevon Genesis cohort. Early access to all future drops, permanent Discord role, legacy pricing lock.`
 - Image: Upload 001 Genesis artwork
 
 **004 Chrome Template**
-- Name: `BLOCKT 004 Chrome`
+- Name: `Aurevon 004 Chrome`
 - Description: `Top-tier Aurevon membership. Direct founder access, Chrome-level co-investment rights, and lifetime benefits.`
 - Image: Upload 004 Chrome artwork
 
@@ -422,7 +431,7 @@ Resend is a developer-first transactional email service. It handles all Aurevon 
 
 1. Sign up at https://resend.com/signup
 2. Go to **Settings → Domains → Add Domain**
-3. Enter your domain (e.g., `aurevongroup.com`)
+3. Enter your domain (e.g., `aurevonvc.com`)
 4. Resend shows you DNS records to add:
    - **SPF record** (TXT): add to your DNS provider (Cloudflare, GoDaddy, etc.)
    - **DKIM record** (TXT): two records, add both
@@ -432,10 +441,10 @@ Resend is a developer-first transactional email service. It handles all Aurevon 
 ### 7.2 Generate an API Key
 
 1. **Resend Dashboard → API Keys → Create API Key**
-2. Name it: `BLOCKT Production`
+2. Name it: `Aurevon Production`
 3. Permission: **Full access** (needed to send and check email status)
 4. Copy the key → add to `RESEND_API_KEY`
-5. Set `RESEND_FROM_EMAIL=noreply@aurevongroup.com` (must be on your verified domain)
+5. Set `RESEND_FROM_EMAIL=mike@aurevonvc.com` (must be on your verified domain)
 
 ### 7.3 Email Templates
 
@@ -461,7 +470,7 @@ The Aurevon Airtable base is the central data store for all payments, NFT mints,
 
 1. Go to https://airtable.com/create/tokens
 2. Click **Create new token**
-3. Name: `BLOCKT Production`
+3. Name: `Aurevon Production`
 4. Scopes: `data.records:read`, `data.records:write`, `schema.bases:read`
 5. Access: select your Aurevon base
 6. Copy the token (starts with `pat`) → add to `AIRTABLE_PAT`
@@ -662,12 +671,12 @@ Print this before going live. Mark each item.
 
 ### Pages
 - [ ] `index.html` loads without console errors
-- [ ] `BLOCKT_Web3.html` loads
-- [ ] `BLOCKT_NFT_Collection.html` loads
+- [ ] `aurevon-web3.html` loads
+- [ ] `aurevon-nft.html` loads
 - [ ] `001_Genesis.html` loads
 - [ ] `004_Chrome.html` loads
-- [ ] `BLOCKT_RE_Final.html` loads
-- [ ] `BLOCKT_RE_Intake.html` shows gate for unauthenticated users
+- [ ] `aurevon-re.html` loads
+- [ ] `aurevon-re-intake.html` shows gate for unauthenticated users
 - [ ] `membership_confirmation.html` loads
 - [ ] `operator.html` loads and populates data
 

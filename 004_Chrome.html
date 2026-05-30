@@ -2,13 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" href="/assets/aurevon_logo_nav.png"><link rel="apple-touch-icon" href="/assets/aurevon_shield_logo_1k.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <title>Aurevon NFT | 004 Chrome</title>
 <style>
   body { margin: 0; background: #050510; min-height: 100vh; overflow-y: auto; background: linear-gradient(180deg, #0A0A0A 0%, #050510 100%); font-family: 'DM Sans', sans-serif; }
-  .nft-wrapper { position: relative; width: 400px; height: 400px; border-radius: 20px; box-shadow: 0 25px 60px rgba(30,58,138,0.15); transform-style: preserve-3d; transition: transform 0.1s ease-out; border: 1px solid rgba(255,255,255,0.05); background: #080810; }
+  .nft-wrapper { position: relative; width: min(400px, 90vw); aspect-ratio: 1 / 1; height: auto; border-radius: 20px; box-shadow: 0 25px 60px rgba(30,58,138,0.15); transform-style: preserve-3d; transition: transform 0.1s ease-out; border: 1px solid rgba(255,255,255,0.05); background: #080810; }
   .art-layer { position: absolute; inset: 0; border-radius: 20px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
   canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 20px; z-index: 1; }
   svg, img.logo-layer { position: relative; z-index: 5; width: 65%; height: 65%; filter: drop-shadow(0 0 20px rgba(30,58,138,0.4)); transform: translateZ(40px); object-fit: contain; border-radius: 12px; }
@@ -45,7 +47,7 @@
 <body>
 <nav class="aurevon-top-nav">
     <a href="index.html" class="aurevon-logo">
-      <img src="assets/aurevon A logo blue by itself.jpg" alt="Aurevon" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:cover;">
+      <img src="assets/aurevon_logo_nav.png" alt="Aurevon" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:contain;">
       <span>Aurevon</span>
     </a>
     <div class="aurevon-crumb">
@@ -161,14 +163,15 @@
       <a href="aurevon-re.html">RE Underwriting</a>
       <a href="aurevon-web3.html">Web3</a>
       <a href="aurevon-nft.html">NFTs</a>
-      <a href="operator.html">Operator Hub</a>
-      <a href="aurevon-crm.html">CRM</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+      <a href="refund.html">Refunds</a>
       <a href="portal.html">My Dashboard</a>
       <a href="merch.html">Merch</a>
     </div>
     <div class="social"><a href="https://x.com/AurevonLabs" target="_blank" rel="noopener" title="X / Twitter"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a><a href="https://discord.gg/2fwFjMEh" target="_blank" rel="noopener" title="Discord"><svg width="16" height="14" viewBox="0 0 71 55" fill="currentColor"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z"/></svg></a></div>
   </div>
-  <script>(function(){var y=document.getElementById("aurevonYr")');if(y)y.textContent=new Date().getFullYear();})();</script>
+  <script>(function(){var y=document.getElementById("aurevonYr");if(y)y.textContent=new Date().getFullYear();})();</script>
 </footer>
 
 </body>

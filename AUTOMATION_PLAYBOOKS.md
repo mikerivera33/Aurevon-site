@@ -93,7 +93,7 @@ Module 2: Airtable → Update a Record
 
 **Action 2 — (Only if no existing mint) HTTP POST to /api/crossmint/mint**
 - **App:** Webhooks by Zapier (or Make.com HTTP module)
-- **URL:** `https://aurevongroup.com/api/crossmint/mint`
+- **URL:** `https://aurevonvc.com/api/crossmint/mint`
 - **Method:** POST
 - **Headers:** `Content-Type: application/json`, `Authorization: Bearer {{INTERNAL_API_SECRET}}`
 - **Body:**
@@ -147,8 +147,8 @@ Module 2: Airtable → Update a Record
 - **Body:**
   ```json
   {
-    "from": "alerts@aurevongroup.com",
-    "to": ["owner@aurevongroup.com"],
+    "from": "mike@aurevonvc.com",
+    "to": ["mike@aurevonvc.com"],
     "subject": "SLA Breach: {{count}} leads pending > 24h",
     "html": "<p>The following leads have been pending for more than 24 hours:</p><ul>{{#each records}}<li>{{name}} — {{service}} — {{created_at}}</li>{{/each}}</ul><p>Log in to Operator Hub to take action.</p>"
   }
@@ -361,7 +361,7 @@ Adjust the `24` hour threshold in the Airtable formula to match your desired res
   {{#if mints_failed}}⚠️ {{mints_failed}} mint(s) failed — retry from Operator Hub{{/if}}
   {{#if stale_leads}}⚠️ {{stale_leads}} leads pending > 48h{{/if}}
 
-  View full dashboard: https://aurevongroup.com/operator.html
+  View full dashboard: https://aurevonvc.com/operator.html
   ```
 
 ---

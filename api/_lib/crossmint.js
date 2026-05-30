@@ -64,9 +64,6 @@ function tierLabel(tierKey) {
     web3_growth:     'Web3 Growth',
     web3_scale:      'Web3 Scale',
     web3_enterprise: 'Web3 Enterprise',
-    // Standalone NFT tiers
-    nft_insider:     'Insider NFT Pass',
-    nft_obsidian:    'Obsidian NFT Pass',
     // Add-ons (no NFT — label for confirmation email)
     addon_rush:        '12-Hour Rush Delivery',
     addon_memo:        'Investor Memo Formatting',
@@ -104,9 +101,6 @@ function passType(tierKey) {
     web3_growth:     'GENESIS',
     web3_scale:      'INSIDER',
     web3_enterprise: 'OBSIDIAN',
-    // Standalone NFT
-    nft_insider:     'INSIDER',
-    nft_obsidian:    'OBSIDIAN',
   };
   return map[tierKey] || 'GENESIS';
 }
@@ -150,7 +144,7 @@ export async function mintToEmail({
     metadata: {
       name: `Aurevon ${pType} Pass`,
 
-      description: `${tierLabel(tierKey)} membership pass. Aurevon Group LLC Systems Capital Infrastructure. On-chain on ${CROSSMINT_CHAIN === 'base-sepolia' ? 'Base Sepolia (testnet)' : 'Base Ethereum L2'}. Serial: ${serial}.`,
+      description: `${tierLabel(tierKey)} membership pass. Aurevon Ventures LLC Systems Capital Infrastructure. On-chain on ${CROSSMINT_CHAIN === 'base-sepolia' ? 'Base Sepolia (testnet)' : 'Base Ethereum L2'}. Serial: ${serial}.`,
       image: NFT_IMAGES[pType] ?? NFT_IMAGES.GENESIS,
       animation_url: NFT_ANIMATIONS[pType] ?? NFT_ANIMATIONS.GENESIS,
       attributes: [
@@ -163,7 +157,7 @@ export async function mintToEmail({
         { trait_type: 'Rarity',        value: rarity },
         { trait_type: 'Verification',  value: 'Crossmint + Stripe' },
         { trait_type: 'Minted',        value: '2026 Genesis Drop' },
-        { trait_type: 'Issuer',        value: 'Aurevon Group LLC' },
+        { trait_type: 'Issuer',        value: 'Aurevon Ventures LLC' },
         { trait_type: 'Customer',      value: customerName || '' },
         { trait_type: 'Collection',    value: collectionName || 'Aurevon Genesis Drop 2026' },
       ],

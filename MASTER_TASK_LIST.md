@@ -51,7 +51,7 @@ From `/api/health` audit — currently configured: `STRIPE_SECRET_KEY`, `STRIPE_
 | `CROSSMINT_TEMPLATE_GENESIS` | Genesis NFT template ID | crossmint.com → Templates |
 | `CROSSMINT_TEMPLATE_CHROME` | Chrome NFT template ID | crossmint.com → Templates |
 | `RESEND_API_KEY` | All transactional emails (magic links, NFT delivery, confirmations) | resend.com → API Keys |
-| `RESEND_FROM_EMAIL` | Email sender address | e.g. `hello@aurevongroup.com` (must be verified in Resend) |
+| `RESEND_FROM_EMAIL` | Email sender address | e.g. `mike@aurevonvc.com` (must be verified in Resend) |
 | `RESEND_FROM_NAME` | Email sender display name | e.g. `Aurevon Group` |
 | `DISCORD_INVITE_URL` | Discord link in NFT delivery emails | Your Discord server invite link |
 
@@ -171,10 +171,10 @@ From `/api/health` audit — currently configured: `STRIPE_SECRET_KEY`, `STRIPE_
 
 **Steps:**
 1. `resend.com → Domains → Add Domain`
-2. Add `aurevongroup.com`
+2. Add `aurevonvc.com`
 3. Add the DNS records Resend provides (SPF, DKIM, DMARC)
 4. Verify domain → status turns green
-5. Update `RESEND_FROM_EMAIL` to `hello@aurevongroup.com` in Vercel
+5. Update `RESEND_FROM_EMAIL` to `mike@aurevonvc.com` in Vercel
 
 ---
 
@@ -214,7 +214,7 @@ From `/api/health` audit — currently configured: `STRIPE_SECRET_KEY`, `STRIPE_
 | 16 | `aurevon-web3.html` buy buttons | Same as above — verify Web3 tier checkout flow. |
 | 17 | Discord welcome automation | `discord-welcome.html` exists but no Discord bot webhook is configured. |
 | 18 | CRM integration | `aurevon-crm.html` and `blockt-crm.html` exist. Verify Airtable CRM view is configured. |
-| 19 | BLOCKT RE Intake form | `BLOCKT_RE_Intake.html` — form submission needs Airtable or email endpoint. |
+| 19 | Aurevon RE Intake form | `aurevon-re-intake.html` — form submission needs Airtable or email endpoint. |
 | 20 | `setup-wizard.html` completion | Walk-through wizard for initial config — verify all steps still align with current env vars. |
 
 ---
@@ -246,7 +246,7 @@ Step 2: Add 13 missing Vercel env vars (RESEND, CROSSMINT, PAYPAL, DISCORD)
 Step 3: Verify Airtable table structure matches expected fields
    → Portal + payment records work
 
-Step 4: Verify Resend domain (aurevongroup.com)
+Step 4: Verify Resend domain (aurevonvc.com)
    → Email delivery works
 
 Step 5: Register Stripe + PayPal webhooks with production URLs

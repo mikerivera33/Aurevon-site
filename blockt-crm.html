@@ -8,7 +8,9 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 (function(){try{localStorage.getItem('_t');}catch(e){var m={};window.localStorage={getItem:function(k){return m[k]||null;},setItem:function(k,v){m[k]=String(v);},removeItem:function(k){delete m[k];},clear:function(){m={};}};}}());
 </script>
 <meta charset="UTF-8">
+<meta name="robots" content="noindex,nofollow">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/png" href="/assets/aurevon_logo_nav.png"><link rel="apple-touch-icon" href="/assets/aurevon_shield_logo_1k.png">
 <title>Aurevon CRM</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Archivo+Black&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
@@ -189,7 +191,7 @@ td.td-primary{color:var(--t1);font-weight:500}
 <!-- SIDEBAR -->
 <aside id="sidebar">
   <div id="sidebar-logo">
-              <img src="assets/aurevon A logo blue by itself.jpg" alt="Aurevon" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:cover;">
+              <img src="assets/aurevon_logo_nav.png" alt="Aurevon" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:contain;">
     <span class="logo-text">Aurevon CRM</span>
   </div>
   <nav id="nav">
