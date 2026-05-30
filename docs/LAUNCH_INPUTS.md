@@ -17,14 +17,9 @@ you give it to me:
 
 ## 🟢 A. Public values — paste these and I'll wire them in
 
-### A1. PayPal add-on links (6) → `aurevon-re.html` `AUREVON_CONFIG`
-Create each in PayPal Business → Pay & Get Paid → PayPal buttons, then send me the NCP URLs:
-- [ ] 12-Hour Rush ($99) → `PAYPAL_ADDON_RUSH_URL`
-- [ ] Investor Memo ($149) → `PAYPAL_ADDON_MEMO_URL`
-- [ ] Lender Presentation ($199) → `PAYPAL_ADDON_LENDER_URL`
-- [ ] Sensitivity Modeling ($125) → `PAYPAL_ADDON_SENSITIVITY_URL`
-- [ ] Portfolio Review ($499) → `PAYPAL_ADDON_PORTFOLIO_URL`
-- [ ] White-Label ($175) → `PAYPAL_ADDON_WHITELABEL_URL`
+### A1. PayPal add-on cart — DONE ✅
+All 6 add-ons now use the PayPal NCP Cart widget (merchant `PPMXBVG74GD22`) so customers can stack multiple into one checkout. Cart item IDs are wired in `aurevon-re.html`; see `PAYMENT_BUTTONS_CHECKLIST.md` for the full Stripe-`priceId` ↔ PayPal-cart-id map.
+- [ ] Sanity-check the mapping (in on-page row order): Rush=`ET2JQJ4VBMARU`, Memo=`TTTPPSEEYKWXN`, Lender=`L589RF6C87SJ8`, Sensitivity=`5MU9ZQVBHM2QQ`, Portfolio=`4LZVLKSLU34G6`, White-Label=`Y4ADTAE7FPDW8`.
 
 ### A2. PayPal links for currently-unmirrored items (optional)
 - [ ] Community Monthly $29.99, Community Lifetime $349.99 (verify these exist)

@@ -39,45 +39,24 @@ exists in that platform's dashboard **and** the ID/link is wired in the repo.
 
 ---
 
-## À La Carte add-ons — Stripe done, PayPal TO CREATE
+## À La Carte add-ons — Stripe done · PayPal Cart wired ✅
 
-For each add-on: (1) confirm the Stripe price exists, (2) create the PayPal NCP link,
-(3) paste it into `AUREVON_CONFIG.PAYPAL_ADDON_*_URL` in `aurevon-re.html`.
+Each add-on row now offers two payment paths:
+- **"Card"** — Stripe checkout-session (single item per checkout). Already live; backed by `priceId` in `api/stripe/checkout.js`.
+- **"Add to Cart"** — PayPal NCP Cart widget (`merchant-id=PPMXBVG74GD22`), so customers can stack multiple add-ons into one PayPal checkout. The cart.js script loads once in the add-ons section; a `<paypal-cart-button id="pp-view-cart">` sits above the table.
 
-### 12-Hour Rush Delivery — $99
-- [ ] **Stripe** price exists (`api/stripe/checkout.js` → `addon_rush` → `price_1TYzKN8e9ZIjX9wL9IcUXeao`) — verify in Dashboard
-- [ ] **PayPal** NCP link created at $99
-- [ ] Pasted into `PAYPAL_ADDON_RUSH_URL`
+| Add-on | Price | Stripe `priceId` (verify in Dashboard) | PayPal cart item ID |
+|---|---|---|---|
+| 12-Hour Rush Delivery | $99 | `price_1TYzKN8e9ZIjX9wL9IcUXeao` (`addon_rush`) | `ET2JQJ4VBMARU` |
+| Investor Memo Formatting | $149 | `price_1TYzKO8e9ZIjX9wLa5AhYOlE` (`addon_memo`) | `TTTPPSEEYKWXN` |
+| Lender Presentation Package | $199 | `price_1TYzKO8e9ZIjX9wLsSa6KFYu` (`addon_lender`) | `L589RF6C87SJ8` |
+| Sensitivity Modeling | $125 | `price_1TYzKP8e9ZIjX9wLHDbMDWou` (`addon_sensitivity`) | `5MU9ZQVBHM2QQ` |
+| Portfolio Review Bundle | $499 | `price_1TYzKP8e9ZIjX9wLP71oZzcQ` (`addon_portfolio`) | `4LZVLKSLU34G6` |
+| White-Label Reports | $175/deal | `price_1TYzKQ8e9ZIjX9wLrymffEFh` (`addon_whitelabel`) | `Y4ADTAE7FPDW8` |
 
-### Investor Memo Formatting — $149
-- [ ] **Stripe** `addon_memo` → `price_1TYzKO8e9ZIjX9wLa5AhYOlE` — verify
-- [ ] **PayPal** NCP link created at $149
-- [ ] Pasted into `PAYPAL_ADDON_MEMO_URL`
-
-### Lender Presentation Package — $199
-- [ ] **Stripe** `addon_lender` → `price_1TYzKO8e9ZIjX9wLsSa6KFYu` — verify
-- [ ] **PayPal** NCP link created at $199
-- [ ] Pasted into `PAYPAL_ADDON_LENDER_URL`
-
-### Sensitivity Modeling — $125
-- [ ] **Stripe** `addon_sensitivity` → `price_1TYzKP8e9ZIjX9wLHDbMDWou` — verify
-- [ ] **PayPal** NCP link created at $125
-- [ ] Pasted into `PAYPAL_ADDON_SENSITIVITY_URL`
-
-### Portfolio Review Bundle — $499
-- [ ] **Stripe** `addon_portfolio` → `price_1TYzKP8e9ZIjX9wLP71oZzcQ` — verify
-- [ ] **PayPal** NCP link created at $499
-- [ ] Pasted into `PAYPAL_ADDON_PORTFOLIO_URL`
-
-### White-Label Reports — $175/deal
-- [ ] **Stripe** `addon_whitelabel` → `price_1TYzKQ8e9ZIjX9wLrymffEFh` — verify
-- [ ] **PayPal** NCP link created at $175
-- [ ] Pasted into `PAYPAL_ADDON_WHITELABEL_URL`
-
-> Until a `PAYPAL_ADDON_*_URL` is filled in, the page hides that add-on's PayPal button
-> automatically (no dead buttons). The Stripe "Card" button works regardless.
-> The server-side `PASS_PRICES` in `api/paypal/index.js` already has matching add-on
-> amounts, so PayPal capture/logging works once the link is live.
+- [ ] Confirm all 6 Stripe prices exist in the live Dashboard (MCP tested `addon_rush` $99 successfully).
+- [ ] Confirm the 6 PayPal cart item IDs above are mapped to the correct products in PayPal Merchant → NCP Cart products (the mapping above is in on-page row order).
+- [ ] Sandbox test: add 2 items to cart → click "View Cart" → checkout completes → Airtable Payments row appears.
 
 ---
 
