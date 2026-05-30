@@ -13,13 +13,11 @@
 const _BASE = {
   single:         { nft: null,                           amount: 189.99, template: null,                          serialPrefix: null,       collectionName: null },
   full:           { nft: 'Aurevon Insider',               amount: 250,    template: 'CROSSMINT_TEMPLATE_INSIDER',  serialPrefix: 'INSIDER',  collectionName: 'Aurevon Insider Collection' },
-  bogo:           { nft: 'Aurevon Insider',               amount: 299.99, template: 'CROSSMINT_TEMPLATE_INSIDER',  serialPrefix: 'INSIDER',  collectionName: 'Aurevon Insider Collection' },
+  bogo:           { nft: null,                            amount: 299.99, template: null,                          serialPrefix: null,       collectionName: null },
   retainer:       { nft: 'Aurevon Ember',                 amount: 1499,   template: 'CROSSMINT_TEMPLATE_EMBER',    serialPrefix: 'EMBER',    collectionName: 'Aurevon Ember Collection' },
   enterprise:     { nft: 'Aurevon Obsidian Executive',    amount: 2499,   template: 'CROSSMINT_TEMPLATE_OBSIDIAN', serialPrefix: 'OBSIDIAN', collectionName: 'Aurevon Obsidian Collection' },
   comm_monthly:   { nft: '001 Genesis',                   amount: 29.99,  template: 'CROSSMINT_TEMPLATE_GENESIS',  serialPrefix: 'GENESIS',  collectionName: 'Aurevon Genesis Collection' },
   comm_lifetime:  { nft: '004 Chrome',                    amount: 349.99, template: 'CROSSMINT_TEMPLATE_CHROME',   serialPrefix: 'CHROME',   collectionName: 'Aurevon Chrome Collection' },
-  nft_insider:    { nft: 'Aurevon Insider',               amount: 497,    template: 'CROSSMINT_TEMPLATE_INSIDER',  serialPrefix: 'INSIDER',  collectionName: 'Aurevon Insider Collection' },
-  nft_obsidian:   { nft: 'Aurevon Obsidian Executive',    amount: 997,    template: 'CROSSMINT_TEMPLATE_OBSIDIAN', serialPrefix: 'OBSIDIAN', collectionName: 'Aurevon Obsidian Collection' },
   deal:           { nft: null,                           amount: 189.99, template: null,                          serialPrefix: null,       collectionName: null },
   // Web3 tiers — subscription access; NFT collections not yet configured, send confirmation only
   web3_starter:    { nft: null, amount: 49,  template: null, serialPrefix: null, collectionName: null },

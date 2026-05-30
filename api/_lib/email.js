@@ -175,7 +175,7 @@ function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, disc
           <!-- Footer -->
           <tr>
             <td style="background:#0A0A0A;border-top:1px solid rgba(255,255,255,0.05);padding:20px 40px;text-align:center;">
-              <p style="margin:0 0 6px;font-size:11px;color:#3f3f46;letter-spacing:1px;text-transform:uppercase;">Aurevon Ventures LLC &middot; 2810 N Church Street #86952, Wilmington, DE 19802</p>
+              <p style="margin:0 0 6px;font-size:11px;color:#3f3f46;letter-spacing:1px;text-transform:uppercase;">Aurevon Ventures LLC &middot; 4129 Saltburn Dr, Plano, TX</p>
               <p style="margin:0;font-size:11px;color:#3f3f46;">
                 You received this because you completed a purchase on aurevonvc.com.
               </p>
@@ -214,7 +214,7 @@ Delivery: Email wallet (no wallet setup required)
 ${discordInviteUrl ? `Join the operator community:\n${discordInviteUrl}\n` : ''}Questions? mike@aurevonvc.com
 
 ---
-Aurevon Ventures LLC · 2810 N Church Street #86952, Wilmington, DE 19802
+Aurevon Ventures LLC · 4129 Saltburn Dr, Plano, TX
 You received this because you completed a purchase on aurevonvc.com.
 `;
 }
@@ -224,15 +224,13 @@ You received this because you completed a purchase on aurevonvc.com.
  */
 // Friendly customer-facing labels for tier/add-on identifiers
 const TIER_DISPLAY_NAMES = {
-  bogo:              'First-Timer BOGO — 2 Full Package Deals',
-  single:            'Second Opinion — Underwriting + Analysis',
-  full:              'Full Package — All 3 Documents + Aurevon Insider NFT',
-  retainer:          'Pro Retainer — Membership',
-  enterprise:        'Enterprise — Unlimited Deals',
-  comm_monthly:      '001 Genesis Community — Monthly Member',
-  comm_lifetime:     '004 Chrome Community — Lifetime Member',
-  nft_insider:       'Aurevon Insider Pass (NFT)',
-  nft_obsidian:      'Aurevon Obsidian Executive Pass (NFT)',
+  bogo:              'First-Timer BOGO — 2 Full Package Deals (no NFT)',
+  single:            'Second Opinion — Underwriting + Analysis (no NFT)',
+  full:              'Full Package — All 3 Documents + Aurevon Insider NFT (Tier 1)',
+  retainer:          'Pro Retainer — Membership + Aurevon Ember NFT (Tier 2)',
+  enterprise:        'Enterprise — Unlimited Deals + Aurevon Obsidian Executive NFT (Tier 3)',
+  comm_monthly:      '001 Genesis Community Pass — Monthly Member',
+  comm_lifetime:     '004 Chrome Community Pass — Lifetime Member',
   addon_rush:        '12-Hour Rush Delivery Add-On',
   addon_memo:        'Investor Memo Formatting Add-On',
   addon_lender:      'Lender Presentation Package Add-On',
@@ -277,7 +275,7 @@ function buildPurchaseConfirmHtml({ customerName, tier }) {
         </tr>
         <tr>
           <td style="background:#0A0A0A;border-top:1px solid rgba(255,255,255,0.05);padding:20px 40px;text-align:center;">
-            <p style="margin:0;font-size:11px;color:#3f3f46;">Aurevon Ventures LLC &middot; 2810 N Church Street #86952, Wilmington, DE 19802</p>
+            <p style="margin:0;font-size:11px;color:#3f3f46;">Aurevon Ventures LLC &middot; 4129 Saltburn Dr, Plano, TX</p>
           </td>
         </tr>
       </table>

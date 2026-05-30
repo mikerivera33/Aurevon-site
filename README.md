@@ -256,13 +256,22 @@ Each Aurevon membership tier needs its own Stripe Payment Link so the customer l
 1. Go to **Stripe Dashboard → Products → Payment Links → New**
 2. Create a product for each tier with the correct price:
 
-| Tier | Price | Billing |
+**Real Estate underwriting services** (only Full Package / Pro Retainer / Enterprise include an NFT):
+
+| Tier | Price | Billing | NFT |
+|---|---|---|---|
+| First-Timer BOGO | $299.99 | One-time (new customers) | — |
+| Second Opinion | $189.99 | Per deal | — |
+| Full Package | $250 | Per deal | Tier 1 — Aurevon Insider |
+| Pro Retainer | $1,499 | Monthly | Tier 2 — Aurevon Ember |
+| Enterprise | $2,499 | Monthly | Tier 3 — Aurevon Obsidian Executive |
+
+**Community NFTs (Aurevon Labs)** — standalone passes for people who want the NFT + Discord without paying for underwriting:
+
+| Pass | Price | Billing |
 |---|---|---|
-| Insider | $297 | One-time |
-| Ember | $497 | One-time |
-| Obsidian Executive | $997 | One-time |
-| 001 Genesis | $2,497 | One-time |
-| 004 Chrome | $4,997 | One-time |
+| 001 Genesis Community Pass | $29.99 | Monthly |
+| 004 Chrome Community Pass | $349.99 | One-time (lifetime) |
 | RE Pro Retainer | $2,500 | Monthly |
 | RE Enterprise | $5,000 | Monthly |
 

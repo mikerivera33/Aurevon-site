@@ -35,8 +35,6 @@ exists in that platform's dashboard **and** the ID/link is wired in the repo.
 | Enterprise | $2,499/mo | ✅ `re_enterprise` (subscription) | ✅ set |
 | Community Monthly (001 Genesis) | $29.99/mo | ✅ `comm_monthly` | ⚠️ verify `PAYPAL_COMM_MONTHLY_URL` exists on web3/nft page |
 | Community Lifetime (004 Chrome) | $349.99 | ✅ `comm_lifetime` | ⚠️ verify `PAYPAL_COMM_LIFETIME_URL` |
-| NFT Insider (standalone) | $497 | ✅ `nft_insider` | ⬜ PayPal standalone link not created |
-| NFT Obsidian (standalone) | $997 | ✅ `nft_obsidian` | ⬜ PayPal standalone link not created |
 | Web3 Starter/Growth/Scale/Enterprise | $49–$799/mo | ✅ `web3_*` | ⬜ PayPal not created (Stripe-only today) |
 
 ---
@@ -85,9 +83,7 @@ For each add-on: (1) confirm the Stripe price exists, (2) create the PayPal NCP 
 
 ## Discrepancies flagged during the audit (decide before launch)
 
-- [ ] **PayPal `PASS_PRICES.INSIDER` = $250** but standalone NFT Insider is **$497** (Stripe `nft_insider`). Decide whether PayPal sells the bundled ($250) or standalone ($497) Insider — they currently differ.
 - [ ] **PayPal `PASS_PRICES.GENESIS` = $500 "Founder Pass"** has no Stripe equivalent (Stripe Genesis = `comm_monthly` $29.99). Confirm this $500 product is intentional or remove it.
-- [ ] **PayPal `PASS_PRICES.OBSIDIAN` = $2,499** (Enterprise) — no standalone $997 Obsidian on PayPal to mirror Stripe `nft_obsidian`.
 - [ ] **Web3 subscription tiers** are Stripe-only — create PayPal subscription plans if you want them mirrored.
 
 ---

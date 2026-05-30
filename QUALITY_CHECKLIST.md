@@ -55,9 +55,9 @@ Test each tier's payment flow. For Stripe: use test card `4242 4242 4242 4242`, 
 | C01 | **Insider ($297)** — correct amount shown on page | [ ] | |
 | C02 | **Insider** — Stripe checkout opens with correct price | [ ] | |
 | C03 | **Insider** — all 4 payment methods visible: Card, Cash App, Afterpay, PayPal | [ ] | |
-| C04 | **Ember ($497)** — correct amount shown | [ ] | |
-| C05 | **Ember** — Stripe checkout opens with correct price | [ ] | |
-| C06 | **Obsidian Executive ($997)** — correct amount shown | [ ] | |
+| C04 | **Pro Retainer / Ember ($1,499/mo)** — correct amount shown | [ ] | |
+| C05 | **Pro Retainer** — Stripe checkout opens with correct subscription price | [ ] | |
+| C06 | **Enterprise / Obsidian Executive ($2,499/mo)** — correct amount shown | [ ] | |
 | C07 | **Obsidian Executive** — Stripe checkout opens with correct price | [ ] | |
 | C08 | **001 Genesis ($2,497)** — correct amount shown | [ ] | |
 | C09 | **001 Genesis** — Stripe checkout opens with correct price | [ ] | |

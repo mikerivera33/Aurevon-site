@@ -64,9 +64,6 @@ function tierLabel(tierKey) {
     web3_growth:     'Web3 Growth',
     web3_scale:      'Web3 Scale',
     web3_enterprise: 'Web3 Enterprise',
-    // Standalone NFT tiers
-    nft_insider:     'Insider NFT Pass',
-    nft_obsidian:    'Obsidian NFT Pass',
     // Add-ons (no NFT — label for confirmation email)
     addon_rush:        '12-Hour Rush Delivery',
     addon_memo:        'Investor Memo Formatting',
@@ -104,9 +101,6 @@ function passType(tierKey) {
     web3_growth:     'GENESIS',
     web3_scale:      'INSIDER',
     web3_enterprise: 'OBSIDIAN',
-    // Standalone NFT
-    nft_insider:     'INSIDER',
-    nft_obsidian:    'OBSIDIAN',
   };
   return map[tierKey] || 'GENESIS';
 }

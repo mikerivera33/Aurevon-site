@@ -99,21 +99,6 @@ const PRODUCT_CATALOG = {
               tier: 'comm_lifetime',
               amount: '349.99',
       },
-      // Aurevon NFT standalone tiers
-      nft_insider: {
-              name: 'Aurevon NFT — Insider Underwriting Pass',
-              priceId: 'price_1TUenT8e9ZIjX9wLo0PfFvcN',
-              mode: 'payment',
-              tier: 'nft_insider',
-              amount: '497.00',
-      },
-      nft_obsidian: {
-              name: 'Aurevon NFT — Obsidian Executive Pass',
-              priceId: 'price_1TUenl8e9ZIjX9wLtaqnc5DI',
-              mode: 'payment',
-              tier: 'nft_obsidian',
-              amount: '997.00',
-      },
       // Aurevon RE — À La Carte Add-Ons
       addon_rush: {
               name: 'Aurevon RE — 12-Hour Rush Delivery',
@@ -162,7 +147,7 @@ const PRODUCT_CATALOG = {
 // Community tiers land on confirmation page; all others return to RE/NFT page
 const COMMUNITY_TIERS = new Set(['comm_monthly', 'comm_lifetime']);
 const WEB3_TIERS = new Set(['web3_starter', 'web3_growth', 'web3_scale', 'web3_enterprise']);
-const NFT_TIERS = new Set(['nft_insider', 'nft_obsidian']);
+const NFT_TIERS = new Set();
 
 // -----------------------------------------------------------------------
 // Handler

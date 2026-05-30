@@ -229,19 +229,11 @@ html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-seri
 </div>
 
 <!-- CTAs -->
-<div class="cta-section" style="grid-template-columns:repeat(3,1fr);max-width:1100px;">
+<div class="cta-section" style="grid-template-columns:repeat(2,1fr);max-width:900px;">
   <div class="cta-card">
     <h3>Get an Underwriting Pass</h3>
-    <p>Passes are awarded automatically when you purchase any Aurevon Capital underwriting service — Full Package, Pro Retainer, or Enterprise.</p>
+    <p>Passes are awarded automatically when you purchase any Aurevon Capital underwriting service — Full Package (Tier 1 Insider), Pro Retainer (Tier 2 Ember), or Enterprise (Tier 3 Obsidian Executive). BOGO and Second Opinion are underwriting-only and do not include an NFT.</p>
     <a class="cta-btn" href="aurevon-re.html#pricing">View RE Pricing</a>
-  </div>
-  <div class="cta-card">
-    <h3>Buy Standalone NFT</h3>
-    <p>Acquire the Insider ($497) or Obsidian Executive ($997) pass directly — includes all Discord access and holder benefits.</p>
-    <div style="display:flex;flex-direction:column;gap:10px;margin-top:auto;">
-      <button class="cta-btn nft-buy-btn" data-tier="nft_insider" data-orig="Insider Pass — $497">Insider Pass — $497</button>
-      <button class="cta-btn ghost nft-buy-btn" data-tier="nft_obsidian" data-orig="Obsidian Pass — $997">Obsidian Pass — $997</button>
-    </div>
   </div>
   <div class="cta-card">
     <h3>Get a Community Pass</h3>
@@ -291,25 +283,6 @@ html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-seri
       if(e.isIntersecting){e.target.style.opacity='1';e.target.style.transform='translateY(0)';io.unobserve(e.target);}});
   },{threshold:0.12});
   cards.forEach(function(c){io.observe(c);});
-})();
-</script>
-<script>
-(function(){
-  document.querySelectorAll('.nft-buy-btn').forEach(function(btn){
-    btn.addEventListener('click',function(){
-      var tier=btn.getAttribute('data-tier');
-      var orig=btn.getAttribute('data-orig')||'Buy';
-      btn.disabled=true;btn.textContent='Redirecting…';
-      fetch('/api/stripe/checkout',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({tier:tier})
-      }).then(function(r){return r.json();}).then(function(d){
-        if(d.url){window.location.href=d.url;}
-        else{btn.disabled=false;btn.textContent=orig;alert('Checkout error: '+(d.error||'Please try again.'));}
-      }).catch(function(err){btn.disabled=false;btn.textContent=orig;alert('Network error: '+err.message);});
-    });
-  });
 })();
 </script>
 <script src="nft-pass-links.js"></script>

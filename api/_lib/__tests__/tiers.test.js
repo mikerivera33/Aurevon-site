@@ -17,7 +17,8 @@ describe('formatSerial', () => {
 describe('TIER_NFT_MAP', () => {
   it('resolves canonical base tiers', () => {
     expect(TIER_NFT_MAP['full'].nft).toBe('Aurevon Insider');
-    expect(TIER_NFT_MAP['bogo'].nft).toBe('Aurevon Insider');
+    expect(TIER_NFT_MAP['bogo'].nft).toBeNull();
+    expect(TIER_NFT_MAP['single'].nft).toBeNull();
     expect(TIER_NFT_MAP['retainer'].nft).toBe('Aurevon Ember');
     expect(TIER_NFT_MAP['enterprise'].nft).toBe('Aurevon Obsidian Executive');
     expect(TIER_NFT_MAP['comm_monthly'].nft).toBe('001 Genesis');
@@ -26,7 +27,8 @@ describe('TIER_NFT_MAP', () => {
 
   it('resolves re_* alias tiers via proxy', () => {
     expect(TIER_NFT_MAP['re_full'].nft).toBe('Aurevon Insider');
-    expect(TIER_NFT_MAP['re_bogo'].nft).toBe('Aurevon Insider');
+    expect(TIER_NFT_MAP['re_bogo'].nft).toBeNull();
+    expect(TIER_NFT_MAP['re_single'].nft).toBeNull();
     expect(TIER_NFT_MAP['re_retainer'].nft).toBe('Aurevon Ember');
     expect(TIER_NFT_MAP['re_enterprise'].nft).toBe('Aurevon Obsidian Executive');
   });

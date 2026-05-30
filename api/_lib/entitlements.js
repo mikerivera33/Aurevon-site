@@ -60,7 +60,6 @@ export const ENTITLEMENT_MAP = {
       'product-a',
       'insider',
       'web3_scale',
-      'nft_insider',        // standalone NFT purchase → same Insider entitlement
     ],
     nftType: 'Aurevon Insider',
     serialPrefix: 'INSIDER',
@@ -96,7 +95,6 @@ export const ENTITLEMENT_MAP = {
       'aurevon-product-c',
       'product-c',
       'obsidian',
-      'nft_obsidian',       // standalone NFT purchase → same Obsidian entitlement
     ],
     nftType: 'Aurevon Obsidian Executive',
     serialPrefix: 'OBSIDIAN',

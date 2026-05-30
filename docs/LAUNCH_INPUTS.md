@@ -28,17 +28,15 @@ Create each in PayPal Business → Pay & Get Paid → PayPal buttons, then send 
 
 ### A2. PayPal links for currently-unmirrored items (optional)
 - [ ] Community Monthly $29.99, Community Lifetime $349.99 (verify these exist)
-- [ ] NFT Insider standalone $497, NFT Obsidian standalone $997
 - [ ] Web3 tiers $49 / $149 / $349 / $799 (if you want PayPal, not just Stripe)
 
 ### A3. Brand / contact facts to confirm or correct
-- [ ] **Business mailing address** — currently `2810 N Church Street #86952, Wilmington, DE 19802` in email footers + Crossmint metadata. Confirm or give the correct one.
+- [ ] **Business mailing address** — set to `4129 Saltburn Dr, Plano, TX` in email footers + Crossmint metadata. Confirm or give the correct one.
 - [ ] **Phone** `(856) 693-8249` — confirm (already wired into site + emails).
 - [ ] **Social handles** — confirm: X `@AurevonLabs`, IG `aurevon.vc`, LinkedIn `company/aurevon`, TikTok `@aurevon.vc`, YouTube `@aurevon.vc`.
 - [ ] **Discord permanent invite** — currently `discord.gg/2fwFjMEh`. Confirm it won't expire.
 
 ### A4. Pricing/discrepancy decisions (from PAYMENT_BUTTONS_CHECKLIST.md)
-- [ ] PayPal Insider price: bundled **$250** or standalone **$497**? (they currently differ)
 - [ ] Keep or remove the PayPal-only **GENESIS "$500 Founder Pass"** (no Stripe match)
 - [ ] Confirm the 5-tier pricing is final: $299.99 / $189.99 / $250 / $1,499mo / $2,499mo
 

@@ -35,9 +35,9 @@ Each pass needs **two assets**: a still **image** (card front) and an optional *
 
 | # | Tier (NFT name) | Unlocked by | Finish / concept | Accent |
 |---|---|---|---|---|
-| 1 | **Aurevon Insider** | Full Package ($250) / standalone $497 | Brushed **silver** plaque, the Aurevon **A** emblem embossed, clean and foundational | Silver + brand blue |
+| 1 | **Aurevon Insider** | Full Package ($250) | Brushed **silver** plaque, the Aurevon **A** emblem embossed, clean and foundational | Silver + brand blue |
 | 2 | **Aurevon Ember** | Pro Retainer ($1,499/mo) | Hammered **copper** relief, glowing **ember-orange** A emblem, heat/forge texture | Copper + ember glow |
-| 3 | **Aurevon Obsidian Executive** | Enterprise ($2,499/mo) / standalone $997 | Polished **obsidian** plaque with **24K gold** inlay + engraved executive lettering; apex/1-of-1 feel | Black + gold |
+| 3 | **Aurevon Obsidian Executive** | Enterprise ($2,499/mo) | Polished **obsidian** plaque with **24K gold** inlay + engraved executive lettering; apex/1-of-1 feel | Black + gold |
 | 001 | **001 Genesis** | Community Monthly ($29.99/mo) | The original Aurevon shield in **brand blue**; "Genesis" energy, particle field | Blue |
 | 004 | **004 Chrome** | Community Lifetime ($349.99 one-time) | Polished **chrome** finish, mirror/liquid-metal; "lifetime / best value" prestige | Chrome/silver |
 
