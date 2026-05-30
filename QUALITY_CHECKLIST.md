@@ -10,17 +10,17 @@
 | # | Check | Status | Notes |
 |---|---|---|---|
 | A01 | `index.html` loads without blank screen | [ ] | |
-| A02 | `BLOCKT_Web3.html` loads without blank screen | [ ] | |
-| A03 | `BLOCKT_NFT_Collection.html` loads without blank screen | [ ] | |
+| A02 | `aurevon-web3.html` loads without blank screen | [ ] | |
+| A03 | `aurevon-nft.html` loads without blank screen | [ ] | |
 | A04 | `001_Genesis.html` loads without blank screen | [ ] | |
 | A05 | `004_Chrome.html` loads without blank screen | [ ] | |
-| A06 | `BLOCKT_RE_Final.html` loads without blank screen | [ ] | |
-| A07 | `BLOCKT_RE_Intake.html` loads without blank screen | [ ] | |
+| A06 | `aurevon-re.html` loads without blank screen | [ ] | |
+| A07 | `aurevon-re-intake.html` loads without blank screen | [ ] | |
 | A08 | `membership_confirmation.html` loads without blank screen | [ ] | |
 | A09 | `operator.html` loads without blank screen | [ ] | |
 | A10 | Custom fonts load (not falling back to system font) | [ ] | |
 | A11 | Hero image on `index.html` loads | [ ] | |
-| A12 | NFT artwork images load on `BLOCKT_NFT_Collection.html` | [ ] | |
+| A12 | NFT artwork images load on `aurevon-nft.html` | [ ] | |
 | A13 | Tier card images load on all pages | [ ] | |
 | A14 | Logo in header renders correctly | [ ] | |
 | A15 | No broken image icons (alt text showing instead of image) | [ ] | |
@@ -36,9 +36,9 @@
 | B01 | Header nav links on `index.html` all work | [ ] | |
 | B02 | Footer links on `index.html` all work | [ ] | |
 | B03 | "Join Now" / CTA buttons link to correct tier checkout | [ ] | |
-| B04 | Navigation from `index.html` to `BLOCKT_Web3.html` works | [ ] | |
-| B05 | Navigation from `index.html` to `BLOCKT_RE_Final.html` works | [ ] | |
-| B06 | Navigation from `BLOCKT_Web3.html` back to `index.html` works | [ ] | |
+| B04 | Navigation from `index.html` to `aurevon-web3.html` works | [ ] | |
+| B05 | Navigation from `index.html` to `aurevon-re.html` works | [ ] | |
+| B06 | Navigation from `aurevon-web3.html` back to `index.html` works | [ ] | |
 | B07 | `001_Genesis.html` and `004_Chrome.html` have back navigation | [ ] | |
 | B08 | `membership_confirmation.html` links to Discord invite | [ ] | |
 | B09 | No dead links (404) anywhere on any page | [ ] | |
@@ -52,20 +52,20 @@ Test each tier's payment flow. For Stripe: use test card `4242 4242 4242 4242`, 
 
 | # | Check | Status | Notes |
 |---|---|---|---|
-| C01 | **Insider ($297)** — correct amount shown on page | [ ] | |
-| C02 | **Insider** — Stripe checkout opens with correct price | [ ] | |
-| C03 | **Insider** — all 4 payment methods visible: Card, Cash App, Afterpay, PayPal | [ ] | |
+| C01 | **Full Package ($250) — Tier 1 Insider NFT** — correct amount shown on page | [ ] | |
+| C02 | **Full Package** — Stripe checkout opens with correct price | [ ] | |
+| C03 | **Full Package** — all 4 payment methods visible: Card, Cash App, Afterpay, PayPal | [ ] | |
 | C04 | **Pro Retainer / Ember ($1,499/mo)** — correct amount shown | [ ] | |
 | C05 | **Pro Retainer** — Stripe checkout opens with correct subscription price | [ ] | |
 | C06 | **Enterprise / Obsidian Executive ($2,499/mo)** — correct amount shown | [ ] | |
 | C07 | **Obsidian Executive** — Stripe checkout opens with correct price | [ ] | |
-| C08 | **001 Genesis ($2,497)** — correct amount shown | [ ] | |
+| C08 | **001 Genesis Community Monthly ($29.99/mo)** — correct amount shown | [ ] | |
 | C09 | **001 Genesis** — Stripe checkout opens with correct price | [ ] | |
-| C10 | **004 Chrome ($4,997)** — correct amount shown | [ ] | |
+| C10 | **004 Chrome Community Lifetime ($349.99)** — correct amount shown | [ ] | |
 | C11 | **004 Chrome** — Stripe checkout opens with correct price | [ ] | |
-| C12 | **RE Pro Retainer ($2,500/mo)** — correct amount shown | [ ] | |
-| C13 | **RE Enterprise ($5,000/mo)** — correct amount shown | [ ] | |
-| C14 | Test purchase of **Insider** tier completes successfully | [ ] | |
+| C12 | **BOGO ($299.99)** — correct amount shown for new-customer tier | [ ] | |
+| C13 | **Second Opinion ($189.99)** — correct amount shown | [ ] | |
+| C14 | Test purchase of **Full Package** tier completes successfully | [ ] | |
 | C15 | After test purchase, redirected to `membership_confirmation.html` | [ ] | |
 | C16 | PayPal button visible as alternative payment on each tier | [ ] | |
 
@@ -75,7 +75,7 @@ Test each tier's payment flow. For Stripe: use test card `4242 4242 4242 4242`, 
 
 | # | Check | Status | Notes |
 |---|---|---|---|
-| D01 | Visiting `BLOCKT_RE_Intake.html` directly shows the gate/lock | [ ] | |
+| D01 | Visiting `aurevon-re-intake.html` directly shows the gate/lock | [ ] | |
 | D02 | Gate cannot be bypassed by inspecting HTML (form is hidden) | [ ] | |
 | D03 | Correct unlock mechanism works (password, link, or membership check) | [ ] | |
 | D04 | After unlocking, the full intake form is visible | [ ] | |
@@ -167,8 +167,8 @@ Test at 390px width (iPhone 14) and 768px (iPad).
 | # | Check | Status | Notes |
 |---|---|---|---|
 | I01 | `index.html` Lighthouse performance score >= 90 | [ ] | |
-| I02 | `BLOCKT_Web3.html` Lighthouse score >= 90 | [ ] | |
-| I03 | `BLOCKT_RE_Final.html` Lighthouse score >= 90 | [ ] | |
+| I02 | `aurevon-web3.html` Lighthouse score >= 90 | [ ] | |
+| I03 | `aurevon-re.html` Lighthouse score >= 90 | [ ] | |
 | I04 | Images are compressed (no raw 5MB+ images) | [ ] | |
 | I05 | Page loads in < 3 seconds on a 4G connection (Lighthouse) | [ ] | |
 | I06 | No render-blocking scripts in `<head>` | [ ] | |
