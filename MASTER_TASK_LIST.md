@@ -214,7 +214,7 @@ From `/api/health` audit — currently configured: `STRIPE_SECRET_KEY`, `STRIPE_
 | 16 | `aurevon-web3.html` buy buttons | Same as above — verify Web3 tier checkout flow. |
 | 17 | Discord welcome automation | `discord-welcome.html` exists but no Discord bot webhook is configured. |
 | 18 | CRM integration | `aurevon-crm.html` and `blockt-crm.html` exist. Verify Airtable CRM view is configured. |
-| 19 | BLOCKT RE Intake form | `BLOCKT_RE_Intake.html` — form submission needs Airtable or email endpoint. |
+| 19 | Aurevon RE Intake form | `aurevon-re-intake.html` — form submission needs Airtable or email endpoint. |
 | 20 | `setup-wizard.html` completion | Walk-through wizard for initial config — verify all steps still align with current env vars. |
 
 ---

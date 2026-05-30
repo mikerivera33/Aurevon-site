@@ -166,8 +166,8 @@ Follow these steps in order. Each step has a time estimate.
 ### Step 1 — Fork / Clone the Repo (1 min)
 
 ```bash
-git clone https://github.com/YOUR_ORG/blockt-ventures-site.git
-cd blockt-ventures-site/site
+git clone https://github.com/YOUR_ORG/aurevon-site.git
+cd aurevon-site/site
 npm install
 ```
 
@@ -219,7 +219,7 @@ npm run deploy
 vercel --prod
 ```
 
-Vercel prints your deployment URL (e.g., `https://blockt-ventures-xxxx.vercel.app`). Add your custom domain in the Vercel dashboard.
+Vercel prints your deployment URL (e.g., `https://aurevon-site-xxxx.vercel.app`). Add your custom domain in the Vercel dashboard.
 
 ### Step 6 — Configure Webhooks (2 min)
 
@@ -379,27 +379,27 @@ For each membership tier, create a template in the collection:
 2. Use these names and descriptions:
 
 **Insider Template**
-- Name: `BLOCKT Insider`
+- Name: `Aurevon Insider`
 - Description: `Foundation access to the Aurevon ecosystem. Community, education, and deal flow.`
 - Image: Upload insider artwork (750×750px recommended)
 
 **Ember Template**
-- Name: `BLOCKT Ember`
+- Name: `Aurevon Ember`
 - Description: `Elevated access with live Q&As, monthly deal breakdowns, and priority support.`
 - Image: Upload ember artwork
 
 **Obsidian Executive Template**
-- Name: `BLOCKT Obsidian Executive`
+- Name: `Aurevon Obsidian Executive`
 - Description: `Premium membership with 1:1 advisory sessions, vetted deal access, and co-investment rights.`
 - Image: Upload obsidian artwork
 
 **001 Genesis Template**
-- Name: `BLOCKT 001 Genesis`
+- Name: `Aurevon 001 Genesis`
 - Description: `Founding member of the Aurevon Genesis cohort. Early access to all future drops, permanent Discord role, legacy pricing lock.`
 - Image: Upload 001 Genesis artwork
 
 **004 Chrome Template**
-- Name: `BLOCKT 004 Chrome`
+- Name: `Aurevon 004 Chrome`
 - Description: `Top-tier Aurevon membership. Direct founder access, Chrome-level co-investment rights, and lifetime benefits.`
 - Image: Upload 004 Chrome artwork
 
@@ -441,7 +441,7 @@ Resend is a developer-first transactional email service. It handles all Aurevon 
 ### 7.2 Generate an API Key
 
 1. **Resend Dashboard → API Keys → Create API Key**
-2. Name it: `BLOCKT Production`
+2. Name it: `Aurevon Production`
 3. Permission: **Full access** (needed to send and check email status)
 4. Copy the key → add to `RESEND_API_KEY`
 5. Set `RESEND_FROM_EMAIL=mike@aurevonvc.com` (must be on your verified domain)
@@ -470,7 +470,7 @@ The Aurevon Airtable base is the central data store for all payments, NFT mints,
 
 1. Go to https://airtable.com/create/tokens
 2. Click **Create new token**
-3. Name: `BLOCKT Production`
+3. Name: `Aurevon Production`
 4. Scopes: `data.records:read`, `data.records:write`, `schema.bases:read`
 5. Access: select your Aurevon base
 6. Copy the token (starts with `pat`) → add to `AIRTABLE_PAT`
