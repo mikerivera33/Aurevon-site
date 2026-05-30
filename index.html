@@ -3,7 +3,7 @@
 <head>
 <!-- Suppress wallet extension errors (MetaMask, Coinbase Wallet) -->
 <script>
-window.addEventListener('error',function(e){if(e.filename&&e.filename.startsWith('chrome-extension://')){e.preventDefault();return;}if(e.message&&(e.message.includes('MetaMask')||e.message.includes('cross-origin')||e.message.includes('chrome-extension'))){e.preventDefault();return;}},true);
+window.addEventListener('error',function(e){if(e.filename&&e.filename.hstartsWith('chrome-extension://')){e.preventDefault();return;}if(e.message&&(e.message.includes('MetaMask')||e.message.includes('cross-origin')||e.message.includes('chrome-extension'))){e.preventDefault();return;}},true);
 window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reason.message||String(e.reason))||'';if(m.includes('MetaMask')||m.includes('cross-origin')||m.includes('chrome-extension')){e.preventDefault();return;}});
 (function(){try{localStorage.getItem('_t');}catch(e){var m={};window.localStorage={getItem:function(k){return m[k]||null;},setItem:function(k,v){m[k]=String(v);},removeItem:function(k){delete m[k];},clear:function(){m={};}};}}());
 </script>
@@ -206,7 +206,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
   </div>
   <div class="wrap si">
     <div class="rv aurevon-hero-wrap" style="margin:0 auto 1.2rem;display:flex;justify-content:center;">
-      <img src="assets/aurevon-wordmark.png" alt="Aurevon Ventures LLC" style="max-width:520px;width:100%;height:auto;filter:drop-shadow(0 0 50px rgba(30,58,138,0.35));" onerror="this.onerror=null;this.src='assets/aurevon_shield_logo_1k.png';this.style.maxWidth='340px';">
+      <img src="assets/Aurevon LOGO1.jpg" alt="Aurevon Ventures LLC" style="max-width:520px;width:100%;height:auto;filter:drop-shadow(0 0 50px rgba(30,58,138,0.35));" onerror="this.onerror=null;this.src='assets/aurevon_shield_logo_1k.png';this.style.maxWidth='340px';">
     </div>
     <h1 class="rv lt" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">Aurevon Ventures LLC — Systems. Capital. Infrastructure.</h1>
     <p class="rv" style="color:var(--tm);font-size:0.82rem;letter-spacing:0.25em;text-transform:uppercase;margin:0 0 1.2rem;">Holdings · Ventures · Community</p>
