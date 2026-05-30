@@ -43,12 +43,12 @@ Aurevon is a fully autonomous investment education and Web3 membership platform.
 | Page | Purpose |
 |---|---|
 | `index.html` | Main landing — hero, tiers, pricing |
-| `BLOCKT_Web3.html` | Web3/NFT membership detail |
-| `BLOCKT_NFT_Collection.html` | NFT collection gallery |
+| `aurevon-web3.html` | Web3/NFT membership detail |
+| `aurevon-nft.html` | NFT collection gallery |
 | `001_Genesis.html` | 001 Genesis tier detail |
 | `004_Chrome.html` | 004 Chrome tier detail |
-| `BLOCKT_RE_Final.html` | Real Estate services |
-| `BLOCKT_RE_Intake.html` | Gated intake form (leads) |
+| `aurevon-re.html` | Real Estate services |
+| `aurevon-re-intake.html` | Gated intake form (leads) |
 | `membership_confirmation.html` | Post-payment confirmation |
 | `operator.html` | Owner-only dashboard (Airtable-powered) |
 
@@ -362,10 +362,10 @@ Crossmint allows you to mint NFTs directly to a customer's email — they can cl
 3. Submit your business details (takes 1–2 business days for approval)
 4. While waiting, you can develop on **Staging** environment
 
-### 6.2 Create the "BLOCKT Genesis Drop" Collection
+### 6.2 Create the "Aurevon Genesis Drop" Collection
 
 1. **Crossmint Console → Collections → Create Collection**
-2. Name: `BLOCKT Genesis Drop`
+2. Name: `Aurevon Genesis Drop`
 3. Chain: `polygon` (recommended — fees average $0.01–0.05 per mint)
 4. Collection type: `Semi-fungible (ERC-1155)` — allows multiple copies of each template
 5. Upload a collection banner image
@@ -671,12 +671,12 @@ Print this before going live. Mark each item.
 
 ### Pages
 - [ ] `index.html` loads without console errors
-- [ ] `BLOCKT_Web3.html` loads
-- [ ] `BLOCKT_NFT_Collection.html` loads
+- [ ] `aurevon-web3.html` loads
+- [ ] `aurevon-nft.html` loads
 - [ ] `001_Genesis.html` loads
 - [ ] `004_Chrome.html` loads
-- [ ] `BLOCKT_RE_Final.html` loads
-- [ ] `BLOCKT_RE_Intake.html` shows gate for unauthenticated users
+- [ ] `aurevon-re.html` loads
+- [ ] `aurevon-re-intake.html` shows gate for unauthenticated users
 - [ ] `membership_confirmation.html` loads
 - [ ] `operator.html` loads and populates data
 
