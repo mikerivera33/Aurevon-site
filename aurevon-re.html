@@ -40,6 +40,17 @@ window.AUREVON_CONFIG = {
   PAYPAL_RETAINER_URL:   "https://www.paypal.com/ncp/payment/HZBXDA6GH9Z54",
   PAYPAL_ENTERPRISE_URL: "https://www.paypal.com/ncp/payment/7Y75Z73DM5WTJ",
 
+  //    À La Carte ADD-ON PayPal links — create one PayPal button/link per add-on
+  //    in PayPal Business → Pay & Get Paid → PayPal buttons (or NCP payment link),
+  //    set the exact price, then paste each NCP URL below. Leave as "" until created
+  //    (the PayPal button will hide itself until a real link is present).
+  PAYPAL_ADDON_RUSH_URL:        "",  // $99   — 12-Hour Rush Delivery
+  PAYPAL_ADDON_MEMO_URL:        "",  // $149  — Investor Memo Formatting
+  PAYPAL_ADDON_LENDER_URL:      "",  // $199  — Lender Presentation Package
+  PAYPAL_ADDON_SENSITIVITY_URL: "",  // $125  — Sensitivity Modeling
+  PAYPAL_ADDON_PORTFOLIO_URL:   "",  // $499  — Portfolio Review Bundle
+  PAYPAL_ADDON_WHITELABEL_URL:  "",  // $175  — White-Label Reports
+
   // 3. Formspree endpoint — create at https://formspree.io (free),
   //    set target email to mike@aurevonvc.com, paste URL below.
   FORMSPREE_URL: "https://formspree.io/f/xykokyqe",
@@ -340,6 +351,9 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 .addon-btn{display:inline-block;padding:5px 14px;border-radius:6px;background:var(--o1);color:#fff;font-size:0.78rem;font-weight:700;text-decoration:none;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;}
 .addon-btn:hover{opacity:0.82;}
 .addon-btn[disabled]{opacity:0.5;pointer-events:none;}
+.addon-pp{display:inline-block;margin-left:5px;padding:5px 12px;border-radius:6px;background:#003087;color:#fff;font-size:0.78rem;font-weight:700;text-decoration:none;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;}
+.addon-pp:hover{opacity:0.82;}
+.addon-pp[disabled]{opacity:0.5;pointer-events:none;}
 
 /* Community steps */
 .community-steps{display:flex;flex-direction:column;gap:0.8rem;margin-top:0.5rem;}
@@ -682,42 +696,42 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
             <td class="addon-price">$99</td>
             <td>Priority queue — underwriting delivered in 12 hours instead of 24–48h</td>
             <td style="text-align:center;"><span class="incl-badge">Pro</span><span class="incl-badge ent">Ent</span></td>
-            <td style="text-align:center;"><a class="addon-btn" href="__CHECKOUT__addon_rush" data-orig-text="Add →" data-amount="$99">Add →</a></td>
+            <td style="text-align:center;white-space:nowrap;"><a class="addon-btn" href="__CHECKOUT__addon_rush" data-orig-text="Card" data-amount="$99">Card</a><a class="addon-pp" data-pp="PAYPAL_ADDON_RUSH_URL" data-amount="$99">PayPal</a></td>
           </tr>
           <tr>
             <td><strong>Investor Memo Formatting</strong></td>
             <td class="addon-price">$149</td>
             <td>LP-ready formatted memo with branded cover page, exec summary, and key metrics layout</td>
             <td style="text-align:center;">—</td>
-            <td style="text-align:center;"><a class="addon-btn" href="__CHECKOUT__addon_memo" data-orig-text="Add →" data-amount="$149">Add →</a></td>
+            <td style="text-align:center;white-space:nowrap;"><a class="addon-btn" href="__CHECKOUT__addon_memo" data-orig-text="Card" data-amount="$149">Card</a><a class="addon-pp" data-pp="PAYPAL_ADDON_MEMO_URL" data-amount="$149">PayPal</a></td>
           </tr>
           <tr>
             <td><strong>Lender Presentation Package</strong></td>
             <td class="addon-price">$199</td>
             <td>Bank-ready package: debt service coverage, LTV analysis, and lender comparison matrix</td>
             <td style="text-align:center;">—</td>
-            <td style="text-align:center;"><a class="addon-btn" href="__CHECKOUT__addon_lender" data-orig-text="Add →" data-amount="$199">Add →</a></td>
+            <td style="text-align:center;white-space:nowrap;"><a class="addon-btn" href="__CHECKOUT__addon_lender" data-orig-text="Card" data-amount="$199">Card</a><a class="addon-pp" data-pp="PAYPAL_ADDON_LENDER_URL" data-amount="$199">PayPal</a></td>
           </tr>
           <tr>
             <td><strong>Sensitivity Modeling</strong></td>
             <td class="addon-price">$125</td>
             <td>3-scenario stress test: base, upside, and downside with variable rent growth, cap rates, and exit assumptions</td>
             <td style="text-align:center;">—</td>
-            <td style="text-align:center;"><a class="addon-btn" href="__CHECKOUT__addon_sensitivity" data-orig-text="Add →" data-amount="$125">Add →</a></td>
+            <td style="text-align:center;white-space:nowrap;"><a class="addon-btn" href="__CHECKOUT__addon_sensitivity" data-orig-text="Card" data-amount="$125">Card</a><a class="addon-pp" data-pp="PAYPAL_ADDON_SENSITIVITY_URL" data-amount="$125">PayPal</a></td>
           </tr>
           <tr>
             <td><strong>Portfolio Review Bundle</strong></td>
             <td class="addon-price">$499</td>
             <td>3–5 assets reviewed together with cross-property comparison, portfolio-level metrics, and rebalancing recommendations</td>
             <td style="text-align:center;">—</td>
-            <td style="text-align:center;"><a class="addon-btn" href="__CHECKOUT__addon_portfolio" data-orig-text="Add →" data-amount="$499">Add →</a></td>
+            <td style="text-align:center;white-space:nowrap;"><a class="addon-btn" href="__CHECKOUT__addon_portfolio" data-orig-text="Card" data-amount="$499">Card</a><a class="addon-pp" data-pp="PAYPAL_ADDON_PORTFOLIO_URL" data-amount="$499">PayPal</a></td>
           </tr>
           <tr>
             <td><strong>White-Label Reports</strong></td>
             <td class="addon-price">$175<span style="font-size:0.72rem;color:var(--text-muted);"> / deal</span></td>
             <td>Your branding, your logo, your cover page — delivered as if your team built it. Ideal for brokers &amp; advisors</td>
             <td style="text-align:center;"><span class="incl-badge ent">Ent</span></td>
-            <td style="text-align:center;"><a class="addon-btn" href="__CHECKOUT__addon_whitelabel" data-orig-text="Add →" data-amount="$175">Add →</a></td>
+            <td style="text-align:center;white-space:nowrap;"><a class="addon-btn" href="__CHECKOUT__addon_whitelabel" data-orig-text="Card" data-amount="$175">Card</a><a class="addon-pp" data-pp="PAYPAL_ADDON_WHITELABEL_URL" data-amount="$175">PayPal</a></td>
           </tr>
         </tbody>
       </table>
@@ -1800,6 +1814,24 @@ document.querySelectorAll('.addon-btn').forEach(function(btn) {
     });
   });
 });
+
+/* ---------- Add-on PayPal buttons ---------- */
+/* Each PayPal add-on button reads its NCP link from AUREVON_CONFIG via data-pp.
+   If the link isn't configured yet (empty), the button hides itself so the page
+   never shows a dead PayPal button. */
+(function(){
+  var cfg = window.AUREVON_CONFIG || {};
+  document.querySelectorAll('.addon-pp').forEach(function(btn){
+    var key = btn.getAttribute('data-pp');
+    var url = key && cfg[key];
+    if (!url) { btn.style.display = 'none'; return; }   // not configured yet → hide
+    btn.setAttribute('href', url);
+    btn.addEventListener('click', function(e){
+      e.preventDefault();
+      window.location.href = url;
+    });
+  });
+})();
 </script>
 </body>
 </html>
