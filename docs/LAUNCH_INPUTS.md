@@ -40,8 +40,8 @@ All 6 add-ons now use the PayPal NCP Cart widget (merchant `PPMXBVG74GD22`) so c
 ## 📎 B. Files to add to the repo (I can't receive binaries in chat)
 
 Drop these into `assets/` (commit them, or attach them and tell me the filename):
-- [ ] **`assets/aurevon-wordmark.png`** — the chrome AUREVON wordmark (LOGO1). Used as the homepage hero brandmark. *(code already points here)*
-- [ ] **`assets/aurevon-labs-banner.png`** — the AUREVON LABS banner. Used as the Web3 + NFT page hero. *(code already points here)*
+- [ ] **`assets/Aurevon LOGO1.jpg`** — the chrome AUREVON wordmark (LOGO1). Used as the homepage hero brandmark. *(code already points here)*
+- [ ] **`assets/MAIN AUREVON HEADER.png`** — the AUREVON LABS banner. Used as the Web3 + NFT page hero. *(code already points here)*
 - [ ] *(optional)* 5 enhanced NFT images + animations per `docs/NFT_ART_BRIEF.md` (these get pinned to IPFS, not committed).
 
 ---
