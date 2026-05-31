@@ -1,80 +1,210 @@
 {
-          "version": 2,
-          "framework": null,
-          "buildCommand": null,
-          "installCommand": null,
-          "outputDirectory": ".",
-          "cleanUrls": true,
-          "trailingSlash": false,
-          "redirects": [
-                      { "source": "/AUREVON_NFT_Collection", "destination": "/aurevon-web3", "permanent": true },
-                      { "source": "/aurevon_nft_collection",  "destination": "/aurevon-web3", "permanent": true },
-                      { "source": "/nft-collection",           "destination": "/aurevon-web3", "permanent": true },
-                      { "source": "/nft",                      "destination": "/aurevon-web3", "permanent": true }
-          ],
-          "rewrites": [
-                      { "source": "/api/stripe/checkout",          "destination": "/api/stripe/checkout.js" },
-                      { "source": "/api/webhooks/stripe",           "destination": "/api/webhooks/stripe.js" },
-                      { "source": "/api/webhooks/paypal",           "destination": "/api/webhooks/paypal.js" },
-                      { "source": "/api/webhooks/crossmint",        "destination": "/api/webhooks/crossmint.js" },
-                      { "source": "/api/portal/data",               "destination": "/api/portal/data.js?action=data" },
-                      { "source": "/api/portal/auth",               "destination": "/api/portal/data.js?action=auth" },
-                      { "source": "/api/portal/verify",             "destination": "/api/portal/data.js?action=verify" },
-                      { "source": "/api/health",                    "destination": "/api/health.js" },
-                      { "source": "/api/discord/auth",              "destination": "/api/discord.js?action=auth" },
-                      { "source": "/api/discord/callback",          "destination": "/api/discord.js?action=callback" },
-                      { "source": "/api/discord/sync",              "destination": "/api/discord.js?action=sync" },
-                      { "source": "/api/discord/check-membership",  "destination": "/api/discord.js?action=check-membership" },
-                      { "source": "/api/discord",                   "destination": "/api/discord.js" },
-                      { "source": "/api/cron/retry-mints",          "destination": "/api/member/claim.js?action=retry-mints" },
-                      { "source": "/api/cron/reconcile",            "destination": "/api/member/claim.js?action=reconcile" },
-                      { "source": "/api/email/send",                "destination": "/api/email/send.js" },
-                      { "source": "/api/crossmint/mint",            "destination": "/api/member/claim.js?action=mint" },
-                      { "source": "/api/paypal/create-order",       "destination": "/api/paypal/index.js?action=create-order" },
-                      { "source": "/api/paypal/capture",            "destination": "/api/paypal/index.js?action=capture" },
-                      { "source": "/api/member/claim",              "destination": "/api/member/claim.js" },
-                      { "source": "/aurevon-re",                    "destination": "/aurevon-re.html" },
-                      { "source": "/aurevon-web3",                  "destination": "/aurevon-web3.html" },
-                      { "source": "/aurevon-nft",                   "destination": "/aurevon-nft.html" },
-                      { "source": "/aurevon-crm",                   "destination": "/aurevon-crm.html" },
-                      { "source": "/blockt-crm",                    "destination": "/aurevon-crm.html" },
-                      { "source": "/portal",                        "destination": "/portal.html" },
-                      { "source": "/operator",                      "destination": "/operator.html" },
-                      { "source": "/merch",                         "destination": "/merch.html" },
-                      { "source": "/discord-welcome",               "destination": "/discord-welcome.html" },
-                      { "source": "/membership-confirmation",       "destination": "/membership_confirmation.html" },
-                      { "source": "/setup-wizard",                  "destination": "/setup-wizard.html" },
-                      { "source": "/member-claim",                  "destination": "/member-claim.html" },
-                      { "source": "/success",                       "destination": "/membership_confirmation" },
-                      { "source": "/cancel",                        "destination": "/aurevon-web3" },
-                      { "source": "/nfts",                          "destination": "/aurevon-web3.html" }
-          ],
-          "crons": [
-                      { "path": "/api/cron/retry-mints", "schedule": "0 3 * * *" },
-                      { "path": "/api/cron/reconcile",   "schedule": "0 2 * * *" }
-          ],
-          "functions": {
-                      "api/member/claim.js":       { "maxDuration": 60 },
-                      "api/webhooks/crossmint.js": { "maxDuration": 30 },
-                      "api/webhooks/stripe.js":    { "maxDuration": 30 },
-                      "api/webhooks/paypal.js":    { "maxDuration": 30 }
-          },
-          "headers": [
-                      {
-                                    "source": "/api/(.*)",
-                                    "headers": [
-                                                    { "key": "Access-Control-Allow-Origin",  "value": "*" },
-                                                    { "key": "Access-Control-Allow-Methods", "value": "GET,POST,OPTIONS" },
-                                                    { "key": "Access-Control-Allow-Headers", "value": "Content-Type,Authorization" }
-                                    ]
-                      },
-                      {
-                                    "source": "/(.*)",
-                                    "headers": [
-                                                    { "key": "X-Content-Type-Options", "value": "nosniff" },
-                                                    { "key": "X-Frame-Options",         "value": "SAMEORIGIN" },
-                                                    { "key": "Referrer-Policy",         "value": "strict-origin-when-cross-origin" }
-                                    ]
-                      }
-          ]
+  "version": 2,
+  "framework": null,
+  "buildCommand": null,
+  "installCommand": null,
+  "outputDirectory": ".",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/AUREVON_NFT_Collection",
+      "destination": "/aurevon-web3",
+      "permanent": true
+    },
+    {
+      "source": "/aurevon_nft_collection",
+      "destination": "/aurevon-web3",
+      "permanent": true
+    },
+    {
+      "source": "/nft-collection",
+      "destination": "/aurevon-web3",
+      "permanent": true
+    },
+    {
+      "source": "/nft",
+      "destination": "/aurevon-web3",
+      "permanent": true
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/stripe/checkout",
+      "destination": "/api/stripe/checkout.js"
+    },
+    {
+      "source": "/api/webhooks/stripe",
+      "destination": "/api/webhooks/stripe.js"
+    },
+    {
+      "source": "/api/webhooks/paypal",
+      "destination": "/api/webhooks/paypal.js"
+    },
+    {
+      "source": "/api/webhooks/crossmint",
+      "destination": "/api/webhooks/crossmint.js"
+    },
+    {
+      "source": "/api/portal/data",
+      "destination": "/api/portal/data.js?action=data"
+    },
+    {
+      "source": "/api/portal/auth",
+      "destination": "/api/portal/data.js?action=auth"
+    },
+    {
+      "source": "/api/portal/verify",
+      "destination": "/api/portal/data.js?action=verify"
+    },
+    {
+      "source": "/api/health",
+      "destination": "/api/health.js"
+    },
+    {
+      "source": "/api/discord/auth",
+      "destination": "/api/discord.js?action=auth"
+    },
+    {
+      "source": "/api/discord/callback",
+      "destination": "/api/discord.js?action=callback"
+    },
+    {
+      "source": "/api/discord/sync",
+      "destination": "/api/discord.js?action=sync"
+    },
+    {
+      "source": "/api/discord/check-membership",
+      "destination": "/api/discord.js?action=check-membership"
+    },
+    {
+      "source": "/api/discord",
+      "destination": "/api/discord.js"
+    },
+    {
+      "source": "/api/cron/retry-mints",
+      "destination": "/api/member/claim.js?action=retry-mints"
+    },
+    {
+      "source": "/api/cron/reconcile",
+      "destination": "/api/member/claim.js?action=reconcile"
+    },
+    {
+      "source": "/api/email/send",
+      "destination": "/api/email/send.js"
+    },
+    {
+      "source": "/api/crossmint/mint",
+      "destination": "/api/member/claim.js?action=mint"
+    },
+    {
+      "source": "/api/paypal/create-order",
+      "destination": "/api/paypal/index.js?action=create-order"
+    },
+    {
+      "source": "/api/paypal/capture",
+      "destination": "/api/paypal/index.js?action=capture"
+    },
+    {
+      "source": "/api/member/claim",
+      "destination": "/api/member/claim.js"
+    },
+    {
+      "source": "/blockt-crm",
+      "destination": "/aurevon-crm"
+    },
+    {
+      "source": "/membership-confirmation",
+      "destination": "/membership_confirmation"
+    },
+    {
+      "source": "/success",
+      "destination": "/membership_confirmation"
+    },
+    {
+      "source": "/cancel",
+      "destination": "/aurevon-web3"
+    },
+    {
+      "source": "/nfts",
+      "destination": "/aurevon-web3"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/retry-mints",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/reconcile",
+      "schedule": "0 2 * * *"
+    }
+  ],
+  "functions": {
+    "api/member/claim.js": {
+      "maxDuration": 60
+    },
+    "api/webhooks/crossmint.js": {
+      "maxDuration": 30
+    },
+    "api/webhooks/stripe.js": {
+      "maxDuration": 30
+    },
+    "api/webhooks/paypal.js": {
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET,POST,OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type,Authorization"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=604800"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(), microphone=(), camera=()"
+        }
+      ]
+    }
+  ]
 }
