@@ -26,6 +26,11 @@
       "source": "/nft",
       "destination": "/aurevon-web3",
       "permanent": true
+    },
+    {
+      "source": "/blockt-crm",
+      "destination": "/aurevon-crm",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -108,10 +113,6 @@
     {
       "source": "/api/member/claim",
       "destination": "/api/member/claim.js"
-    },
-    {
-      "source": "/blockt-crm",
-      "destination": "/aurevon-crm"
     },
     {
       "source": "/membership-confirmation",

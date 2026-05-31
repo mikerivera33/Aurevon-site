@@ -17,7 +17,7 @@
 | Primary blue | `#1E3A8A` → `#3B82F6` gradient |
 | Neutrals | Near-black `#0A0A0A` / `#050510`; silver/chrome `#C8C8D0`–`#F0F0F4`; brown accent `#5b4636` (from the Labs banner) used sparingly |
 | Tone | Institutional, premium, collectible — "fintech meets luxury collectible." Not cartoonish, not meme-y. |
-| Logo files in repo | `assets/Aurevon LOGO1.jpg` (chrome wordmark — current), `assets/MAIN AUREVON HEADER.png` (banner — current), `assets/aurevon_shield_logo_4k.png` (5.4MB master) |
+| Logo files in repo | `assets/Aurevon LOGO1.jpg` (chrome wordmark — current), `assets/MAIN AUREVON HEADER.png` (banner — current), `assets/aurevon_shield_logo_1k.png` (1k shield — favicon/OG) |
 
 ---
 
