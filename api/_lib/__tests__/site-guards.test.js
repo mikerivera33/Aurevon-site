@@ -77,15 +77,26 @@ describe('JSON-LD pricing ↔ tiers.js', () => {
   }
 });
 
-describe('hero preload ↔ <img src> byte-identical', () => {
+describe('hero preload ↔ rendered image (img src or picture > source srcset)', () => {
   const pages = ['index.html', 'aurevon-web3.html', 'aurevon-nft.html'];
   for (const page of pages) {
-    it(`${page}: every preload href has a matching <img src>`, () => {
+    it(`${page}: every preload href appears as an actual rendered image URL`, () => {
       const html = read(page);
       const preloads = [...html.matchAll(/<link\s+rel="preload"[^>]*\bas="image"[^>]*\bhref="([^"]+)"/g)].map((m) => m[1]);
-      const imgs = new Set([...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1]));
-      const missing = preloads.filter((href) => !imgs.has(href));
-      expect(missing, `${page} preload href(s) with no byte-identical <img src>: ${JSON.stringify(missing)}`).toEqual([]);
+      // Rendered URLs = <img src> ∪ <source srcset> (for <picture> with WebP/AVIF + PNG fallback).
+      // Strip srcset descriptors ("1x", "320w") to compare bare URLs.
+      const imgSrcs = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1]);
+      // srcset candidates are comma-separated; each is URL + optional Nx/Nw descriptor.
+      // The URL itself may contain literal spaces (e.g. "MAIN AUREVON HEADER.webp"),
+      // so only strip a trailing descriptor — don't split on whitespace blindly.
+      const srcsets = [...html.matchAll(/<source\b[^>]*\bsrcset="([^"]+)"/g)]
+        .flatMap((m) => m[1].split(',').map((part) =>
+          part.trim().replace(/\s+\d+(?:\.\d+)?[wx]$/, '')
+        ))
+        .filter(Boolean);
+      const rendered = new Set([...imgSrcs, ...srcsets]);
+      const missing = preloads.filter((href) => !rendered.has(href));
+      expect(missing, `${page} preload href(s) not rendered as <img src> or <source srcset>: ${JSON.stringify(missing)}`).toEqual([]);
     });
   }
 });
