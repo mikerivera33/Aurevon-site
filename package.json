@@ -18,6 +18,9 @@
     "@vercel/speed-insights": "^2.0.0",
     "stripe": "^16.0.0"
   },
+  "engines": {
+    "node": "20.x"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.3.0",
