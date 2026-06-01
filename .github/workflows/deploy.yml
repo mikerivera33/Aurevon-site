@@ -15,7 +15,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies
@@ -58,10 +58,14 @@ jobs:
           # Scope is the WHOLE deployed tree (everything not in .vercelignore), not just /assets/.
           # nfts/*.png, docs/ images, etc. all count if they ship.
           BUDGET_KB=500
+          # Excludes mirror .vercelignore — these directories never ship to prod.
           OVERSIZE=$(find . -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' -o -name '*.webp' -o -name '*.gif' \) \
             -not -path './node_modules/*' \
             -not -path './.git/*' \
             -not -path './docs/*' \
+            -not -path './api/test/*' \
+            -not -path './api/cron/*' \
+            -not -path './api/discord/lib/*' \
             -size +${BUDGET_KB}k -printf '  %s  %p\n' || true)
           if [ -n "$OVERSIZE" ]; then
             echo "::error::Asset(s) exceed ${BUDGET_KB} KB budget:"
@@ -122,11 +126,18 @@ jobs:
 
       - name: Analytics coverage — every HTML must include Speed Insights + Web Analytics, and no legacy duplicates
         run: |
-          MISSING_SI=$(grep -L "/_vercel/speed-insights/" *.html 2>/dev/null || true)
-          MISSING_WA=$(grep -L "/_vercel/insights/" *.html 2>/dev/null || true)
+          # Scope is the WHOLE deployed tree (matches Critical-asset step), not just root.
+          # Otherwise nfts/*.html (and any other subdir HTML) silently ship without analytics.
+          HTML_FILES=$(find . -name '*.html' \
+            -not -path './node_modules/*' \
+            -not -path './.git/*' \
+            -not -path './docs/*' \
+            -not -path './api/test/*')
+          MISSING_SI=$(echo "$HTML_FILES" | xargs grep -L "/_vercel/speed-insights/" 2>/dev/null || true)
+          MISSING_WA=$(echo "$HTML_FILES" | xargs grep -L "/_vercel/insights/" 2>/dev/null || true)
           # Legacy Vercel analytics script (pre-/_vercel/insights/) — if both coexist,
           # pageviews fire twice and the dashboard double-counts.
-          LEGACY=$(grep -l "cdn\.vercel-insights\.com/v1/script\.js" *.html 2>/dev/null || true)
+          LEGACY=$(echo "$HTML_FILES" | xargs grep -l "cdn\.vercel-insights\.com/v1/script\.js" 2>/dev/null || true)
           FAILED=0
           if [ -n "$MISSING_SI" ]; then
             echo "::error::Missing Speed Insights script in:"
