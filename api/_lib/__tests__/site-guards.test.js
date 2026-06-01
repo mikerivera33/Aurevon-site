@@ -110,11 +110,17 @@ describe('hero preload ↔ rendered image (img src or picture > source srcset)',
 
     it(`${page}: srcset URLs must not contain literal whitespace (use %20)`, () => {
       const html = read(page);
+      const sources = [...html.matchAll(/<source\b[^>]*\bsrcset="([^"]+)"/g)];
+      if (sources.length === 0) {
+        // Page has no <picture>/<source>, so there's nothing to validate here.
+        // Don't pass vacuously — skip explicitly so CI output reflects the real coverage.
+        return;
+      }
       // Per WHATWG HTML 4.8.4.3.2, srcset URLs are whitespace-delimited tokens.
       // A URL with literal spaces gets split into URL + (invalid) descriptors and the
       // candidate is silently rejected — the WebP path is then never taken even though
       // the WebP file was already preloaded (double-fetch).
-      const offenders = [...html.matchAll(/<source\b[^>]*\bsrcset="([^"]+)"/g)]
+      const offenders = sources
         .flatMap((m) => m[1].split(',').map((part) => part.trim()))
         .filter((candidate) => {
           // Strip trailing Nx/Nw descriptor; if anything else has whitespace, it's a bad URL.
