@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "chaingpt": {
+      "command": "npx",
+      "args": ["-y", "chaingpt-mcp"],
+      "env": {
+        "CHAINGPT_API_KEY": "${CHAINGPT_API_KEY}"
+      }
+    }
+  }
+}
