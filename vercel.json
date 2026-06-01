@@ -26,11 +26,6 @@
       "source": "/nft",
       "destination": "/aurevon-web3",
       "permanent": true
-    },
-    {
-      "source": "/blockt-crm",
-      "destination": "/aurevon-crm",
-      "permanent": true
     }
   ],
   "rewrites": [

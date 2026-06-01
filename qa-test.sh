@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# BLOCKT Ventures — Automated QA Test Harness
+# Aurevon Ventures — Automated QA Test Harness
 # =============================================================================
 # Usage:
 #   bash qa-test.sh                  # Standard QA run
@@ -28,7 +28,7 @@ for arg in "$@"; do
   case $arg in
     --full-pipeline) FULL_PIPELINE=true ;;
     --env) shift ;;
-    prod) BASE_URL="${SITE_URL:-https://blocktventures.com}" ;;
+    prod) BASE_URL="${SITE_URL:-https://www.aurevonvc.com}" ;;
     *) ;;
   esac
 done
@@ -130,7 +130,7 @@ if require_env "STRIPE_WEBHOOK_SECRET"; then
   # Build a mock Stripe checkout.session.completed event
   MOCK_TIMESTAMP=$(date +%s)
   MOCK_SESSION_ID="cs_test_qa_$(date +%s%N | sha256sum | head -c 12)"
-  MOCK_EMAIL="qa-test-$(date +%s)@blockt-qa.test"
+  MOCK_EMAIL="qa-test-$(date +%s)@aurevon-qa.test"
 
   MOCK_PAYLOAD=$(cat <<PAYLOAD
 {
@@ -190,7 +190,7 @@ section "4. Airtable Record Verification"
 
 if $FULL_PIPELINE && require_env "AIRTABLE_PAT" && require_env "AIRTABLE_BASE_ID"; then
   TABLE="${AIRTABLE_TABLE_PAYMENTS:-Payments}"
-  SEARCH_EMAIL="${LAST_QA_EMAIL:-qa-test@blockt-qa.test}"
+  SEARCH_EMAIL="${LAST_QA_EMAIL:-qa-test@aurevon-qa.test}"
 
   # Wait up to 30 seconds for the webhook to write to Airtable
   echo "  Waiting 10s for webhook to process and write to Airtable..."
