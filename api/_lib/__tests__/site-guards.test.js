@@ -77,15 +77,51 @@ describe('JSON-LD pricing ↔ tiers.js', () => {
   }
 });
 
-describe('hero preload ↔ <img src> byte-identical', () => {
+describe('hero preload ↔ rendered image (img src or picture > source srcset)', () => {
   const pages = ['index.html', 'aurevon-web3.html', 'aurevon-nft.html'];
+
+  // Normalize so '/assets/MAIN%20AUREVON%20HEADER.webp' (correctly %-encoded srcset)
+  // matches '/assets/MAIN AUREVON HEADER.webp' (the same URL elsewhere, unencoded).
+  // Without this, the guard masks a real bug: srcset literally splits on whitespace
+  // per HTML5 spec, so a URL with literal spaces gets parsed as URL+invalid descriptors
+  // and the candidate is rejected by every real browser.
+  const normalize = (u) => {
+    try { return decodeURIComponent(u); } catch { return u; }
+  };
+
   for (const page of pages) {
-    it(`${page}: every preload href has a matching <img src>`, () => {
+    it(`${page}: every preload href appears as an actual rendered image URL`, () => {
       const html = read(page);
       const preloads = [...html.matchAll(/<link\s+rel="preload"[^>]*\bas="image"[^>]*\bhref="([^"]+)"/g)].map((m) => m[1]);
-      const imgs = new Set([...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1]));
-      const missing = preloads.filter((href) => !imgs.has(href));
-      expect(missing, `${page} preload href(s) with no byte-identical <img src>: ${JSON.stringify(missing)}`).toEqual([]);
+      const imgSrcs = [...html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1]);
+      // srcset is comma-separated; each is URL + optional Nx/Nw descriptor.
+      // Strip the trailing descriptor (if any), but don't blindly split on whitespace —
+      // a %-encoded URL has no spaces, but if someone slipped in a literal-space URL
+      // the test below will catch it.
+      const srcsets = [...html.matchAll(/<source\b[^>]*\bsrcset="([^"]+)"/g)]
+        .flatMap((m) => m[1].split(',').map((part) =>
+          part.trim().replace(/\s+\d+(?:\.\d+)?[wx]$/, '')
+        ))
+        .filter(Boolean);
+      const rendered = new Set([...imgSrcs.map(normalize), ...srcsets.map(normalize)]);
+      const missing = preloads.filter((href) => !rendered.has(normalize(href)));
+      expect(missing, `${page} preload href(s) not rendered as <img src> or <source srcset>: ${JSON.stringify(missing)}`).toEqual([]);
+    });
+
+    it(`${page}: srcset URLs must not contain literal whitespace (use %20)`, () => {
+      const html = read(page);
+      // Per WHATWG HTML 4.8.4.3.2, srcset URLs are whitespace-delimited tokens.
+      // A URL with literal spaces gets split into URL + (invalid) descriptors and the
+      // candidate is silently rejected — the WebP path is then never taken even though
+      // the WebP file was already preloaded (double-fetch).
+      const offenders = [...html.matchAll(/<source\b[^>]*\bsrcset="([^"]+)"/g)]
+        .flatMap((m) => m[1].split(',').map((part) => part.trim()))
+        .filter((candidate) => {
+          // Strip trailing Nx/Nw descriptor; if anything else has whitespace, it's a bad URL.
+          const urlOnly = candidate.replace(/\s+\d+(?:\.\d+)?[wx]$/, '');
+          return /\s/.test(urlOnly);
+        });
+      expect(offenders, `${page} srcset URL(s) contain literal whitespace (must use %20): ${JSON.stringify(offenders)}`).toEqual([]);
     });
   }
 });

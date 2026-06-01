@@ -52,3 +52,102 @@ jobs:
 
       - name: Run lint
         run: npm run lint
+
+      - name: Asset budget — fail if any image in the deployed tree exceeds 500 KB
+        run: |
+          # Scope is the WHOLE deployed tree (everything not in .vercelignore), not just /assets/.
+          # nfts/*.png, docs/ images, etc. all count if they ship.
+          BUDGET_KB=500
+          OVERSIZE=$(find . -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' -o -name '*.webp' -o -name '*.gif' \) \
+            -not -path './node_modules/*' \
+            -not -path './.git/*' \
+            -not -path './docs/*' \
+            -size +${BUDGET_KB}k -printf '  %s  %p\n' || true)
+          if [ -n "$OVERSIZE" ]; then
+            echo "::error::Asset(s) exceed ${BUDGET_KB} KB budget:"
+            echo "$OVERSIZE"
+            echo ""
+            echo "  Fixes:"
+            echo "    PNG  → pngquant --quality=60-90 --strip <file>"
+            echo "    JPG  → cjpeg -quality 80 -optimize <file>"
+            echo "    Big  → convert to .webp with cwebp -q 80 -m 6, add <picture> tag"
+            exit 1
+          fi
+          echo "✓ All assets under ${BUDGET_KB} KB"
+
+      - name: Critical asset check — every HTML must have working favicon, apple-touch-icon, and og:image
+        run: |
+          # Narrow scope by design: only checks branding refs that, if broken, embarrass us
+          # publicly (browser tab, iOS home screen, social previews). Skips cleanUrls routes
+          # (/aurevon-re), intentional placeholders (/assets/nfts/*.mp4 — see nfts/genesis.html),
+          # template strings, and JS-constructed URLs — none of which are tractable to lint
+          # statically without false positives.
+          python3 - <<'PYEOF'
+          import re, glob, os, sys, urllib.parse
+          checks = [
+              ('favicon',         r'<link[^>]+rel=["\'](?:icon|shortcut icon)["\'][^>]*\bhref=["\']([^"\']+)["\']'),
+              ('apple-touch',     r'<link[^>]+rel=["\']apple-touch-icon["\'][^>]*\bhref=["\']([^"\']+)["\']'),
+              ('og:image',        r'<meta[^>]+property=["\']og:image["\'][^>]*\bcontent=["\']([^"\']+)["\']'),
+              ('twitter:image',   r'<meta[^>]+name=["\']twitter:image["\'][^>]*\bcontent=["\']([^"\']+)["\']'),
+          ]
+          missing = []
+          for html in sorted(glob.glob("**/*.html", recursive=True)):
+              if html.startswith(("node_modules/", ".git/", "docs/")):
+                  continue
+              with open(html, encoding="utf-8", errors="replace") as f:
+                  doc = f.read()
+              for label, pattern in checks:
+                  for m in re.finditer(pattern, doc, re.I):
+                      ref = m.group(1).strip()
+                      # absolute URL? trim to path if it's our own origin, else skip
+                      if ref.startswith(('http://', 'https://')):
+                          for host in ('https://www.aurevonvc.com', 'https://aurevonvc.com'):
+                              if ref.startswith(host):
+                                  ref = ref[len(host):]
+                                  break
+                          else:
+                              continue
+                      path = urllib.parse.unquote(ref.lstrip('/')).split('?')[0].split('#')[0]
+                      if not path or path.endswith('/'):
+                          continue
+                      if not os.path.isfile(path):
+                          missing.append((html, label, ref))
+          if missing:
+              print(f"::error::{len(missing)} broken critical asset reference(s):")
+              for html, label, ref in missing:
+                  print(f"  {html} [{label}]: {ref}")
+              sys.exit(1)
+          print("✓ All favicon / apple-touch-icon / og:image / twitter:image references resolve")
+          PYEOF
+
+      - name: Analytics coverage — every HTML must include Speed Insights + Web Analytics, and no legacy duplicates
+        run: |
+          MISSING_SI=$(grep -L "/_vercel/speed-insights/" *.html 2>/dev/null || true)
+          MISSING_WA=$(grep -L "/_vercel/insights/" *.html 2>/dev/null || true)
+          # Legacy Vercel analytics script (pre-/_vercel/insights/) — if both coexist,
+          # pageviews fire twice and the dashboard double-counts.
+          LEGACY=$(grep -l "cdn\.vercel-insights\.com/v1/script\.js" *.html 2>/dev/null || true)
+          FAILED=0
+          if [ -n "$MISSING_SI" ]; then
+            echo "::error::Missing Speed Insights script in:"
+            echo "$MISSING_SI" | sed 's/^/  /'
+            FAILED=1
+          fi
+          if [ -n "$MISSING_WA" ]; then
+            echo "::error::Missing Web Analytics script in:"
+            echo "$MISSING_WA" | sed 's/^/  /'
+            FAILED=1
+          fi
+          if [ -n "$LEGACY" ]; then
+            echo "::error::Legacy Vercel analytics script still present (causes double-counted pageviews) — remove:"
+            echo "$LEGACY" | sed 's/^/  /'
+            FAILED=1
+          fi
+          if [ $FAILED -eq 1 ]; then
+            echo ""
+            echo "  Add before </head>:"
+            echo "    <script defer src=\"/_vercel/speed-insights/script.js\"></script>"
+            echo "    <script defer src=\"/_vercel/insights/script.js\"></script>"
+            exit 1
+          fi
+          echo "✓ Analytics: Speed Insights + Web Analytics on every HTML, no legacy duplicates"
