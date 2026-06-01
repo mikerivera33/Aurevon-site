@@ -34,7 +34,7 @@ warn()  { echo -e "${YELLOW}[warn]${RESET}  $1"; }
 error() { echo -e "${RED}[error]${RESET} $1"; exit 1; }
 
 echo ""
-echo -e "${BOLD}BLOCKT Ventures — Production Deploy${RESET}"
+echo -e "${BOLD}Aurevon Ventures — Production Deploy${RESET}"
 echo "Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 echo "Mode: $( $PROD && echo 'Production' || echo 'Preview' )"
 echo "=================================="

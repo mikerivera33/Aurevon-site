@@ -12,7 +12,7 @@
 
 | Element | Spec |
 |---|---|
-| Primary emblem | The **Aurevon "A" mark** (angular chevron-A, the one in the chrome wordmark / shield). **Do NOT use the old "L+" / BLOCKT emblem** — it is retired. |
+| Primary emblem | The **Aurevon "A" mark** (angular chevron-A — see `assets/Aurevon LOGO1.jpg` and the inline SVG used across `nfts/*.html`). This is the only approved emblem. |
 | Wordmark | "AUREVON" (Archivo Black / heavy geometric sans). Tier passes may add "AUREVON LABS". |
 | Primary blue | `#1E3A8A` → `#3B82F6` gradient |
 | Neutrals | Near-black `#0A0A0A` / `#050510`; silver/chrome `#C8C8D0`–`#F0F0F4`; brown accent `#5b4636` (from the Labs banner) used sparingly |
@@ -75,7 +75,7 @@ These are the live IPFS CIDs the site + mint flow currently point at (in `api/_l
 ---
 
 ## 5. Acceptance checklist
-- [ ] Uses the Aurevon **A** emblem (no "L+"/BLOCKT)
+- [ ] Uses the Aurevon **A** emblem (the angular chevron-A) and no other mark
 - [ ] Correct material/finish + accent per tier (table §2)
 - [ ] Legible as a 256px thumbnail
 - [ ] Image ≤ 5 MB, animation ≤ 15 MB, correct dimensions
