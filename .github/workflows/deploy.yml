@@ -53,12 +53,16 @@ jobs:
       - name: Run lint
         run: npm run lint
 
-      - name: Asset budget — fail if any /assets/* exceeds 500 KB
+      - name: Asset budget — fail if any image in the deployed tree exceeds 500 KB
         run: |
-          # Hero PNG fallback is allowed up to ~400KB; everything else should be << 200KB.
-          # Prevents the kind of regression where a 1MB shield logo lands silently.
+          # Scope is the WHOLE deployed tree (everything not in .vercelignore), not just /assets/.
+          # nfts/*.png, docs/ images, etc. all count if they ship.
           BUDGET_KB=500
-          OVERSIZE=$(find assets -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' -o -name '*.webp' -o -name '*.gif' \) -size +${BUDGET_KB}k -printf '  %s  %p\n' || true)
+          OVERSIZE=$(find . -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' -o -name '*.webp' -o -name '*.gif' \) \
+            -not -path './node_modules/*' \
+            -not -path './.git/*' \
+            -not -path './docs/*' \
+            -size +${BUDGET_KB}k -printf '  %s  %p\n' || true)
           if [ -n "$OVERSIZE" ]; then
             echo "::error::Asset(s) exceed ${BUDGET_KB} KB budget:"
             echo "$OVERSIZE"
@@ -87,7 +91,9 @@ jobs:
               ('twitter:image',   r'<meta[^>]+name=["\']twitter:image["\'][^>]*\bcontent=["\']([^"\']+)["\']'),
           ]
           missing = []
-          for html in sorted(glob.glob("*.html")):
+          for html in sorted(glob.glob("**/*.html", recursive=True)):
+              if html.startswith(("node_modules/", ".git/", "docs/")):
+                  continue
               with open(html, encoding="utf-8", errors="replace") as f:
                   doc = f.read()
               for label, pattern in checks:
@@ -114,10 +120,13 @@ jobs:
           print("✓ All favicon / apple-touch-icon / og:image / twitter:image references resolve")
           PYEOF
 
-      - name: Analytics coverage — every HTML must include Speed Insights + Web Analytics
+      - name: Analytics coverage — every HTML must include Speed Insights + Web Analytics, and no legacy duplicates
         run: |
           MISSING_SI=$(grep -L "/_vercel/speed-insights/" *.html 2>/dev/null || true)
           MISSING_WA=$(grep -L "/_vercel/insights/" *.html 2>/dev/null || true)
+          # Legacy Vercel analytics script (pre-/_vercel/insights/) — if both coexist,
+          # pageviews fire twice and the dashboard double-counts.
+          LEGACY=$(grep -l "cdn\.vercel-insights\.com/v1/script\.js" *.html 2>/dev/null || true)
           FAILED=0
           if [ -n "$MISSING_SI" ]; then
             echo "::error::Missing Speed Insights script in:"
@@ -129,6 +138,11 @@ jobs:
             echo "$MISSING_WA" | sed 's/^/  /'
             FAILED=1
           fi
+          if [ -n "$LEGACY" ]; then
+            echo "::error::Legacy Vercel analytics script still present (causes double-counted pageviews) — remove:"
+            echo "$LEGACY" | sed 's/^/  /'
+            FAILED=1
+          fi
           if [ $FAILED -eq 1 ]; then
             echo ""
             echo "  Add before </head>:"
@@ -136,4 +150,4 @@ jobs:
             echo "    <script defer src=\"/_vercel/insights/script.js\"></script>"
             exit 1
           fi
-          echo "✓ All HTML files have analytics wired"
+          echo "✓ Analytics: Speed Insights + Web Analytics on every HTML, no legacy duplicates"

@@ -9,3 +9,6 @@ api/discord/lib
 
 # Exclude markdown docs from deployment
 *.md
+
+# Exclude docs/ from deployment (brand masters, design briefs — never publicly served)
+docs/
