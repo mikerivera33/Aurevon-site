@@ -55,35 +55,6 @@ const PRODUCT_CATALOG = {
               tier: 're_enterprise',
               amount: '2499.00',
       },
-      // Aurevon Web3 / AI tiers
-      web3_starter: {
-              name: 'Aurevon Web3 — Starter',
-              priceId: 'price_1TUbWM8e9ZIjX9wL1rvz5qpC',
-              mode: 'subscription',
-              tier: 'web3_starter',
-              amount: '49.00',
-      },
-      web3_growth: {
-              name: 'Aurevon Web3 — Growth',
-              priceId: 'price_1TUbWw8e9ZIjX9wLkSdG65AA',
-              mode: 'subscription',
-              tier: 'web3_growth',
-              amount: '149.00',
-      },
-      web3_scale: {
-              name: 'Aurevon Web3 — Scale',
-              priceId: 'price_1TUbXO8e9ZIjX9wLWcv9ckWi',
-              mode: 'subscription',
-              tier: 'web3_scale',
-              amount: '349.00',
-      },
-      web3_enterprise: {
-              name: 'Aurevon Web3 — Enterprise',
-              priceId: 'price_1TUbXi8e9ZIjX9wL1UllvSGy',
-              mode: 'subscription',
-              tier: 'web3_enterprise',
-              amount: '799.00',
-      },
       // Aurevon Community tiers
       comm_monthly: {
               name: 'Aurevon Labs — Genesis Community Pass',
@@ -146,7 +117,6 @@ const PRODUCT_CATALOG = {
 
 // Community tiers land on confirmation page; all others return to RE/NFT page
 const COMMUNITY_TIERS = new Set(['comm_monthly', 'comm_lifetime']);
-const WEB3_TIERS = new Set(['web3_starter', 'web3_growth', 'web3_scale', 'web3_enterprise']);
 const NFT_TIERS = new Set();
 
 // -----------------------------------------------------------------------
@@ -194,9 +164,6 @@ export default async function handler(req, res) {
             // Stripe replaces {CHECKOUT_SESSION_ID} at redirect time
             successUrl = `${BASE_URL}/success?paid=paid_${product.tier}_{CHECKOUT_SESSION_ID}&tier=${product.tier}&amount=${product.amount}`;
                   cancelUrl = `${BASE_URL}/cancel`;
-        } else if (WEB3_TIERS.has(product.tier)) {
-            successUrl = `${BASE_URL}/aurevon-web3?purchased=${product.tier}&session_id={CHECKOUT_SESSION_ID}`;
-                  cancelUrl = `${BASE_URL}/aurevon-web3`;
         } else if (NFT_TIERS.has(product.tier)) {
             successUrl = `${BASE_URL}/aurevon-nft?purchased=${product.tier}&session_id={CHECKOUT_SESSION_ID}`;
                   cancelUrl = `${BASE_URL}/aurevon-nft`;

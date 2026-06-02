@@ -33,15 +33,11 @@ describe('TIER_NFT_MAP', () => {
     expect(TIER_NFT_MAP['re_enterprise'].nft).toBe('Aurevon Obsidian Executive');
   });
 
-  it('resolves web3_* alias tiers via proxy', () => {
-    expect(TIER_NFT_MAP['web3_starter'].nft).toBeNull();
-    expect(TIER_NFT_MAP['web3_growth'].nft).toBeNull();
-    expect(TIER_NFT_MAP['web3_scale'].nft).toBeNull();
-    expect(TIER_NFT_MAP['web3_enterprise'].nft).toBeNull();
-  });
-
   it('returns undefined for unknown tiers', () => {
     expect(TIER_NFT_MAP['unknown_tier']).toBeUndefined();
+    // web3_* tiers archived 2026-06-02 — see api/_lib/_archived/web3-subscription-tiers.js
+    expect(TIER_NFT_MAP['web3_starter']).toBeUndefined();
+    expect(TIER_NFT_MAP['web3_enterprise']).toBeUndefined();
   });
 
   it('single tier has no NFT', () => {
@@ -66,11 +62,10 @@ describe('inferTierFromAmount', () => {
     expect(inferTierFromAmount(24950)).toBe('full');  // $249.50 within $1 of $250
   });
 
-  it('prefers exact match over tolerance match to prevent amount collisions', () => {
-    // web3_scale ($349.00) must not be misidentified as comm_lifetime ($349.99, within $1 tolerance)
-    expect(inferTierFromAmount(34900)).toBe('web3_scale');   // $349.00 exact
-    expect(inferTierFromAmount(34999)).toBe('comm_lifetime'); // $349.99 exact
-  });
+  // NOTE: the "exact match first, tolerance second" assertion was removed when
+  // web3_scale ($349.00) was archived — no two remaining tiers fall within $1 of
+  // each other, so the regression scenario has no live trigger. If a future tier
+  // lands within $1 of another, re-add a test asserting the exact-match wins.
 
   it('returns null for unrecognized amounts', () => {
     expect(inferTierFromAmount(0)).toBeNull();
