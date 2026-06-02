@@ -70,7 +70,7 @@ async function handleMint(req, res) {
     metadata: {
       name: `Aurevon ${passType} Pass`,
       description: `Official Aurevon ${passType} membership pass. On-chain on Base (ETH L2).`,
-      image: `https://aurevon-site.vercel.app/nfts/${passType.toLowerCase()}.html`,
+      image: `https://www.aurevonvc.com/nfts/${passType.toLowerCase()}`,
       attributes: [
         { trait_type: 'Pass Tier', value: passType },
         { trait_type: 'Network', value: 'Base' },

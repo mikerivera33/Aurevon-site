@@ -118,10 +118,6 @@
       "destination": "/membership_confirmation"
     },
     {
-      "source": "/cancel",
-      "destination": "/aurevon-web3"
-    },
-    {
       "source": "/nfts",
       "destination": "/aurevon-web3"
     }

@@ -183,7 +183,7 @@ export default async function handler(req, res) {
   // Resolve site base URL — VERCEL_URL is auto-set by Vercel on every deployment
   const BASE_URL = process.env.BASE_URL
         || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
-        || 'https://aurevon-site.vercel.app';
+        || 'https://www.aurevonvc.com';
 
   try {
           let successUrl, cancelUrl;
