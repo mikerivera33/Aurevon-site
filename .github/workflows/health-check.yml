@@ -2,8 +2,8 @@ name: Scheduled Health Monitor
 
 on:
   schedule:
-    # Every 6 hours
-    - cron: '0 */6 * * *'
+    # Every 8 hours
+    - cron: '0 */8 * * *'
   workflow_dispatch:
     inputs:
       environment:
@@ -15,6 +15,9 @@ jobs:
   health-check:
     name: API Health Check
     runs-on: ubuntu-latest
+    permissions:
+      issues: read
+      actions: read
     steps:
       - name: Check /api/health endpoint
         id: health
@@ -25,7 +28,6 @@ jobs:
           HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
           echo "status=$HTTP_STATUS" >> $GITHUB_OUTPUT
-          # Use multiline-safe approach for body
           EOF_MARKER=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "body<<$EOF_MARKER" >> $GITHUB_OUTPUT
           echo "$BODY" >> $GITHUB_OUTPUT
@@ -34,10 +36,10 @@ jobs:
           echo "Response: $BODY"
 
       - name: Parse health response
+        id: parse
         env:
           HEALTH_BODY: ${{ steps.health.outputs.body }}
         run: |
-          echo "Health check result:"
           python3 << 'PYEOF'
           import sys, json, os
           raw = os.environ.get('HEALTH_BODY', '')
@@ -60,9 +62,15 @@ jobs:
           print(f"Functions:      {fn_count}/{fn_limit}")
           if env_status != 'complete':
               print("::warning::Required env vars are PARTIAL — some services may be degraded. Check Vercel env config.")
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f"HEALTH_PIPELINE={pipeline}\n")
+              f.write(f"HEALTH_STATUS={status}\n")
+              f.write(f"HEALTH_ENV={env_status}\n")
+              f.write(f"HEALTH_FN={fn_count}/{fn_limit}\n")
           PYEOF
 
       - name: Check page routes
+        id: routes
         env:
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://aurevon-site.vercel.app' }}
         run: |
@@ -79,19 +87,130 @@ jobs:
             "$PRODUCTION_URL/cancel"
           )
           ALL_OK=true
+          ROUTE_RESULTS=""
           for ROUTE in "${ROUTES[@]}"; do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$ROUTE")
             if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
               echo "OK ($STATUS): $ROUTE"
+              ROUTE_RESULTS="${ROUTE_RESULTS}✅ ${STATUS} — ${ROUTE}\n"
             else
               echo "FAIL ($STATUS): $ROUTE"
+              ROUTE_RESULTS="${ROUTE_RESULTS}❌ ${STATUS} — ${ROUTE}\n"
               ALL_OK=false
             fi
           done
+          echo "all_ok=$ALL_OK" >> $GITHUB_OUTPUT
+          {
+            echo "results<<ENDOFRESULTS"
+            echo -e "$ROUTE_RESULTS"
+            echo "ENDOFRESULTS"
+          } >> $GITHUB_OUTPUT
           if [ "$ALL_OK" = false ]; then
             echo "::error::One or more routes returned non-2xx/3xx status"
             exit 1
           fi
+
+      - name: Check open GitHub issues (bug / customer-reported / UX)
+        id: issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          REPO="${{ github.repository }}"
+          # All open issues
+          TOTAL=$(gh api "repos/$REPO/issues?state=open&per_page=100" --jq 'length')
+          # Bug-labelled
+          BUGS=$(gh api "repos/$REPO/issues?state=open&labels=bug&per_page=100" --jq 'length')
+          # Customer-reported
+          CUSTOMER=$(gh api "repos/$REPO/issues?state=open&labels=customer-reported&per_page=100" --jq 'length' 2>/dev/null || echo 0)
+          # UX / UI
+          UX=$(gh api "repos/$REPO/issues?state=open&labels=UX%2FUI&per_page=100" --jq 'length' 2>/dev/null || echo 0)
+          echo "total_open=$TOTAL" >> $GITHUB_OUTPUT
+          echo "bugs=$BUGS" >> $GITHUB_OUTPUT
+          echo "customer=$CUSTOMER" >> $GITHUB_OUTPUT
+          echo "ux=$UX" >> $GITHUB_OUTPUT
+          echo "Open issues: total=$TOTAL  bugs=$BUGS  customer-reported=$CUSTOMER  UX/UI=$UX"
+
+      - name: Check recent CI run status
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          REPO="${{ github.repository }}"
+          # Last 5 CI — Lint & Validate runs
+          RESULTS=$(gh api "repos/$REPO/actions/workflows/deploy.yml/runs?per_page=5" \
+            --jq '.workflow_runs[] | "\(.conclusion) \(.created_at)"' 2>/dev/null || echo "unavailable")
+          FAILURES=$(echo "$RESULTS" | grep -c "^failure" || true)
+          LAST=$(echo "$RESULTS" | head -1)
+          echo "failures=$FAILURES" >> $GITHUB_OUTPUT
+          echo "last_run=$LAST" >> $GITHUB_OUTPUT
+          echo "Recent CI runs:"
+          echo "$RESULTS"
+
+      - name: Write health summary
+        if: always()
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://aurevon-site.vercel.app' }}
+        run: |
+          NOW=$(date -u '+%Y-%m-%d %H:%M UTC')
+          HTTP_STATUS="${{ steps.health.outputs.status }}"
+          ALL_ROUTES="${{ steps.routes.outputs.all_ok }}"
+          TOTAL_ISSUES="${{ steps.issues.outputs.total_open }}"
+          BUGS="${{ steps.issues.outputs.bugs }}"
+          CUSTOMER="${{ steps.issues.outputs.customer }}"
+          UX="${{ steps.issues.outputs.ux }}"
+          CI_FAILURES="${{ steps.ci.outputs.failures }}"
+
+          # Determine overall status
+          if [ "$HTTP_STATUS" = "200" ] && [ "$ALL_ROUTES" = "true" ] && [ "$BUGS" = "0" ]; then
+            OVERALL="✅ All systems healthy"
+            BADGE="passing"
+          elif [ "$BUGS" -gt 0 ] || [ "$HTTP_STATUS" != "200" ]; then
+            OVERALL="⚠️ Attention needed"
+            BADGE="warning"
+          else
+            OVERALL="✅ Healthy (minor items)"
+            BADGE="passing"
+          fi
+
+          cat >> $GITHUB_STEP_SUMMARY << SUMMARY
+          # 🏥 Aurevon Site Health Report — $NOW
+
+          **Overall: $OVERALL**
+
+          ## Site Status
+          | Check | Result |
+          |-------|--------|
+          | API Health endpoint | HTTP $HTTP_STATUS |
+          | All page routes (10 checked) | $( [ "$ALL_ROUTES" = "true" ] && echo "✅ All OK" || echo "❌ One or more failing" ) |
+          | Vercel runtime logs | ⚠️ MCP token scope — check Vercel dashboard manually |
+          | Railway | ⚠️ No Railway MCP integration — check Railway dashboard manually |
+
+          ## GitHub Issues
+          | Label | Count |
+          |-------|-------|
+          | All open issues | $TOTAL_ISSUES |
+          | 🐛 bug | $BUGS |
+          | 👤 customer-reported | $CUSTOMER |
+          | 🎨 UX/UI | $UX |
+
+          ## CI / Deployments
+          - Recent CI failures (last 5 deploy runs): **$CI_FAILURES**
+          - CI workflow: [deploy.yml](https://github.com/${{ github.repository }}/actions/workflows/deploy.yml)
+
+          ## Functions
+          - Serverless function count: **$HEALTH_FN**
+          - Pipeline: **$HEALTH_PIPELINE**
+          - Env completeness: **$HEALTH_ENV**
+
+          ## Gaps (manual checks needed)
+          - **Vercel**: Runtime error logs and traffic analytics require direct Vercel dashboard access (MCP token is personal-scope only)
+          - **Railway**: No MCP integration available — check Railway dashboard for resource usage and logs
+
+          ---
+          *Next scheduled check: ~8 hours · Workflow: [health-check.yml](https://github.com/${{ github.repository }}/actions/workflows/health-check.yml)*
+          SUMMARY
+
+          echo "Summary written."
 
       - name: Fail if health check returned non-200
         if: steps.health.outputs.status != '200'
