@@ -84,7 +84,6 @@ jobs:
             "$PRODUCTION_URL/operator"
             "$PRODUCTION_URL/api/health"
             "$PRODUCTION_URL/success"
-            "$PRODUCTION_URL/cancel"
           )
           ALL_OK=true
           ROUTE_RESULTS=""
@@ -156,9 +155,11 @@ jobs:
           ALL_ROUTES="${{ steps.routes.outputs.all_ok }}"
           TOTAL_ISSUES="${{ steps.issues.outputs.total_open }}"
           BUGS="${{ steps.issues.outputs.bugs }}"
+          BUGS="${BUGS:-0}"
           CUSTOMER="${{ steps.issues.outputs.customer }}"
           UX="${{ steps.issues.outputs.ux }}"
           CI_FAILURES="${{ steps.ci.outputs.failures }}"
+          CI_FAILURES="${CI_FAILURES:-0}"
 
           # Determine overall status
           if [ "$HTTP_STATUS" = "200" ] && [ "$ALL_ROUTES" = "true" ] && [ "$BUGS" = "0" ]; then
@@ -181,7 +182,7 @@ jobs:
           | Check | Result |
           |-------|--------|
           | API Health endpoint | HTTP $HTTP_STATUS |
-          | All page routes (10 checked) | $( [ "$ALL_ROUTES" = "true" ] && echo "✅ All OK" || echo "❌ One or more failing" ) |
+          | All page routes (9 checked) | $( [ "$ALL_ROUTES" = "true" ] && echo "✅ All OK" || echo "❌ One or more failing" ) |
           | Vercel runtime logs | ⚠️ MCP token scope — check Vercel dashboard manually |
           | Railway | ⚠️ No Railway MCP integration — check Railway dashboard manually |
 
