@@ -5,7 +5,35 @@
  * Never reveals values — only presence (true/false).
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 const VERSION = '2.1.0';
+
+// Vercel Pro: 100 serverless functions per project (Hobby is 12).
+const FUNCTION_LIMIT = 100;
+
+// Count actual deployable functions on disk so the report doesn't drift as
+// files are added/removed. Same exclusions as .vercelignore + the _lib/_archived/
+// helper-only paths that Vercel never wraps as functions.
+const FUNCTION_COUNT = (() => {
+  const apiDir = path.dirname(fileURLToPath(import.meta.url));
+  const EXCLUDE_DIRS = new Set(['_lib', '_archived', 'test', 'cron', 'lib']);
+  function countJs(dir) {
+    let n = 0;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (EXCLUDE_DIRS.has(entry.name)) continue;
+        n += countJs(path.join(dir, entry.name));
+      } else if (entry.isFile() && entry.name.endsWith('.js')) {
+        n += 1;
+      }
+    }
+    return n;
+  }
+  try { return countJs(apiDir); } catch { return 0; }
+})();
 
 const REQUIRED_ENV = [
       // Stripe
@@ -87,7 +115,7 @@ export default function handler(req, res) {
           env: allRequired ? 'complete' : 'partial',
           missing_required: allRequired ? [] : missing,
           optional_env: `${optionalPresent}/${OPTIONAL_ENV.length}`,
-          function_count: 12,
-          function_limit: 12,
+          function_count: FUNCTION_COUNT,
+          function_limit: FUNCTION_LIMIT,
   });
 }
