@@ -59,11 +59,6 @@ function tierLabel(tierKey) {
     // Community tiers
     comm_monthly:    'Community Monthly',
     comm_lifetime:   'Community Lifetime',
-    // Web3 tiers
-    web3_starter:    'Web3 Starter',
-    web3_growth:     'Web3 Growth',
-    web3_scale:      'Web3 Scale',
-    web3_enterprise: 'Web3 Enterprise',
     // Add-ons (no NFT — label for confirmation email)
     addon_rush:        '12-Hour Rush Delivery',
     addon_memo:        'Investor Memo Formatting',
@@ -96,11 +91,6 @@ function passType(tierKey) {
     // Community
     comm_monthly:    'GENESIS',
     comm_lifetime:   'CHROME',
-    // Web3
-    web3_starter:    'GENESIS',
-    web3_growth:     'GENESIS',
-    web3_scale:      'INSIDER',
-    web3_enterprise: 'OBSIDIAN',
   };
   return map[tierKey] || 'GENESIS';
 }

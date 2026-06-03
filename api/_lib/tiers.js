@@ -5,9 +5,12 @@
  * This file is preserved for the stripe/paypal webhook handlers
  * that use TIER_NFT_MAP + inferTierFromAmount + getNextSerial.
  *
- * The `re_*` and `web3_*` aliases added below fix a silent bug where
+ * The `re_*` aliases added below fix a silent bug where
  * stripe/checkout.js sets metadata.tier="re_full" but TIER_NFT_MAP
  * only had "full", causing the webhook to fail entitlement resolution.
+ *
+ * NOTE: web3_* tiers were archived 2026-06-02 (no UI sold them).
+ * See api/_lib/_archived/web3-subscription-tiers.js to re-activate.
  */
 
 const _BASE = {
@@ -19,11 +22,6 @@ const _BASE = {
   comm_monthly:   { nft: '001 Genesis',                   amount: 29.99,  template: 'CROSSMINT_TEMPLATE_GENESIS',  serialPrefix: 'GENESIS',  collectionName: 'Aurevon Genesis Collection' },
   comm_lifetime:  { nft: '004 Chrome',                    amount: 349.99, template: 'CROSSMINT_TEMPLATE_CHROME',   serialPrefix: 'CHROME',   collectionName: 'Aurevon Chrome Collection' },
   deal:           { nft: null,                           amount: 189.99, template: null,                          serialPrefix: null,       collectionName: null },
-  // Web3 tiers — subscription access; NFT collections not yet configured, send confirmation only
-  web3_starter:    { nft: null, amount: 49,  template: null, serialPrefix: null, collectionName: null },
-  web3_growth:     { nft: null, amount: 149, template: null, serialPrefix: null, collectionName: null },
-  web3_scale:      { nft: null, amount: 349, template: null, serialPrefix: null, collectionName: null },
-  web3_enterprise: { nft: null, amount: 799, template: null, serialPrefix: null, collectionName: null },
   // RE À La Carte Add-Ons — no NFT
   addon_rush:         { nft: null, amount: 99,  template: null, serialPrefix: null, collectionName: null },
   addon_memo:         { nft: null, amount: 149, template: null, serialPrefix: null, collectionName: null },
@@ -82,7 +80,7 @@ export async function getNextSerial(prefix) {
  */
 export function inferTierFromAmount(amountCents) {
   const dollars = amountCents / 100;
-  // Exact match first to avoid tolerance collisions (e.g. web3_scale $349 vs comm_lifetime $349.99)
+  // Exact match first to avoid tolerance collisions when two tier prices land within $1 of each other
   for (const [tier, cfg] of Object.entries(_BASE)) {
     if (dollars === cfg.amount) return tier;
   }

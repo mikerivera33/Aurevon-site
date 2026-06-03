@@ -44,11 +44,12 @@ describe('resolveEntitlementFromSku', () => {
     expect(resolveEntitlementFromSku('re_enterprise')).toBe('product_c_reward');
   });
 
-  it('resolves web3_* SKU aliases', () => {
-    expect(resolveEntitlementFromSku('web3_starter')).toBe('monthly_membership');
-    expect(resolveEntitlementFromSku('web3_growth')).toBe('monthly_membership');
-    expect(resolveEntitlementFromSku('web3_scale')).toBe('product_a_reward');
-    expect(resolveEntitlementFromSku('web3_enterprise')).toBe('product_c_reward');
+  it('web3_* SKUs are no longer aliased (archived 2026-06-02)', () => {
+    // See api/_lib/_archived/web3-subscription-tiers.js for re-activation steps.
+    expect(resolveEntitlementFromSku('web3_starter')).toBeNull();
+    expect(resolveEntitlementFromSku('web3_growth')).toBeNull();
+    expect(resolveEntitlementFromSku('web3_scale')).toBeNull();
+    expect(resolveEntitlementFromSku('web3_enterprise')).toBeNull();
   });
 
   it('is case-insensitive', () => {
