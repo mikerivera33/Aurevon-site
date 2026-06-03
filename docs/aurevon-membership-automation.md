@@ -48,9 +48,9 @@ OAuth flow ──► /api/discord?action=callback
 
 | Entitlement Key      | NFT                    | Discord Role Env         | Tier (legacy)                  | Mode      | Revocable |
 |---------------------|------------------------|--------------------------|-------------------------------|-----------|-----------|
-| monthly_membership  | 001 Genesis            | DISCORD_ROLE_MONTHLY     | comm_monthly, web3_starter/growth | recurring | ✓ |
+| monthly_membership  | 001 Genesis            | DISCORD_ROLE_MONTHLY     | comm_monthly                   | recurring | ✓ |
 | lifetime_membership | 004 Chrome             | DISCORD_ROLE_LIFETIME    | comm_lifetime                  | lifetime  | ✗ |
-| product_a_reward    | Aurevon Insider        | DISCORD_ROLE_PRODUCT_A   | full, bogo, re_full, re_bogo, web3_scale | permanent | ✗ |
+| product_a_reward    | Aurevon Insider        | DISCORD_ROLE_PRODUCT_A   | full, bogo, re_full, re_bogo   | permanent | ✗ |
 | product_b_reward    | Aurevon Ember          | DISCORD_ROLE_PRODUCT_B   | retainer, re_retainer          | permanent | ✗ |
 | product_c_reward    | Aurevon Obsidian Exec  | DISCORD_ROLE_PRODUCT_C   | enterprise, re_enterprise      | permanent | ✗ |
 
