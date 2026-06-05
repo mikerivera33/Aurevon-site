@@ -1,0 +1,22 @@
+# Shell scripts MUST use LF. The blobs are already LF, but core.autocrlf=true
+# on Windows checks them out as CRLF, which causes \r contamination when they
+# run under git-bash locally (npm run deploy / test:qa). eol=lf pins them to LF
+# in every working tree (Windows + the ubuntu-latest CI runners).
+*.sh text eol=lf
+
+# Keep other text defaults to git's auto-detection (no forced repo-wide rewrite)
+*.js  text
+*.mjs text
+*.cjs text
+*.json text
+*.md  text
+
+# Binary assets — never normalize
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.ico  binary
+*.pdf  binary
+*.woff  binary
+*.woff2 binary
