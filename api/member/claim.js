@@ -21,7 +21,7 @@
  */
 
 import crypto from 'node:crypto';
-import { upsertMemberByEmail, findMemberByEmail, findActiveMintByEmail, findActiveMintByEmailAndType, listNftMints, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint } from '../_lib/airtable.js';
+import { upsertMemberByEmail, findMemberByEmail, findActiveMintByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listNftMints, listPaymentsSince, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint } from '../_lib/airtable.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
 import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
@@ -196,6 +196,54 @@ async function handleClaim(req, res) {
   });
 }
 
+// ── Orphan-payment recovery ──────────────────────────────────────────────────
+// Closes the durability gap introduced by the webhook's fatal idempotency marker:
+// if the function dies AFTER writing the Payments marker but BEFORE writing the
+// NFT_Mints row (e.g. maxDuration hit during the Crossmint call), the marker
+// makes every redelivery skip, so the mint is silently dropped and nothing
+// recovers it (retry-mints needs a Failed row; reconcile never queried Payments).
+// This sweep finds recent NFT-tier payments with NO mint row at all and writes a
+// 'Failed' dead-letter row, which the (idempotent) retry-mints cron then recovers.
+export async function recoverOrphanPayments({ sinceDays = 3 } = {}) {
+  const { TIER_NFT_MAP } = await import('../_lib/tiers.js');
+  let payments;
+  try {
+    payments = await listPaymentsSince(sinceDays);
+  } catch (err) {
+    console.error(`[Reconcile] listPaymentsSince failed: ${err.message}`);
+    return { recovered: 0, errors: 1 };
+  }
+
+  let recovered = 0;
+  for (const p of payments) {
+    const email = p.fields?.['Customer Email'] ?? '';
+    const tier  = p.fields?.['Pass Type'] ?? '';
+    if (!email || !tier) continue;
+
+    const nftType = TIER_NFT_MAP[tier]?.nft ?? null;
+    if (!nftType) continue; // no-NFT tier (add-on / second opinion) — nothing to recover
+
+    const existing = await findAnyMintByEmailAndType(email, nftType).catch(() => null);
+    if (existing) continue; // a mint row exists (Sent/Failed/Queued) — handled by other paths
+
+    // Orphan: paid for an NFT tier but no mint row exists at all. Dead-letter it.
+    const txnId = p.fields?.['Transaction ID'] ?? p.id;
+    await createNftMint({
+      reference:       `RECOVER_${txnId}`,
+      email,
+      nftType,
+      tierSource:      tier,
+      status:          'Failed',
+      sentDate:        new Date().toISOString(),
+      emailDelivered:  false,
+      notes:           `Recovered orphan payment ${txnId} (paid, NFT tier, no mint row) — queued for retry-mints`,
+    }).catch((err) => console.error(`[Reconcile] dead-letter write failed for ${txnId}: ${err.message}`));
+    recovered++;
+    console.log(`[Reconcile] Dead-lettered orphan payment ${txnId} for ${email} (${nftType})`);
+  }
+  return { recovered };
+}
+
 // ── GET: reconcile ───────────────────────────────────────────────────────────
 
 async function handleReconcile() {
@@ -207,6 +255,7 @@ async function handleReconcile() {
     syncFailed:   0,
     revokeChecked:0,
     revokeApplied:0,
+    orphansRecovered: 0,
     errors: [],
   };
 
@@ -313,6 +362,15 @@ async function handleReconcile() {
     report.errors.push(`discordLinkReminders: ${err.message}`);
   }
 
+  // 4. Recover orphan payments (paid, NFT tier, but no mint row — webhook died mid-pipeline)
+  try {
+    const { recovered } = await recoverOrphanPayments({ sinceDays: 3 });
+    report.orphansRecovered = recovered;
+    if (recovered > 0) console.log(`[Reconcile] Dead-lettered ${recovered} orphan payment(s) for retry-mints`);
+  } catch (err) {
+    report.errors.push(`recoverOrphanPayments: ${err.message}`);
+  }
+
   return report;
 }
 
@@ -389,8 +447,12 @@ export async function handleRetryMints() {
 
     try {
       const result = await mintToEmail({ email, nftType, customerName: email, templateKey, serial, collectionName, tierKey: tier });
-      await updateNftMint(record.id, { 'Mint Status': 'Sent', 'Token ID': result.actionId, 'Retry Count': (record.fields['Retry Count'] ?? 0) + 1 });
-      retried.push({ email, nftType, mintId: result.mintId });
+      // mintToEmail returns {ok:false} on API failure (it only throws for config errors).
+      // Without this check a failed retry was stamped 'Sent' with an undefined Token ID,
+      // leaving listFailedMints forever and poisoning the idempotency guard.
+      if (!result.ok) throw new Error(result.error ?? 'Crossmint returned ok:false');
+      await updateNftMint(record.id, { 'Mint Status': 'Sent', 'Token ID': result.actionId ?? '', 'Retry Count': (record.fields['Retry Count'] ?? 0) + 1 });
+      retried.push({ email, nftType, mintId: result.actionId });
     } catch (err) {
       errors.push({ email, nftType, error: err.message });
       await updateNftMint(record.id, { 'Retry Count': (record.fields['Retry Count'] ?? 0) + 1, Notes: `Retry failed: ${err.message}` }).catch(() => {});

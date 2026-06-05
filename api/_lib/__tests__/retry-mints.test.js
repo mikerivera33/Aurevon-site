@@ -60,4 +60,22 @@ describe('handleRetryMints idempotency', () => {
     expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
     expect(report.retried).toBe(1);
   });
+
+  it('does NOT stamp a row Sent when the retry mint returns ok:false', async () => {
+    airtable.listFailedMints.mockResolvedValueOnce([
+      { id: 'recFailed3', fields: { Email: 'fail@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer' } },
+    ]);
+    airtable.findActiveMintByEmailAndType.mockResolvedValueOnce(null);
+    crossmint.mintToEmail.mockResolvedValueOnce({ ok: false, error: 'Crossmint 500' });
+
+    const report = await handleRetryMints();
+
+    expect(report.retried).toBe(0);
+    expect(report.errors).toBe(1);
+    // must NOT have marked it Sent (which would leave listFailedMints forever)
+    const sentCall = airtable.updateNftMint.mock.calls.find(
+      ([, fields]) => fields['Mint Status'] === 'Sent'
+    );
+    expect(sentCall).toBeUndefined();
+  });
 });

@@ -193,8 +193,23 @@ export async function findActiveMintByEmail(email) {
  * Returns the record, or null.
  */
 export async function findActiveMintByEmailAndType(email, nftType) {
+  const safeEmail = String(email).toLowerCase().replace(/"/g, '\\"');
   const safeType = String(nftType).replace(/"/g, '\\"');
-  const formula = `AND(LOWER({Email})="${email.toLowerCase()}",{NFT Type}="${safeType}",OR({Mint Status}="Minted",{Mint Status}="Sent",{Mint Status}="Queued"))`;
+  const formula = `AND(LOWER({Email})="${safeEmail}",{NFT Type}="${safeType}",OR({Mint Status}="Minted",{Mint Status}="Sent",{Mint Status}="Queued"))`;
+  const recs = await listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords: 1 });
+  return recs[0] ?? null;
+}
+
+/**
+ * Find ANY NFT_Mints row (any status, incl. Failed) for an email + type.
+ * Used by the orphan-payment recovery sweep: a paid NFT-tier customer with no
+ * mint row at all means the webhook died mid-pipeline (after the Payments marker,
+ * before createNftMint). Returns the record, or null.
+ */
+export async function findAnyMintByEmailAndType(email, nftType) {
+  const safeEmail = String(email).toLowerCase().replace(/"/g, '\\"');
+  const safeType = String(nftType).replace(/"/g, '\\"');
+  const formula = `AND(LOWER({Email})="${safeEmail}",{NFT Type}="${safeType}")`;
   const recs = await listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords: 1 });
   return recs[0] ?? null;
 }
@@ -250,9 +265,21 @@ export async function createPayment({
  * Returns the record, or null if none exists.
  */
 export async function findPaymentByTransactionId(transactionId) {
-  const formula = `{Transaction ID}="${transactionId}"`;
+  const safeId = String(transactionId).replace(/"/g, '\\"');
+  const formula = `{Transaction ID}="${safeId}"`;
   const recs = await listRecords(TABLE.Payments, { filterFormula: formula, maxRecords: 1 });
   return recs[0] ?? null;
+}
+
+/**
+ * List Payments rows created within the last `days` days. Used by the
+ * orphan-payment recovery sweep to find paid customers whose mint may have
+ * been dropped by a mid-pipeline webhook failure.
+ */
+export async function listPaymentsSince(days = 3) {
+  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+  const formula = `IS_AFTER({Payment Date},"${cutoff}")`;
+  return listRecords(TABLE.Payments, { filterFormula: formula, maxRecords: 200 });
 }
 
 // ── Members ───────────────────────────────────────────────────────────────────
