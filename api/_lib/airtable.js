@@ -230,6 +230,17 @@ export async function createPayment({
   });
 }
 
+/**
+ * Find a Payments row by its Transaction ID (Stripe session id / PayPal txn_id).
+ * Used as the idempotency marker so webhook redelivery cannot double-process.
+ * Returns the record, or null if none exists.
+ */
+export async function findPaymentByTransactionId(transactionId) {
+  const formula = `{Transaction ID}="${transactionId}"`;
+  const recs = await listRecords(TABLE.Payments, { filterFormula: formula, maxRecords: 1 });
+  return recs[0] ?? null;
+}
+
 // ── Members ───────────────────────────────────────────────────────────────────
 
 /**
