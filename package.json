@@ -12,8 +12,8 @@
     "test:pipeline": "bash qa-test.sh --full-pipeline",
     "lint": "eslint api/",
     "lint:fix": "eslint api/ --fix",
-    "lint:sh": "shellcheck qa-test.sh scripts/*.sh",
-    "fmt:sh": "shfmt -i 2 -ci -w qa-test.sh scripts/*.sh"
+    "lint:sh": "shellcheck qa-test.sh scripts/deploy.sh scripts/create-nft-templates.sh scripts/set-vercel-env.sh",
+    "fmt:sh": "shfmt -i 2 -ci -w qa-test.sh scripts/deploy.sh scripts/create-nft-templates.sh scripts/set-vercel-env.sh"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
