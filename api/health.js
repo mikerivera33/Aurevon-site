@@ -40,6 +40,10 @@ const REQUIRED_ENV = [
       'STATE_SECRET',
       'SYNC_SECRET',
       'RECONCILE_SECRET',
+      // Required for Vercel cron auth: Vercel only attaches the
+      // `Authorization: Bearer <CRON_SECRET>` header when this is set. Without
+      // it the retry-mints / reconcile crons silently 401 and never run.
+      'CRON_SECRET',
     ];
 
 const OPTIONAL_ENV = [

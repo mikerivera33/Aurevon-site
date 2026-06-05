@@ -28,16 +28,30 @@ import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.j
 
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 
-function getReconcileSecret() {
-  return process.env.RECONCILE_SECRET ?? process.env.CRON_SECRET ?? '';
+// Two callers authenticate here with DIFFERENT secrets:
+//   - operator.html / manual retries  → ?secret=<RECONCILE_SECRET>
+//   - Vercel cron (retry-mints, reconcile) → Authorization: Bearer <CRON_SECRET>
+// Vercel only attaches that Bearer header when CRON_SECRET is set in the env.
+// Accepting EITHER configured secret means both paths authenticate even when
+// the two values differ — previously getReconcileSecret() returned only one,
+// so the cron path silently 401'd and the reconcile/retry jobs no-op'd forever.
+function getReconcileSecrets() {
+  return [process.env.RECONCILE_SECRET, process.env.CRON_SECRET].filter(Boolean);
 }
 
-function validateReconcileSecret(req) {
-  const secret = getReconcileSecret();
-  if (!secret) return false;
+export function validateReconcileSecret(req) {
+  const secrets = getReconcileSecrets();
+  if (secrets.length === 0) return false;
   const provided = req.query?.secret ?? req.headers?.['authorization']?.replace('Bearer ', '') ?? '';
-  if (provided.length !== secret.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(secret));
+  if (!provided) return false;
+  return secrets.some((secret) => {
+    if (provided.length !== secret.length) return false;
+    try {
+      return crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(secret));
+    } catch {
+      return false;
+    }
+  });
 }
 
 // ── POST ?action=mint: direct NFT mint via Crossmint ─────────────────────────
