@@ -186,6 +186,20 @@ export async function findActiveMintByEmail(email) {
 }
 
 /**
+ * Find an active (Minted/Sent/Queued) mint for an email AND a specific NFT type.
+ * Used by the retry-mints cron to avoid double-minting: if a successful mint of
+ * the same type already exists, a "Failed" row is a stale artifact (the original
+ * mint went through) and must NOT be re-minted into a second on-chain asset.
+ * Returns the record, or null.
+ */
+export async function findActiveMintByEmailAndType(email, nftType) {
+  const safeType = String(nftType).replace(/"/g, '\\"');
+  const formula = `AND(LOWER({Email})="${email.toLowerCase()}",{NFT Type}="${safeType}",OR({Mint Status}="Minted",{Mint Status}="Sent",{Mint Status}="Queued"))`;
+  const recs = await listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords: 1 });
+  return recs[0] ?? null;
+}
+
+/**
  * Find mints that succeeded but haven't been Discord-synced yet.
  */
 export async function listUnsynced({ maxRecords = 50 } = {}) {

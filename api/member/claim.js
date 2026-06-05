@@ -21,7 +21,7 @@
  */
 
 import crypto from 'node:crypto';
-import { upsertMemberByEmail, findMemberByEmail, findActiveMintByEmail, listNftMints, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint } from '../_lib/airtable.js';
+import { upsertMemberByEmail, findMemberByEmail, findActiveMintByEmail, findActiveMintByEmailAndType, listNftMints, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint } from '../_lib/airtable.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
 import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
@@ -344,7 +344,7 @@ async function handleStatus(email, res) {
 
 // ── Cron: retry failed mints ─────────────────────────────────────────────────
 
-async function handleRetryMints() {
+export async function handleRetryMints() {
   if (!process.env.AIRTABLE_PAT || !process.env.AIRTABLE_BASE_ID) {
     return { skipped: true, reason: 'Airtable not configured', retried: 0, errors: 0 };
   }
@@ -353,6 +353,7 @@ async function handleRetryMints() {
   const { mintToEmail } = await import('../_lib/crossmint.js');
   const retried = [];
   const errors = [];
+  const skippedDup = [];
   const failedMints = await listFailedMints({ maxRecords: 50 });
 
   for (const record of failedMints) {
@@ -360,6 +361,21 @@ async function handleRetryMints() {
     const nftType      = record.fields?.['NFT Type'] ?? '';
     const tier         = record.fields?.['Tier Source'] ?? '';
     if (!email || !nftType) continue;
+
+    // Idempotency: if an active mint of this type already exists for the email,
+    // this "Failed" row is a stale artifact (the original mint actually went
+    // through) — re-minting would create a SECOND on-chain asset. Resolve it
+    // against the canonical record instead of re-minting.
+    const existingActive = await findActiveMintByEmailAndType(email, nftType).catch(() => null);
+    if (existingActive) {
+      await updateNftMint(record.id, {
+        'Mint Status': existingActive.fields?.['Mint Status'] ?? 'Sent',
+        'Token ID':    existingActive.fields?.['Token ID'] ?? record.fields?.['Token ID'] ?? '',
+        'Notes':       `Retry skipped: active mint already exists for ${email} (${nftType}); not re-minting.`,
+      }).catch(() => {});
+      skippedDup.push({ email, nftType });
+      continue;
+    }
 
     const tierConfig    = TIER_NFT_MAP[tier] ?? null;
     const templateKey   = tierConfig?.template ?? null;
@@ -381,7 +397,12 @@ async function handleRetryMints() {
     }
   }
 
-  return { retried: retried.length, errors: errors.length, details: { retried, errors } };
+  return {
+    retried: retried.length,
+    errors: errors.length,
+    skippedDuplicates: skippedDup.length,
+    details: { retried, errors, skippedDuplicates: skippedDup },
+  };
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
