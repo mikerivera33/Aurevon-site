@@ -174,7 +174,6 @@ PAYLOAD
     if [[ "$WH_STATUS" == "True" ]] || echo "$WEBHOOK_RESPONSE" | grep -q '"received".*true'; then
       pass "POST /api/webhooks/stripe accepted mock event"
       LAST_QA_EMAIL="$MOCK_EMAIL"
-      LAST_QA_SESSION="$MOCK_SESSION_ID"
     else
       fail "POST /api/webhooks/stripe returned unexpected response: $WEBHOOK_RESPONSE"
     fi
