@@ -29,6 +29,16 @@ function getBase() {
   return process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
 }
 
+/**
+ * Escape a value for safe interpolation into an Airtable filterByFormula string
+ * literal. Our email regex permits a literal `"` (it only excludes whitespace
+ * and `@`), so an attacker-supplied address like `a"b@x.com` could otherwise
+ * break out of the quoted literal and inject formula logic.
+ */
+function escapeFormulaValue(v) {
+  return String(v).replace(/"/g, '\\"');
+}
+
 function getHeaders() {
   const pat = process.env.AIRTABLE_PAT ?? process.env.AIRTABLE_API_KEY;
   if (!pat) throw new Error('Missing AIRTABLE_PAT env var');
@@ -180,7 +190,8 @@ export async function listNftMints(filterFormula, { maxRecords = 100 } = {}) {
  * Returns null if none found.
  */
 export async function findActiveMintByEmail(email) {
-  const formula = `AND(LOWER({Email})="${email.toLowerCase()}",OR({Mint Status}="Minted",{Mint Status}="Sent",{Mint Status}="Queued"))`;
+  const safeEmail = escapeFormulaValue(String(email).toLowerCase());
+  const formula = `AND(LOWER({Email})="${safeEmail}",OR({Mint Status}="Minted",{Mint Status}="Sent",{Mint Status}="Queued"))`;
   const recs = await listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords: 1 });
   return recs[0] ?? null;
 }
@@ -295,7 +306,7 @@ export async function listPaymentsSince(days = 3) {
  */
 export async function upsertMemberByEmail(email, fields) {
   const normalized = email.toLowerCase().trim();
-  const formula = `LOWER({Email})="${normalized}"`;
+  const formula = `LOWER({Email})="${escapeFormulaValue(normalized)}"`;
   return upsertRecord(TABLE.Members, formula, { 'Email': normalized, ...fields });
 }
 
@@ -303,7 +314,7 @@ export async function upsertMemberByEmail(email, fields) {
  * Find a member record by email. Returns null if not found.
  */
 export async function findMemberByEmail(email) {
-  const formula = `LOWER({Email})="${email.toLowerCase().trim()}"`;
+  const formula = `LOWER({Email})="${escapeFormulaValue(email.toLowerCase().trim())}"`;
   const recs = await listRecords(TABLE.Members, { filterFormula: formula, maxRecords: 1 });
   return recs[0] ?? null;
 }

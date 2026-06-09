@@ -68,6 +68,28 @@ const TEMPLATE_MAP = {
 };
 
 async function handleMint(req, res) {
+  // Authenticated server-to-server endpoint (Zapier/Make automation — see
+  // AUTOMATION_PLAYBOOKS.md, which calls this with Authorization: Bearer
+  // <INTERNAL_API_SECRET>). Without this gate ANYONE could trigger arbitrary,
+  // irreversible Crossmint mints to any recipient email/wallet and drain the
+  // mint budget. Accept the secret via Bearer header or x-internal-secret
+  // (mirrors api/email/send.js).
+  const internalSecret = process.env.INTERNAL_API_SECRET;
+  if (!internalSecret) {
+    return res.status(500).json({ error: 'Mint endpoint not configured' });
+  }
+  const provided = (req.headers?.['authorization'] ?? '').replace('Bearer ', '').trim()
+    || (req.headers?.['x-internal-secret'] ?? '');
+  let authorized = false;
+  if (provided.length === internalSecret.length) {
+    try {
+      authorized = crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(internalSecret));
+    } catch {
+      authorized = false;
+    }
+  }
+  if (!authorized) return res.status(401).json({ error: 'Unauthorized' });
+
   if (!CROSSMINT_API_KEY) return res.status(503).json({ error: 'Crossmint not configured', hint: 'Add CROSSMINT_API_KEY to Vercel env vars' });
 
   const { recipientEmail, walletAddress, passType, metadata } = req.body || {};
@@ -114,30 +136,30 @@ async function handleMint(req, res) {
 // ── POST: claim / link ───────────────────────────────────────────────────────
 
 async function handleClaim(req, res) {
-  const { email, discordId, discordUsername, walletAddress } = req.body ?? {};
+  const { email } = req.body ?? {};
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: 'Valid email required' });
   }
 
   const normalizedEmail = email.toLowerCase().trim();
-  const now = new Date().toISOString();
 
-  // Build the fields to upsert on the member record
-  const memberFields = { 'Active': true };
-  if (discordId)       memberFields['Discord ID']       = discordId;
-  if (discordUsername) memberFields['Discord Username']  = discordUsername;
-  if (walletAddress)   memberFields['Wallet Address']    = walletAddress;
-  if (discordId)       memberFields['Discord Linked At'] = now;
-
-  // Upsert member
+  // SECURITY: this endpoint is UNAUTHENTICATED (the public member-claim page posts
+  // only { email }). We therefore DO NOT honor a body-supplied discordId /
+  // discordUsername / walletAddress and DO NOT assign Discord roles here.
+  // Previously a request like { email: victim@x.com, discordId: <attacker> } both
+  // granted the attacker the role immediately AND persisted the attacker's Discord
+  // ID onto the victim's member record — after which the reconcile/sync crons would
+  // keep re-granting it forever (persistent privilege escalation / entitlement
+  // theft). The ONLY legitimate way to bind a Discord account is the OAuth flow in
+  // api/discord.js, which proves control of the account via signed HMAC state.
   try {
-    await upsertMemberByEmail(normalizedEmail, memberFields);
+    await upsertMemberByEmail(normalizedEmail, { 'Active': true });
   } catch (err) {
     return res.status(502).json({ error: 'Failed to update member record', detail: err.message });
   }
 
-  // Find active mint
+  // Find active mint (read-only status lookup)
   let mintRecord = null;
   try {
     mintRecord = await findActiveMintByEmail(normalizedEmail);
@@ -149,50 +171,24 @@ async function handleClaim(req, res) {
     return res.status(200).json({
       ok: true,
       message: 'Member record updated. No active NFT found yet — check back after purchase.',
-      discordLinked: Boolean(discordId),
+      discordLinked: false,
       nftFound: false,
     });
   }
 
   const nftType        = mintRecord.fields['NFT Type'] ?? '';
   const entitlementKey = resolveEntitlementFromNftType(nftType);
-  const roleId         = entitlementKey ? getRoleId(entitlementKey) : null;
-
-  // If Discord ID provided and role configured, assign role immediately
-  let roleAssigned = false;
-  let roleError    = null;
-
-  if (discordId && roleId) {
-    try {
-      await addRoleToMember(discordId, roleId);
-      await updateDiscordSyncStatus(normalizedEmail, 'synced');
-      await updateNftMint(mintRecord.id, {
-        'Discord Synced':    true,
-        'Discord Synced At': now,
-      });
-      roleAssigned = true;
-    } catch (err) {
-      roleError = err.message;
-      await updateDiscordSyncStatus(normalizedEmail, 'failed', { error: err.message }).catch(() => {});
-      console.error(`[Claim] Role assignment failed: ${err.message}`);
-    }
-  } else {
-    if (discordId && !roleId) console.warn(`[Claim] Discord ID provided but no roleId for entitlement="${entitlementKey}"`);
-    await updateDiscordSyncStatus(normalizedEmail, 'pending').catch(() => {});
-  }
 
   return res.status(200).json({
     ok: true,
     email: normalizedEmail,
     nftFound: true,
     nftType,
+    mintStatus: mintRecord.fields['Mint Status'] ?? null,
     entitlementKey,
-    discordLinked: Boolean(discordId),
-    roleAssigned,
-    roleError,
-    discordAuthUrl: !discordId
-      ? `${DOMAIN}/api/discord?action=auth&email=${encodeURIComponent(normalizedEmail)}`
-      : null,
+    discordLinked: false,
+    // Always direct the user to the authenticated OAuth linking flow.
+    discordAuthUrl: `${DOMAIN}/api/discord?action=auth&email=${encodeURIComponent(normalizedEmail)}`,
   });
 }
 

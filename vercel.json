@@ -26,6 +26,11 @@
       "source": "/nft",
       "destination": "/aurevon-web3",
       "permanent": true
+    },
+    {
+      "source": "/cancel",
+      "destination": "/",
+      "permanent": false
     }
   ],
   "rewrites": [

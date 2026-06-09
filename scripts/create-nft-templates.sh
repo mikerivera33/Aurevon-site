@@ -48,7 +48,7 @@ create_template() {
   local ACCESS="$6"
   local CATEGORY="$7"
   local PRICING="$8"
-  local ENV_VAR_NAME="$9"
+  local SERIAL="$9"
 
   echo ""
   echo "Creating template: ${NAME}..."
@@ -81,13 +81,13 @@ create_template() {
     }")
 
   HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-  BODY=$(echo "$RESPONSE" | head -1)
+  BODY=$(echo "$RESPONSE" | sed '$d')
 
   if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
     TEMPLATE_ID=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || echo "")
     echo "SUCCESS (HTTP $HTTP_CODE)"
     echo "Template ID: ${TEMPLATE_ID}"
-    echo "  → Set Vercel env var: ${ENV_VAR_NAME}=${TEMPLATE_ID}"
+    echo "  → Serial ${SERIAL} · Template ID ${TEMPLATE_ID}"
     echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
   else
     echo "ERROR (HTTP $HTTP_CODE): $BODY"

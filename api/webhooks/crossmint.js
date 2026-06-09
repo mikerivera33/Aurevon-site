@@ -14,6 +14,7 @@
  */
 
 import crypto from 'node:crypto';
+import { waitUntil } from '@vercel/functions';
 import { updateNftMint, findMemberByEmail, listNftMints } from '../_lib/airtable.js';
 import { resolveEntitlementFromNftType, getRoleId } from '../_lib/entitlements.js';
 import { addRoleToMember } from '../_lib/discord-bot.js';
@@ -192,14 +193,18 @@ export default async function handler(req, res) {
   const isSuccess = ['action.succeeded', 'nft.minted', 'mint.succeeded'].includes(eventType);
   const isFailure = ['action.failed', 'mint.failed'].includes(eventType);
 
+  // Register the post-ack work with waitUntil so Vercel keeps the function alive
+  // until it settles. Fired detached after res.json(), this work would otherwise
+  // be frozen after the response flushes — silently dropping the Airtable update
+  // and Discord role assignment (the durability bug this branch targets).
   if (isSuccess) {
-    handleMintSuccess(event).catch((e) =>
+    waitUntil(handleMintSuccess(event).catch((e) =>
       console.error(`[Crossmint Webhook] handleMintSuccess error: ${e.message}`, e.stack)
-    );
+    ));
   } else if (isFailure) {
-    handleMintFailure(event).catch((e) =>
+    waitUntil(handleMintFailure(event).catch((e) =>
       console.error(`[Crossmint Webhook] handleMintFailure error: ${e.message}`)
-    );
+    ));
   } else {
     console.log(`[Crossmint Webhook] Ignoring event type="${eventType}"`);
   }

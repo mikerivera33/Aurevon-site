@@ -182,15 +182,21 @@ async function atPatch(tableId, recordId, fields) {
   });
 }
 
+// Strip characters that would break out of a double-quoted Airtable formula
+// string (defense against formula injection via user-supplied email).
+function atQuote(v) {
+  return String(v).replace(/["\\]/g, '');
+}
+
 async function findMember(email) {
-  const rows = await atFetch(AT_MEMBERS, `LOWER({Email})="${email.toLowerCase()}"`);
+  const rows = await atFetch(AT_MEMBERS, `LOWER({Email})="${atQuote(email.toLowerCase())}"`);
   return rows[0] ?? null;
 }
 
 async function findMint(email) {
   const rows = await atFetch(
     AT_MINTS,
-    `AND(LOWER({Email})="${email.toLowerCase()}",OR({Mint Status}="Minted",{Mint Status}="Sent"))`
+    `AND(LOWER({Email})="${atQuote(email.toLowerCase())}",OR({Mint Status}="Minted",{Mint Status}="Sent"))`
   );
   return rows[0] ?? null;
 }

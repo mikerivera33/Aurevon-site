@@ -8,6 +8,8 @@ Disallow: /setup-wizard
 Disallow: /setup-wizard.html
 Disallow: /aurevon-crm
 Disallow: /aurevon-crm.html
+Disallow: /aurevon-re-intake
+Disallow: /aurevon-re-intake.html
 Disallow: /portal
 Disallow: /portal.html
 Disallow: /member-claim

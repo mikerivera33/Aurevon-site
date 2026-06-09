@@ -14,7 +14,6 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
   <title>Aurevon Dashboard — My Portal</title>
   <meta name="description" content="Your Aurevon member dashboard — manage your tier, view your NFTs, and access community resources.">
 <link rel="canonical" href="https://www.aurevonvc.com/portal">
-<meta name="robots" content="noindex,follow">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Aurevon Ventures LLC">
 <meta property="og:title" content="Aurevon Dashboard — My Portal">
@@ -946,7 +945,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 
       <div id="login-form-wrap">
         <div class="input-wrap">
-          <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email" autofocus />
+          <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email" aria-label="Email address" autofocus />
         </div>
         <button class="login-btn" id="send-link-btn" onclick="sendLoginLink()">
           Send Login Link →

@@ -8,6 +8,7 @@
  * Same downstream pipeline as Stripe: Airtable → Crossmint → Airtable → Resend.
  */
 
+import { waitUntil } from '@vercel/functions';
 import { TIER_NFT_MAP, getNextSerial, formatSerial } from '../_lib/tiers.js';
 import { mintToEmail } from '../_lib/crossmint.js';
 import { createPayment, createNftMint } from '../_lib/airtable.js';
@@ -114,7 +115,10 @@ async function handleVerifiedIPN(ipn) {
   const tier = inferTierFromIPN(ipn);
   const token = `paid_${tier ?? 'unknown'}_${Date.now()}`;
 
-  // Write Payments row
+  // Write Payments row — this is the idempotency MARKER and must land before the
+  // irreversible Crossmint mint. If it fails we abort: minting without a persisted
+  // marker would let a later IPN redelivery double-mint (the dedup check below
+  // queries this table). No marker ⇒ no mint. (Mirrors the Stripe handler.)
   try {
     await createPayment({
       transactionId: txnId,
@@ -127,7 +131,8 @@ async function handleVerifiedIPN(ipn) {
       token,
     });
   } catch (err) {
-    console.error(`[PayPal IPN] Airtable createPayment failed: ${err.message}`);
+    console.error(`[PayPal IPN] createPayment (idempotency marker) failed: ${err.message} — aborting before mint`);
+    return;
   }
 
   const tierConfig = tier ? (TIER_NFT_MAP[tier] ?? null) : null;
@@ -279,9 +284,19 @@ export default async function handler(req, res) {
     return res.status(400).send('Failed to read body');
   }
 
-  // PayPal expects HTTP 200 to acknowledge receipt immediately
+  // PayPal expects HTTP 200 to acknowledge receipt immediately.
   res.status(200).send('OK');
 
+  // Register the post-ack pipeline with waitUntil so Vercel keeps the function
+  // alive until it settles. Without this, work after res.end() can be frozen and
+  // the verify→mint→email pipeline silently dropped (the durability bug this
+  // branch targets; the Stripe handler already uses waitUntil for the same reason).
+  waitUntil(processIPN(rawBody).catch((err) => {
+    console.error(`[PayPal IPN] Unhandled pipeline error: ${err.message}`, err.stack);
+  }));
+}
+
+async function processIPN(rawBody) {
   // Verify with PayPal
   let verified;
   try {
@@ -321,11 +336,7 @@ export default async function handler(req, res) {
     }
   }
 
-  try {
-    await handleVerifiedIPN(ipn);
-  } catch (err) {
-    console.error(`[PayPal IPN] Unhandled pipeline error: ${err.message}`, err.stack);
-  }
+  await handleVerifiedIPN(ipn);
 }
 
 export const config = {

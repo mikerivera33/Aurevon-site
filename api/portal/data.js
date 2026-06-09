@@ -114,6 +114,9 @@ async function handleVerify(req, res) {
     if (!process.env.AIRTABLE_PAT) return res.status(500).json({ error: 'Portal not yet configured' });
 
   const normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail.includes('"') || normalizedEmail.includes("'")) {
+          return res.status(400).json({ error: 'Invalid email format' });
+    }
     const INVALID_MSG = 'Invalid or expired login link. Please request a new one.';
 
   try {
