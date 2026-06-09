@@ -119,6 +119,26 @@ const PRODUCT_CATALOG = {
 const COMMUNITY_TIERS = new Set(['comm_monthly', 'comm_lifetime']);
 const NFT_TIERS = new Set();
 
+/**
+ * Validate a caller-supplied cancel path. Returns a safe SAME-ORIGIN relative
+ * path (e.g. "/aurevon-re") or null. Rejects absolute URLs, protocol-relative
+ * "//evil.com", backslashes, and control chars — prevents an open-redirect via
+ * the Stripe cancel_url (the buyer is sent here straight from Stripe).
+ */
+function safeCancelPath(p) {
+  if (typeof p !== 'string') return null;
+  if (p.length === 0 || p.length > 256) return null;
+  if (!p.startsWith('/') || p.startsWith('//') || p.startsWith('/\\')) return null;
+  if (p.includes('\\')) return null;
+  // Reject whitespace (space and below) and DEL — covers control chars / header
+  // injection without a control-char regex literal.
+  for (let i = 0; i < p.length; i++) {
+    const c = p.charCodeAt(i);
+    if (c <= 0x20 || c === 0x7f) return null;
+  }
+  return p;
+}
+
 // -----------------------------------------------------------------------
 // Handler
 // -----------------------------------------------------------------------
@@ -127,7 +147,7 @@ export default async function handler(req, res) {
               return res.status(405).json({ error: 'Method not allowed' });
       }
 
-  const { tier } = req.body ?? {};
+  const { tier, promoCode, cancelPath } = req.body ?? {};
 
   if (!tier) {
           return res.status(400).json({ error: 'Missing tier parameter' });
@@ -173,6 +193,12 @@ export default async function handler(req, res) {
                   cancelUrl = `${BASE_URL}/aurevon-re`;
         }
 
+        // Caller may request a specific cancel destination (e.g. the RE page sends
+        // its own path so the buyer returns where they left off). Validated against
+        // open-redirect; falls back to the per-tier default above.
+        const safeCancel = safeCancelPath(cancelPath);
+        if (safeCancel) cancelUrl = `${BASE_URL}${safeCancel}`;
+
         const sessionParams = {
                   mode: product.mode,
                   line_items: [
@@ -190,6 +216,26 @@ export default async function handler(req, res) {
         };
 
         if (req.body?.email) sessionParams.customer_email = req.body.email;
+
+        // Promotion codes. `discounts` and `allow_promotion_codes` are mutually
+        // exclusive in the Stripe API. If the caller passed a specific code, try to
+        // resolve and auto-apply it; on any miss/error fall back to letting the
+        // buyer type a code on the Stripe-hosted page (so promos always work).
+        const requestedPromo = typeof promoCode === 'string' ? promoCode.trim() : '';
+        let appliedDiscount = false;
+        if (requestedPromo) {
+          try {
+            const found = await stripe.promotionCodes.list({ code: requestedPromo, active: true, limit: 1 });
+            const pc = found?.data?.[0];
+            if (pc?.id) {
+              sessionParams.discounts = [{ promotion_code: pc.id }];
+              appliedDiscount = true;
+            }
+          } catch (e) {
+            console.warn(`[Stripe checkout] promo lookup failed for "${requestedPromo}": ${e.message}`);
+          }
+        }
+        if (!appliedDiscount) sessionParams.allow_promotion_codes = true;
 
         const session = await stripe.checkout.sessions.create(sessionParams);
           return res.status(200).json({ url: session.url });

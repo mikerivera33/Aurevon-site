@@ -18,6 +18,9 @@ const REQUIRED_ENV = [
       // Crossmint (core — required for any NFT mint)
       'CROSSMINT_API_KEY',
       'CROSSMINT_COLLECTION_ID',
+      // Required: webhook signature verification is mandatory (fail-closed);
+      // without it /api/webhooks/crossmint returns 500 and mints never sync roles.
+      'CROSSMINT_WEBHOOK_SECRET',
       // Resend
       'RESEND_API_KEY',
       'RESEND_FROM_EMAIL',
@@ -40,6 +43,9 @@ const REQUIRED_ENV = [
       'STATE_SECRET',
       'SYNC_SECRET',
       'RECONCILE_SECRET',
+      // Gates the direct mint endpoint (/api/crossmint/mint → claim.js?action=mint).
+      // Missing ⇒ that endpoint returns 500 and the Zapier/Make automation can't mint.
+      'INTERNAL_API_SECRET',
       // Required for Vercel cron auth: Vercel only attaches the
       // `Authorization: Bearer <CRON_SECRET>` header when this is set. Without
       // it the retry-mints / reconcile crons silently 401 and never run.
@@ -61,7 +67,6 @@ const OPTIONAL_ENV = [
       'CROSSMINT_COLLECTION_PRODUCT_C',
       // Crossmint optional
       'CROSSMINT_PROJECT_ID',
-      'CROSSMINT_WEBHOOK_SECRET',
       'CROSSMINT_CHAIN',
       // Other optional integrations
       'ENGAGE_IO_API_KEY',

@@ -9,8 +9,10 @@
  *   { type: "action.failed",    data: { ... } }
  *   { type: "nft.minted",       data: { ... } }
  *
- * Set CROSSMINT_WEBHOOK_SECRET in Vercel to enable HMAC verification.
- * If not set, we still process but log a warning.
+ * CROSSMINT_WEBHOOK_SECRET is REQUIRED. Verification is mandatory (fail-closed):
+ * if the secret is unset the handler returns 500 (misconfigured) and processes
+ * nothing; a present-but-invalid signature returns 401. This prevents a forged
+ * `action.succeeded` from granting Discord roles / entitlements.
  */
 
 import crypto from 'node:crypto';
@@ -26,8 +28,11 @@ import { onEntitlementActivated } from '../_lib/engage.js';
 function verifyCrossmintSignature(rawBody, sigHeader) {
   const secret = process.env.CROSSMINT_WEBHOOK_SECRET;
   if (!secret) {
-    console.warn('[Crossmint Webhook] CROSSMINT_WEBHOOK_SECRET not set — proceeding without verification');
-    return true;
+    // Defensive: the handler guards on this before calling us, so this is
+    // unreachable in normal flow. Fail closed regardless — never treat an
+    // unconfigured secret as a passing signature.
+    console.error('[Crossmint Webhook] CROSSMINT_WEBHOOK_SECRET not set — rejecting');
+    return false;
   }
   if (!sigHeader) {
     console.warn('[Crossmint Webhook] Missing crossmint-signature header');
@@ -172,6 +177,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Failed to read body' });
   }
 
+  // Fail-closed: the webhook secret is mandatory. Missing config ⇒ 500 (don't
+  // process unverifiable events); present-but-invalid signature ⇒ 401.
+  if (!process.env.CROSSMINT_WEBHOOK_SECRET) {
+    console.error('[Crossmint Webhook] CROSSMINT_WEBHOOK_SECRET not configured — refusing to process');
+    return res.status(500).json({ error: 'Webhook verification not configured' });
+  }
   const sigHeader = req.headers['crossmint-signature'] ?? req.headers['x-crossmint-signature'] ?? '';
   if (!verifyCrossmintSignature(rawBody, sigHeader)) {
     return res.status(401).json({ error: 'Invalid signature' });

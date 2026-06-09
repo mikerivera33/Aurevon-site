@@ -1277,8 +1277,53 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 </div>
 
 <!-- ── SNIPCART ───────────────────────────────────────────────────── -->
+<!-- To go live: replace SNIPCART_KEY_PENDING_SETUP with your real Snipcart PUBLIC
+     API key (Snipcart dashboard → Account → API Keys). Until then the guard
+     script below puts the store into a graceful "opening soon" state instead of
+     rendering dead Add-to-Cart buttons. -->
 <div hidden id="snipcart" data-api-key="SNIPCART_KEY_PENDING_SETUP" data-config-modal-style="side"></div>
 <script async src="https://cdn.snipcart.com/themes/v3.7.1/default/snipcart.js"></script>
+<script>
+/* Store-readiness guard: if no real Snipcart key is configured, disable the
+   buy/cart controls and show a notice so the page degrades gracefully rather
+   than presenting buttons that silently do nothing. No-op once a key is set. */
+(function () {
+  var el = document.getElementById('snipcart');
+  var key = el && el.getAttribute('data-api-key');
+  var configured = key && key.indexOf('PENDING') === -1 && key.indexOf('YOUR_') === -1 && key.trim() !== '';
+  if (configured) return;
+
+  function disableStore() {
+    document.querySelectorAll('.snipcart-add-item, .product-buy-btn').forEach(function (b) {
+      b.setAttribute('disabled', 'disabled');
+      b.setAttribute('aria-disabled', 'true');
+      b.style.opacity = '0.5';
+      b.style.cursor = 'not-allowed';
+      b.style.pointerEvents = 'none';
+      if (/add to cart|buy|add/i.test(b.textContent)) b.textContent = 'Store Opening Soon';
+    });
+    document.querySelectorAll('.snipcart-checkout').forEach(function (c) {
+      c.setAttribute('aria-disabled', 'true');
+      c.style.pointerEvents = 'none';
+      c.style.opacity = '0.6';
+    });
+    if (!document.getElementById('store-soon-banner')) {
+      var n = document.createElement('div');
+      n.id = 'store-soon-banner';
+      n.setAttribute('role', 'status');
+      n.textContent = '🛒 The Aurevon store is opening soon — checkout is not yet live. Check back shortly.';
+      n.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#1a1713;color:#f0ede8;border-top:1px solid rgba(255,255,255,.12);padding:.7rem 1rem;text-align:center;font-family:\'DM Sans\',sans-serif;font-size:.85rem;';
+      document.body.appendChild(n);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', disableStore);
+  } else {
+    disableStore();
+  }
+})();
+</script>
 
 <!-- ── SCRIPTS ───────────────────────────────────────────────────── -->
 <script>
