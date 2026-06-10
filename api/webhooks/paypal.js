@@ -9,7 +9,7 @@
  */
 
 import { waitUntil } from '@vercel/functions';
-import { TIER_NFT_MAP, getNextSerial, formatSerial } from '../_lib/tiers.js';
+import { TIER_NFT_MAP, getNextSerial, formatSerial, inferTierFromAmount } from '../_lib/tiers.js';
 import { mintToEmail } from '../_lib/crossmint.js';
 import { createPayment, createNftMint } from '../_lib/airtable.js';
 import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
@@ -52,7 +52,11 @@ function parseIPN(rawBody) {
 // Infer tier from IPN data
 // ---------------------------------------------------------------------------
 
-function inferTierFromIPN(ipn) {
+// PayPal-eligible tiers (RE + Community). Restricting amount inference to these
+// avoids collisions with add-on / archived web3 tiers that share dollar amounts.
+const IPN_ELIGIBLE_TIERS = ['single', 'full', 'bogo', 'retainer', 'enterprise', 'comm_monthly', 'comm_lifetime'];
+
+export function inferTierFromIPN(ipn) {
   // Custom field can carry tier metadata: set in PayPal button/link as "custom" field
   if (ipn.custom) {
     try {
@@ -64,18 +68,16 @@ function inferTierFromIPN(ipn) {
     }
   }
 
-  // Fallback: infer from mc_gross (payment amount)
-  // Only check PayPal-eligible tiers (RE + Community) to avoid amount collisions
-  // with web3/addon tiers that share the same dollar amounts
-  const IPN_ELIGIBLE_TIERS = ['single', 'full', 'bogo', 'retainer', 'enterprise', 'comm_monthly', 'comm_lifetime'];
+  // Fallback: infer from mc_gross (payment amount). Reuse inferTierFromAmount —
+  // the SAME $1-tolerant helper the Stripe webhook relies on — instead of an
+  // exact-only compare. The hosted NCP links can't attach a per-transaction
+  // `custom` field, so without tolerance any processor rounding / minor price
+  // drift resolved to null and the mint was silently dropped (F1). Guard the
+  // result to IPN-eligible tiers so an add-on price can't masquerade as a tier.
   const amount = parseFloat(ipn.mc_gross ?? '0');
-
-  for (const tierId of IPN_ELIGIBLE_TIERS) {
-    const config = TIER_NFT_MAP[tierId];
-    if (config && amount === config.amount) return tierId;
-  }
-
-  return null;
+  if (!amount) return null;
+  const inferred = inferTierFromAmount(Math.round(amount * 100));
+  return inferred && IPN_ELIGIBLE_TIERS.includes(inferred) ? inferred : null;
 }
 
 // ---------------------------------------------------------------------------

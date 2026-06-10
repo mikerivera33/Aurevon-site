@@ -56,6 +56,35 @@ describe('recoverOrphanPayments', () => {
     expect(airtable.createNftMint).not.toHaveBeenCalled();
   });
 
+  it('re-infers an NFT tier from the amount when Pass Type is unknown (F1 durability)', async () => {
+    // Webhook stored 'unknown' because tier inference failed at the time, but the
+    // amount matches an NFT tier — this is a dropped mint and MUST be recovered.
+    airtable.listPaymentsSince.mockResolvedValueOnce([
+      { id: 'pay4', fields: { 'Customer Email': 'lost@example.com', 'Pass Type': 'unknown', 'Amount': 2499, 'Transaction ID': 'pp_lost' } },
+    ]);
+    airtable.findAnyMintByEmailAndType.mockResolvedValueOnce(null);
+
+    const result = await recoverOrphanPayments({ sinceDays: 3 });
+
+    expect(result.recovered).toBe(1);
+    expect(airtable.createNftMint).toHaveBeenCalledWith(expect.objectContaining({
+      reference: 'RECOVER_pp_lost',
+      email: 'lost@example.com',
+      status: 'Failed',
+    }));
+  });
+
+  it('does NOT recover an unknown-tier payment whose amount is a no-NFT add-on', async () => {
+    airtable.listPaymentsSince.mockResolvedValueOnce([
+      { id: 'pay5', fields: { 'Customer Email': 'addon2@example.com', 'Pass Type': 'unknown', 'Amount': 99, 'Transaction ID': 'pp_addon' } },
+    ]);
+
+    const result = await recoverOrphanPayments({ sinceDays: 3 });
+
+    expect(result.recovered).toBe(0);
+    expect(airtable.createNftMint).not.toHaveBeenCalled();
+  });
+
   it('ignores no-NFT tiers (add-ons / second opinion)', async () => {
     airtable.listPaymentsSince.mockResolvedValueOnce([
       { id: 'pay3', fields: { 'Customer Email': 'addon@example.com', 'Pass Type': 'addon_rush', 'Transaction ID': 'cs_addon' } },

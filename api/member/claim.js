@@ -201,7 +201,7 @@ async function handleClaim(req, res) {
 // This sweep finds recent NFT-tier payments with NO mint row at all and writes a
 // 'Failed' dead-letter row, which the (idempotent) retry-mints cron then recovers.
 export async function recoverOrphanPayments({ sinceDays = 3 } = {}) {
-  const { TIER_NFT_MAP } = await import('../_lib/tiers.js');
+  const { TIER_NFT_MAP, inferTierFromAmount } = await import('../_lib/tiers.js');
   let payments;
   try {
     payments = await listPaymentsSince(sinceDays);
@@ -216,8 +216,19 @@ export async function recoverOrphanPayments({ sinceDays = 3 } = {}) {
     const tier  = p.fields?.['Pass Type'] ?? '';
     if (!email || !tier) continue;
 
-    const nftType = TIER_NFT_MAP[tier]?.nft ?? null;
-    if (!nftType) continue; // no-NFT tier (add-on / second opinion) — nothing to recover
+    let nftType = TIER_NFT_MAP[tier]?.nft ?? null;
+    // If the stored tier doesn't map to an NFT it may be a payment whose tier
+    // inference failed at webhook time (stored as 'unknown' / an unmapped label).
+    // Re-infer from the paid amount before concluding it's a genuine no-NFT tier
+    // — otherwise an NFT-priced payment with a bad tier label is never recovered.
+    if (!nftType) {
+      const amount = parseFloat(p.fields?.['Amount']);
+      if (amount > 0) {
+        const reTier = inferTierFromAmount(Math.round(amount * 100));
+        nftType = reTier ? (TIER_NFT_MAP[reTier]?.nft ?? null) : null;
+      }
+    }
+    if (!nftType) continue; // genuine no-NFT tier (add-on / second opinion) — nothing to recover
 
     const existing = await findAnyMintByEmailAndType(email, nftType).catch(() => null);
     if (existing) continue; // a mint row exists (Sent/Failed/Queued) — handled by other paths
