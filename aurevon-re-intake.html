@@ -84,39 +84,73 @@ footer a{color:var(--o2);text-decoration:none;}
 </style>
 <script>
 (function(){
+  // HARD PAYWALL gate. Access requires a server-signed grant (proof of a real
+  // payment), NOT the old forgeable client `paid_` token. The grant arrives as
+  // ?grant= (Stripe, after /api/intake/grant verified the session) or is fetched
+  // here via the email-verify flow (?verify=1, for PayPal hosted-link buyers).
+  // The true enforcement is server-side at /api/intake/submit — this gate is UX.
   var p = new URLSearchParams(window.location.search);
-  var token = p.get('paid') || sessionStorage.getItem('bkt_paid_token') || '';
-  var tier = p.get('tier') || sessionStorage.getItem('bkt_paid_tier') || '';
-  var amount = p.get('amount') || sessionStorage.getItem('bkt_paid_amount') || '';
-  var valid = token && token.indexOf('paid_') === 0 && token.length > 10;
-  if(!valid){
-    // show gate, hide everything else
-    document.addEventListener('DOMContentLoaded', function(){
-      var gate = document.getElementById('bktGate');
-      if(gate) gate.style.display = 'flex';
-      // hide form section + header for clean gate
-      document.querySelectorAll('.header, .form-section, footer').forEach(function(el){ el.style.display = 'none'; });
-    });
-    return;
+  var grant = p.get('grant') || sessionStorage.getItem('bkt_grant') || '';
+  var verifyMode = p.get('verify') === '1';
+  var qTier = p.get('tier') || '';
+  var BADGE_SVG = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6.5" stroke="#2ecc71" stroke-width="1"/><path d="M4 7l2 2 4-4" stroke="#2ecc71" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> ';
+  var TIER_LABELS = {bogo:'First-Timer BOGO', single:'Second Opinion', full:'Full Package', retainer:'Pro Retainer', enterprise:'Enterprise', re_bogo:'First-Timer BOGO', re_single:'Second Opinion', re_full:'Full Package', re_retainer:'Pro Retainer', re_enterprise:'Enterprise'};
+
+  function decodeTier(g){
+    try { var b = g.split('.')[0].replace(/-/g,'+').replace(/_/g,'/'); return (JSON.parse(atob(b)).tier) || ''; } catch(e){ return ''; }
   }
-  // token valid — set up confirmation badge with tier/amount details
-  window.BKT_PAID_INFO = { token: token, tier: tier, amount: amount };
+
+  function unlock(g){
+    sessionStorage.setItem('bkt_grant', g);
+    window.BKT_GRANT = g;
+    var t = decodeTier(g) || qTier;
+    window.BKT_PAID_INFO = { tier: t };
+    document.addEventListener('DOMContentLoaded', function(){
+      var badge = document.querySelector('.success-badge');
+      if(badge){ badge.innerHTML = BADGE_SVG + 'Payment Confirmed · ' + (TIER_LABELS[t] || t || 'Verified'); }
+      var tierInput = document.querySelector('input[name="tier"], input[name="package"]');
+      if(tierInput && t){ tierInput.value = t; }
+    });
+  }
+
+  if(grant){ unlock(grant); return; }
+
+  // No grant — lock the page. In verify mode, offer email confirmation.
   document.addEventListener('DOMContentLoaded', function(){
-    var badge = document.querySelector('.success-badge');
-    if(badge && tier){
-      var tierMap = {bogo:'First-Timer BOGO', single:'Second Opinion', full:'Full Package', retainer:'Pro Retainer', enterprise:'Enterprise'};
-      var label = tierMap[tier] || tier;
-      badge.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6.5" stroke="#2ecc71" stroke-width="1"/><path d="M4 7l2 2 4-4" stroke="#2ecc71" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Payment Confirmed · ' + label + (amount ? ' · $' + amount : '');
-    }
-    // pre-fill hidden tier field
-    var tierInput = document.querySelector('input[name="tier"], input[name="package"]');
-    if(tierInput && tier){ tierInput.value = tier; }
-    // pre-fill payment_token and amount hidden fields
-    var tokenInput = document.querySelector('input[name=payment_token]');
-    if(tokenInput){ tokenInput.value = token; }
-    var amountInput = document.querySelector('input[name="amount"]');
-    if(amountInput && amount){ amountInput.value = amount; }
+    var gate = document.getElementById('bktGate');
+    if(gate) gate.style.display = 'flex';
+    document.querySelectorAll('.header, .form-section, footer').forEach(function(el){ el.style.display = 'none'; });
+    if(verifyMode && gate){ setupVerify(gate); }
   });
+
+  function setupVerify(gate){
+    var card = gate.querySelector('.bkt-gate-card');
+    if(!card) return;
+    card.innerHTML = '<div class="bkt-gate-icon">📧</div><h1>Confirm your payment</h1>'
+      + '<p>Enter the email you used at checkout. We\'ll unlock your deal intake form as soon as your payment is confirmed.</p>'
+      + '<input id="bktVEmail" type="email" inputmode="email" placeholder="you@example.com" style="width:100%;box-sizing:border-box;padding:0.85rem 1rem;border-radius:10px;border:1px solid rgba(30,58,138,0.3);background:#0A0A0A;color:#f0ede8;margin-bottom:0.8rem;font-size:0.95rem;font-family:inherit;" />'
+      + '<button id="bktVBtn" class="bkt-gate-cta" style="border:none;cursor:pointer;width:100%;justify-content:center;">Unlock intake form</button>'
+      + '<p id="bktVMsg" class="bkt-gate-foot"></p>';
+    var emailEl = card.querySelector('#bktVEmail');
+    var btn = card.querySelector('#bktVBtn');
+    var msg = card.querySelector('#bktVMsg');
+    var tries = 0;
+    function attempt(){
+      var email = (emailEl.value || '').trim();
+      if(!email){ msg.textContent = 'Please enter your email.'; return; }
+      btn.disabled = true; msg.textContent = 'Confirming payment…';
+      fetch('/api/intake/grant', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: email, tier: qTier }) })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if(d && d.ok && d.grant){ window.location.replace('aurevon-re-intake.html?grant=' + encodeURIComponent(d.grant)); return; }
+          if(d && d.pending && tries < 5){ tries++; msg.textContent = 'Still confirming… PayPal can take a few seconds.'; setTimeout(attempt, 3000); return; }
+          btn.disabled = false; msg.textContent = 'No confirmed payment found for that email yet. If you just paid, wait a moment and retry — or email mike@aurevonvc.com.';
+        })
+        .catch(function(){ btn.disabled = false; msg.textContent = 'Could not verify right now — please try again.'; });
+    }
+    btn.addEventListener('click', attempt);
+    emailEl.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); attempt(); } });
+  }
 })();
 </script>
 <!-- Vercel Web Analytics -->
@@ -391,8 +425,9 @@ form.addEventListener('submit', async (e) => {
     }
   }
 
-  if (!CFG.FORMSPREE_URL || CFG.FORMSPREE_URL.includes('REPLACE_')){
-    setStatus('info', "Submissions aren't live yet. Owner: paste your Formspree endpoint into AUREVON_CONFIG.");
+  const grant = window.BKT_GRANT || sessionStorage.getItem('bkt_grant') || '';
+  if (!grant){
+    setStatus('err', 'Your payment session has expired. Please return to pricing and complete checkout again to unlock the form.');
     return;
   }
 
@@ -401,7 +436,11 @@ form.addEventListener('submit', async (e) => {
 
   const data = new FormData(form);
   try {
-    const res = await fetch(CFG.FORMSPREE_URL, {
+    // POST through the server-side paywall gate. It verifies the grant (proof of
+    // payment) and forwards the multipart body — file attachments intact — to
+    // Formspree. A 401 means no valid payment grant; the browser sets the
+    // multipart Content-Type (with boundary) automatically for FormData.
+    const res = await fetch('/api/intake/submit?grant=' + encodeURIComponent(grant), {
       method: 'POST',
       body: data,
       headers: { 'Accept': 'application/json' }
@@ -411,9 +450,12 @@ form.addEventListener('submit', async (e) => {
       pickedFiles = []; renderFiles();
       setStatus('ok', '✓ Deal submitted successfully. Your underwriting is now in progress — expect delivery in 24–48 hours.');
       submitBtn.textContent = 'Submitted ✓';
+    } else if (res.status === 401){
+      setStatus('err', 'Your payment could not be verified (session may have expired). Please return to pricing and complete checkout again to unlock the form.');
+      submitBtn.disabled = false; submitBtn.textContent = 'Submit Deal Details →';
     } else {
       const j = await res.json().catch(() => ({}));
-      setStatus('err', (j.errors && j.errors[0] && j.errors[0].message) || 'Submission failed. Please email us directly.');
+      setStatus('err', (j.errors && j.errors[0] && j.errors[0].message) || j.error || 'Submission failed. Please email us directly.');
       submitBtn.disabled = false; submitBtn.textContent = 'Submit Deal Details →';
     }
   } catch(err){

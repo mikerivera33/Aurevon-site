@@ -293,6 +293,20 @@ export async function listPaymentsSince(days = 3) {
   return listRecords(TABLE.Payments, { filterFormula: formula, maxRecords: 200 });
 }
 
+/**
+ * Find recent SUCCEEDED Payments rows for an email. Used by the intake paywall
+ * to confirm a real payment before granting access (covers PayPal IPN, whose
+ * hosted-link return carries no server-verifiable session id). Caller matches
+ * the tier against the returned rows' "Pass Type" (Stripe stores `re_full`,
+ * PayPal stores the bare `full` — both are accepted by the caller's normaliser).
+ */
+export async function findSucceededPaymentsByEmail(email, { sinceDays = 7 } = {}) {
+  const safeEmail = escapeFormulaValue(String(email).toLowerCase().trim());
+  const cutoff = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
+  const formula = `AND(LOWER({Customer Email})="${safeEmail}",{Status}="Succeeded",IS_AFTER({Payment Date},"${cutoff}"))`;
+  return listRecords(TABLE.Payments, { filterFormula: formula, maxRecords: 20 });
+}
+
 // ── Members ───────────────────────────────────────────────────────────────────
 
 /**
