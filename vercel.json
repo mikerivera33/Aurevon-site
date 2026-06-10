@@ -103,14 +103,6 @@
       "destination": "/api/member/claim.js?action=mint"
     },
     {
-      "source": "/api/paypal/create-order",
-      "destination": "/api/paypal/index.js?action=create-order"
-    },
-    {
-      "source": "/api/paypal/capture",
-      "destination": "/api/paypal/index.js?action=capture"
-    },
-    {
       "source": "/api/member/claim",
       "destination": "/api/member/claim.js"
     },

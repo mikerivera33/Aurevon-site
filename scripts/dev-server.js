@@ -25,8 +25,6 @@ const API_REWRITES = {
   '/api/health':              'api/health.js',
   '/api/email/send':          'api/email/send.js',
   '/api/crossmint/mint':      'api/crossmint/mint.js',
-  '/api/paypal/create-order': 'api/paypal/create-order.js',
-  '/api/paypal/capture':      'api/paypal/capture.js',
   '/api/member/claim':        'api/member/claim.js',
   // discord action routing
   '/api/discord/auth':             'api/discord.js',
