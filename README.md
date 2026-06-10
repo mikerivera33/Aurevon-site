@@ -34,7 +34,7 @@ Aurevon is a fully autonomous investment education and Web3 membership platform.
 - **Resend delivers** a branded confirmation email with the NFT and Discord invite link.
 - **The customer clicks** the Discord OAuth link, which auto-assigns the correct server role based on their tier.
 - **Airtable is updated** with the payment, NFT mint record, and member row — all visible in the Operator Hub.
-- **Retries are automatic**: a cron job runs hourly to reattempt any failed mints.
+- **Retries are automatic**: the `retry-mints` cron runs daily at 03:00 UTC to reattempt any failed mints, and a `reconcile` cron runs daily at 02:00 UTC to sync pending Discord roles and recover orphan payments.
 
 **What you (the operator) do:** Nothing after setup. Open `operator.html` to monitor KPIs, view leads, and trigger manual actions if needed.
 
@@ -109,7 +109,7 @@ Aurevon is a fully autonomous investment education and Web3 membership platform.
               ┌───────────────────────┐
               │  Crossmint API        │
               │  Mint NFT to email    │
-              │  Chain: Polygon       │
+              │  Chain: Base (ETH L2) │
               └───────────┬───────────┘
                           │ mint_id
                           ▼
@@ -152,9 +152,11 @@ Aurevon is a fully autonomous investment education and Web3 membership platform.
   operator.html ──► Airtable API ──► KPI tiles, leads table, mint log
                 └─► Manual triggers (retry mint, resend email)
 
-  DAILY CRON (8am UTC)
+  DAILY CRONS (UTC) — defined in vercel.json
   ─────────────────────
-  /api/discord/check-membership ──► verify roles still match paid status
+  /api/cron/reconcile   (02:00) ──► sync pending Discord roles + recover orphan payments
+  /api/cron/retry-mints (03:00) ──► reattempt failed NFT mints
+  (/api/discord/check-membership exists but is invoked manually, not scheduled)
 ```
 
 ---
@@ -167,7 +169,7 @@ Follow these steps in order. Each step has a time estimate.
 
 ```bash
 git clone https://github.com/YOUR_ORG/aurevon-site.git
-cd aurevon-site/site
+cd aurevon-site
 npm install
 ```
 
@@ -366,7 +368,7 @@ Crossmint allows you to mint NFTs directly to a customer's email — they can cl
 
 1. **Crossmint Console → Collections → Create Collection**
 2. Name: `Aurevon Genesis Drop`
-3. Chain: `polygon` (recommended — fees average $0.01–0.05 per mint)
+3. Chain: `base` (Base Ethereum L2 — low L2 gas fees, ~$0.01–0.05 per mint)
 4. Collection type: `Semi-fungible (ERC-1155)` — allows multiple copies of each template
 5. Upload a collection banner image
 6. Copy the **Collection ID** → add to `CROSSMINT_COLLECTION_ID`
@@ -414,11 +416,11 @@ For each membership tier, create a template in the collection:
 4. Copy the key → add to `CROSSMINT_API_KEY`
 5. Change `CROSSMINT_ENVIRONMENT` to `production` when verified
 
-### 6.5 Go Live on Polygon Mainnet
+### 6.5 Go Live on Base Mainnet
 
 1. Ensure your Crossmint business is verified
-2. Fund your Crossmint wallet with a small amount of MATIC for gas (usually auto-handled by Crossmint)
-3. Set `CROSSMINT_CHAIN=polygon` and `CROSSMINT_ENVIRONMENT=production`
+2. Fund your Crossmint wallet with a small amount of ETH for gas on Base (usually auto-handled by Crossmint)
+3. Set `CROSSMINT_CHAIN=base` and `CROSSMINT_ENVIRONMENT=production`
 4. Do a live test mint using a real email address
 
 ---
@@ -505,7 +507,7 @@ Your base must have these tables with these field names (exact match):
 | email | Email | Customer email |
 | tier | Single line text | Tier name |
 | crossmint_order_id | Single line text | From Crossmint API |
-| chain | Single line text | `polygon` |
+| chain | Single line text | `base` |
 | status | Single select | `pending`, `minted`, `failed` |
 | mint_at | Date/time | When minted |
 | retry_count | Number | Increments on retry |
@@ -802,7 +804,7 @@ PayPal is typically 0.6% more expensive than Stripe. Offer it for customer prefe
 ### Crossmint
 - **Staging:** Free (unlimited test mints)
 - **Production minting fee:** ~$0.10–$0.30 per NFT mint (Crossmint takes a fee)
-- **Gas fees (Polygon):** ~$0.01–$0.05 per mint (paid from your Crossmint wallet)
+- **Gas fees (Base L2):** ~$0.01–$0.05 per mint (paid from your Crossmint wallet)
 - **Total per mint:** ~$0.15–$0.40
 
 At 100 mints/month, cost ≈ $15–$40.
@@ -853,7 +855,7 @@ At 1,000 payments + 1,000 members + leads, you'll hit the free tier around 300�
 ### Mid Term (6 Months)
 - **IoT portfolio tracking:** Connect Aurevon's physical asset holdings (real estate sensors, energy monitors) to the Operator Hub
 - **On-chain revenue sharing:** Smart contract that distributes a % of deal profits to 001 Genesis and 004 Chrome holders
-- **Multi-chain NFTs:** Expand from Polygon to Solana (lower fees, larger NFT community)
+- **Multi-chain NFTs:** Expand from Base to Solana (lower fees, larger NFT community)
 - **White-label licensing:** License the autonomous backend to other investment communities
 
 ### Long Term (12+ Months)

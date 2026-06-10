@@ -1816,6 +1816,12 @@ function onCmdErr(interaction) {
 // ── Process health ────────────────────────────────────────────────────────────
 
 process.on('unhandledRejection', err => console.error('[Bot] Unhandled rejection:', err));
+process.on('uncaughtException', (err) => {
+  // Exit non-zero so Railway's ON_FAILURE policy restarts a wedged process.
+  // Without this the bot can log a fatal error yet stay alive and unresponsive.
+  console.error('[Bot] Uncaught exception — exiting for Railway restart:', err);
+  process.exit(1);
+});
 process.on('SIGINT', () => { client.destroy(); process.exit(0); });
 
 // ── Connect ───────────────────────────────────────────────────────────────────

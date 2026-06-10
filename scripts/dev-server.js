@@ -22,9 +22,11 @@ const API_REWRITES = {
   '/api/webhooks/paypal':     'api/webhooks/paypal.js',
   '/api/webhooks/crossmint':  'api/webhooks/crossmint.js',
   '/api/portal/data':         'api/portal/data.js',
+  '/api/portal/auth':         'api/portal/data.js',
+  '/api/portal/verify':       'api/portal/data.js',
   '/api/health':              'api/health.js',
   '/api/email/send':          'api/email/send.js',
-  '/api/crossmint/mint':      'api/crossmint/mint.js',
+  '/api/crossmint/mint':      'api/member/claim.js',
   '/api/member/claim':        'api/member/claim.js',
   // discord action routing
   '/api/discord/auth':             'api/discord.js',
@@ -34,6 +36,7 @@ const API_REWRITES = {
   '/api/discord':                  'api/discord.js',
   // cron (routed to existing handlers)
   '/api/cron/retry-mints':         'api/member/claim.js',
+  '/api/cron/reconcile':           'api/member/claim.js',
 };
 
 // ── Static page rewrites ──────────────────────────────────────────────────────
@@ -172,12 +175,20 @@ async function handleRequest(req, nodeRes) {
       },
     };
 
-    // Inject action query param for discord sub-routes and cron routes
+    // Inject action query param to mirror vercel.json's `?action=` rewrites.
     if (pathname.startsWith('/api/discord/')) {
       const action = pathname.replace('/api/discord/', '');
       fakeReq.query = { ...fakeReq.query, action };
     } else if (pathname === '/api/cron/retry-mints') {
       fakeReq.query = { ...fakeReq.query, action: 'retry-mints' };
+    } else if (pathname === '/api/cron/reconcile') {
+      fakeReq.query = { ...fakeReq.query, action: 'reconcile' };
+    } else if (pathname === '/api/crossmint/mint') {
+      fakeReq.query = { ...fakeReq.query, action: 'mint' };
+    } else if (pathname === '/api/portal/auth') {
+      fakeReq.query = { ...fakeReq.query, action: 'auth' };
+    } else if (pathname === '/api/portal/verify') {
+      fakeReq.query = { ...fakeReq.query, action: 'verify' };
     }
 
     const fakeRes = makeRes(nodeRes);
