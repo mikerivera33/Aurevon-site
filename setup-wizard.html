@@ -783,8 +783,8 @@
         <h4>Configure OAuth2 redirect URL</h4>
         <p>Under your App → <strong>OAuth2 → General</strong>, add the redirect URL below. This is what Discord uses to return users to your site after login.</p>
         <div class="code-block-wrap">
-          <pre class="code-block"><span class="k">Redirect URL:</span> <span class="v" id="discordRedirectVal">https://aurevonvc.com/api/auth/discord/callback</span>
-<span class="k">Scopes needed:</span> <span class="v">identify, email, guilds.join</span></pre>
+          <pre class="code-block"><span class="k">Redirect URL:</span> <span class="v" id="discordRedirectVal">https://www.aurevonvc.com/api/discord?action=callback</span>
+<span class="k">Scopes needed:</span> <span class="v">identify, guilds.join</span></pre>
           <button class="code-copy-btn" onclick="copyCodeBlock('',this,document.getElementById('discordRedirectVal').textContent)">Copy URL</button>
         </div>
         <div class="info-box">
@@ -1210,7 +1210,7 @@
     setText('ev-dc-rb', dcRb);
     setText('ev-dc-ra', dcRa);
     setText('ev-dc-rs', dcRs);
-    setText('discordRedirectVal', domain + '/api/auth/discord/callback');
+    setText('discordRedirectVal', domain + '/api/discord?action=callback');
 
     // Update Final block
     setText('fev-url', domain);

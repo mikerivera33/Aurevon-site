@@ -21,23 +21,37 @@
  */
 
 import crypto from 'node:crypto';
-import { upsertMemberByEmail, findMemberByEmail, findActiveMintByEmail, listNftMints, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint } from '../_lib/airtable.js';
+import { upsertMemberByEmail, findMemberByEmail, findActiveMintByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listNftMints, listPaymentsSince, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint } from '../_lib/airtable.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
 import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
 
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 
-function getReconcileSecret() {
-  return process.env.RECONCILE_SECRET ?? process.env.CRON_SECRET ?? '';
+// Two callers authenticate here with DIFFERENT secrets:
+//   - operator.html / manual retries  → ?secret=<RECONCILE_SECRET>
+//   - Vercel cron (retry-mints, reconcile) → Authorization: Bearer <CRON_SECRET>
+// Vercel only attaches that Bearer header when CRON_SECRET is set in the env.
+// Accepting EITHER configured secret means both paths authenticate even when
+// the two values differ — previously getReconcileSecret() returned only one,
+// so the cron path silently 401'd and the reconcile/retry jobs no-op'd forever.
+function getReconcileSecrets() {
+  return [process.env.RECONCILE_SECRET, process.env.CRON_SECRET].filter(Boolean);
 }
 
-function validateReconcileSecret(req) {
-  const secret = getReconcileSecret();
-  if (!secret) return false;
+export function validateReconcileSecret(req) {
+  const secrets = getReconcileSecrets();
+  if (secrets.length === 0) return false;
   const provided = req.query?.secret ?? req.headers?.['authorization']?.replace('Bearer ', '') ?? '';
-  if (provided.length !== secret.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(secret));
+  if (!provided) return false;
+  return secrets.some((secret) => {
+    if (provided.length !== secret.length) return false;
+    try {
+      return crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(secret));
+    } catch {
+      return false;
+    }
+  });
 }
 
 // ── POST ?action=mint: direct NFT mint via Crossmint ─────────────────────────
@@ -54,6 +68,28 @@ const TEMPLATE_MAP = {
 };
 
 async function handleMint(req, res) {
+  // Authenticated server-to-server endpoint (Zapier/Make automation — see
+  // AUTOMATION_PLAYBOOKS.md, which calls this with Authorization: Bearer
+  // <INTERNAL_API_SECRET>). Without this gate ANYONE could trigger arbitrary,
+  // irreversible Crossmint mints to any recipient email/wallet and drain the
+  // mint budget. Accept the secret via Bearer header or x-internal-secret
+  // (mirrors api/email/send.js).
+  const internalSecret = process.env.INTERNAL_API_SECRET;
+  if (!internalSecret) {
+    return res.status(500).json({ error: 'Mint endpoint not configured' });
+  }
+  const provided = (req.headers?.['authorization'] ?? '').replace('Bearer ', '').trim()
+    || (req.headers?.['x-internal-secret'] ?? '');
+  let authorized = false;
+  if (provided.length === internalSecret.length) {
+    try {
+      authorized = crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(internalSecret));
+    } catch {
+      authorized = false;
+    }
+  }
+  if (!authorized) return res.status(401).json({ error: 'Unauthorized' });
+
   if (!CROSSMINT_API_KEY) return res.status(503).json({ error: 'Crossmint not configured', hint: 'Add CROSSMINT_API_KEY to Vercel env vars' });
 
   const { recipientEmail, walletAddress, passType, metadata } = req.body || {};
@@ -100,30 +136,30 @@ async function handleMint(req, res) {
 // ── POST: claim / link ───────────────────────────────────────────────────────
 
 async function handleClaim(req, res) {
-  const { email, discordId, discordUsername, walletAddress } = req.body ?? {};
+  const { email } = req.body ?? {};
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: 'Valid email required' });
   }
 
   const normalizedEmail = email.toLowerCase().trim();
-  const now = new Date().toISOString();
 
-  // Build the fields to upsert on the member record
-  const memberFields = { 'Active': true };
-  if (discordId)       memberFields['Discord ID']       = discordId;
-  if (discordUsername) memberFields['Discord Username']  = discordUsername;
-  if (walletAddress)   memberFields['Wallet Address']    = walletAddress;
-  if (discordId)       memberFields['Discord Linked At'] = now;
-
-  // Upsert member
+  // SECURITY: this endpoint is UNAUTHENTICATED (the public member-claim page posts
+  // only { email }). We therefore DO NOT honor a body-supplied discordId /
+  // discordUsername / walletAddress and DO NOT assign Discord roles here.
+  // Previously a request like { email: victim@x.com, discordId: <attacker> } both
+  // granted the attacker the role immediately AND persisted the attacker's Discord
+  // ID onto the victim's member record — after which the reconcile/sync crons would
+  // keep re-granting it forever (persistent privilege escalation / entitlement
+  // theft). The ONLY legitimate way to bind a Discord account is the OAuth flow in
+  // api/discord.js, which proves control of the account via signed HMAC state.
   try {
-    await upsertMemberByEmail(normalizedEmail, memberFields);
+    await upsertMemberByEmail(normalizedEmail, { 'Active': true });
   } catch (err) {
     return res.status(502).json({ error: 'Failed to update member record', detail: err.message });
   }
 
-  // Find active mint
+  // Find active mint (read-only status lookup)
   let mintRecord = null;
   try {
     mintRecord = await findActiveMintByEmail(normalizedEmail);
@@ -135,51 +171,84 @@ async function handleClaim(req, res) {
     return res.status(200).json({
       ok: true,
       message: 'Member record updated. No active NFT found yet — check back after purchase.',
-      discordLinked: Boolean(discordId),
+      discordLinked: false,
       nftFound: false,
     });
   }
 
   const nftType        = mintRecord.fields['NFT Type'] ?? '';
   const entitlementKey = resolveEntitlementFromNftType(nftType);
-  const roleId         = entitlementKey ? getRoleId(entitlementKey) : null;
-
-  // If Discord ID provided and role configured, assign role immediately
-  let roleAssigned = false;
-  let roleError    = null;
-
-  if (discordId && roleId) {
-    try {
-      await addRoleToMember(discordId, roleId);
-      await updateDiscordSyncStatus(normalizedEmail, 'synced');
-      await updateNftMint(mintRecord.id, {
-        'Discord Synced':    true,
-        'Discord Synced At': now,
-      });
-      roleAssigned = true;
-    } catch (err) {
-      roleError = err.message;
-      await updateDiscordSyncStatus(normalizedEmail, 'failed', { error: err.message }).catch(() => {});
-      console.error(`[Claim] Role assignment failed: ${err.message}`);
-    }
-  } else {
-    if (discordId && !roleId) console.warn(`[Claim] Discord ID provided but no roleId for entitlement="${entitlementKey}"`);
-    await updateDiscordSyncStatus(normalizedEmail, 'pending').catch(() => {});
-  }
 
   return res.status(200).json({
     ok: true,
     email: normalizedEmail,
     nftFound: true,
     nftType,
+    mintStatus: mintRecord.fields['Mint Status'] ?? null,
     entitlementKey,
-    discordLinked: Boolean(discordId),
-    roleAssigned,
-    roleError,
-    discordAuthUrl: !discordId
-      ? `${DOMAIN}/api/discord?action=auth&email=${encodeURIComponent(normalizedEmail)}`
-      : null,
+    discordLinked: false,
+    // Always direct the user to the authenticated OAuth linking flow.
+    discordAuthUrl: `${DOMAIN}/api/discord?action=auth&email=${encodeURIComponent(normalizedEmail)}`,
   });
+}
+
+// ── Orphan-payment recovery ──────────────────────────────────────────────────
+// Closes the durability gap introduced by the webhook's fatal idempotency marker:
+// if the function dies AFTER writing the Payments marker but BEFORE writing the
+// NFT_Mints row (e.g. maxDuration hit during the Crossmint call), the marker
+// makes every redelivery skip, so the mint is silently dropped and nothing
+// recovers it (retry-mints needs a Failed row; reconcile never queried Payments).
+// This sweep finds recent NFT-tier payments with NO mint row at all and writes a
+// 'Failed' dead-letter row, which the (idempotent) retry-mints cron then recovers.
+export async function recoverOrphanPayments({ sinceDays = 3 } = {}) {
+  const { TIER_NFT_MAP, inferTierFromAmount } = await import('../_lib/tiers.js');
+  let payments;
+  try {
+    payments = await listPaymentsSince(sinceDays);
+  } catch (err) {
+    console.error(`[Reconcile] listPaymentsSince failed: ${err.message}`);
+    return { recovered: 0, errors: 1 };
+  }
+
+  let recovered = 0;
+  for (const p of payments) {
+    const email = p.fields?.['Customer Email'] ?? '';
+    const tier  = p.fields?.['Pass Type'] ?? '';
+    if (!email || !tier) continue;
+
+    let nftType = TIER_NFT_MAP[tier]?.nft ?? null;
+    // If the stored tier doesn't map to an NFT it may be a payment whose tier
+    // inference failed at webhook time (stored as 'unknown' / an unmapped label).
+    // Re-infer from the paid amount before concluding it's a genuine no-NFT tier
+    // — otherwise an NFT-priced payment with a bad tier label is never recovered.
+    if (!nftType) {
+      const amount = parseFloat(p.fields?.['Amount']);
+      if (amount > 0) {
+        const reTier = inferTierFromAmount(Math.round(amount * 100));
+        nftType = reTier ? (TIER_NFT_MAP[reTier]?.nft ?? null) : null;
+      }
+    }
+    if (!nftType) continue; // genuine no-NFT tier (add-on / second opinion) — nothing to recover
+
+    const existing = await findAnyMintByEmailAndType(email, nftType).catch(() => null);
+    if (existing) continue; // a mint row exists (Sent/Failed/Queued) — handled by other paths
+
+    // Orphan: paid for an NFT tier but no mint row exists at all. Dead-letter it.
+    const txnId = p.fields?.['Transaction ID'] ?? p.id;
+    await createNftMint({
+      reference:       `RECOVER_${txnId}`,
+      email,
+      nftType,
+      tierSource:      tier,
+      status:          'Failed',
+      sentDate:        new Date().toISOString(),
+      emailDelivered:  false,
+      notes:           `Recovered orphan payment ${txnId} (paid, NFT tier, no mint row) — queued for retry-mints`,
+    }).catch((err) => console.error(`[Reconcile] dead-letter write failed for ${txnId}: ${err.message}`));
+    recovered++;
+    console.log(`[Reconcile] Dead-lettered orphan payment ${txnId} for ${email} (${nftType})`);
+  }
+  return { recovered };
 }
 
 // ── GET: reconcile ───────────────────────────────────────────────────────────
@@ -193,6 +262,7 @@ async function handleReconcile() {
     syncFailed:   0,
     revokeChecked:0,
     revokeApplied:0,
+    orphansRecovered: 0,
     errors: [],
   };
 
@@ -299,6 +369,15 @@ async function handleReconcile() {
     report.errors.push(`discordLinkReminders: ${err.message}`);
   }
 
+  // 4. Recover orphan payments (paid, NFT tier, but no mint row — webhook died mid-pipeline)
+  try {
+    const { recovered } = await recoverOrphanPayments({ sinceDays: 3 });
+    report.orphansRecovered = recovered;
+    if (recovered > 0) console.log(`[Reconcile] Dead-lettered ${recovered} orphan payment(s) for retry-mints`);
+  } catch (err) {
+    report.errors.push(`recoverOrphanPayments: ${err.message}`);
+  }
+
   return report;
 }
 
@@ -330,7 +409,7 @@ async function handleStatus(email, res) {
 
 // ── Cron: retry failed mints ─────────────────────────────────────────────────
 
-async function handleRetryMints() {
+export async function handleRetryMints() {
   if (!process.env.AIRTABLE_PAT || !process.env.AIRTABLE_BASE_ID) {
     return { skipped: true, reason: 'Airtable not configured', retried: 0, errors: 0 };
   }
@@ -339,6 +418,7 @@ async function handleRetryMints() {
   const { mintToEmail } = await import('../_lib/crossmint.js');
   const retried = [];
   const errors = [];
+  const skippedDup = [];
   const failedMints = await listFailedMints({ maxRecords: 50 });
 
   for (const record of failedMints) {
@@ -346,6 +426,21 @@ async function handleRetryMints() {
     const nftType      = record.fields?.['NFT Type'] ?? '';
     const tier         = record.fields?.['Tier Source'] ?? '';
     if (!email || !nftType) continue;
+
+    // Idempotency: if an active mint of this type already exists for the email,
+    // this "Failed" row is a stale artifact (the original mint actually went
+    // through) — re-minting would create a SECOND on-chain asset. Resolve it
+    // against the canonical record instead of re-minting.
+    const existingActive = await findActiveMintByEmailAndType(email, nftType).catch(() => null);
+    if (existingActive) {
+      await updateNftMint(record.id, {
+        'Mint Status': existingActive.fields?.['Mint Status'] ?? 'Sent',
+        'Token ID':    existingActive.fields?.['Token ID'] ?? record.fields?.['Token ID'] ?? '',
+        'Notes':       `Retry skipped: active mint already exists for ${email} (${nftType}); not re-minting.`,
+      }).catch(() => {});
+      skippedDup.push({ email, nftType });
+      continue;
+    }
 
     const tierConfig    = TIER_NFT_MAP[tier] ?? null;
     const templateKey   = tierConfig?.template ?? null;
@@ -359,15 +454,24 @@ async function handleRetryMints() {
 
     try {
       const result = await mintToEmail({ email, nftType, customerName: email, templateKey, serial, collectionName, tierKey: tier });
-      await updateNftMint(record.id, { 'Mint Status': 'Sent', 'Token ID': result.actionId, 'Retry Count': (record.fields['Retry Count'] ?? 0) + 1 });
-      retried.push({ email, nftType, mintId: result.mintId });
+      // mintToEmail returns {ok:false} on API failure (it only throws for config errors).
+      // Without this check a failed retry was stamped 'Sent' with an undefined Token ID,
+      // leaving listFailedMints forever and poisoning the idempotency guard.
+      if (!result.ok) throw new Error(result.error ?? 'Crossmint returned ok:false');
+      await updateNftMint(record.id, { 'Mint Status': 'Sent', 'Token ID': result.actionId ?? '', 'Retry Count': (record.fields['Retry Count'] ?? 0) + 1 });
+      retried.push({ email, nftType, mintId: result.actionId });
     } catch (err) {
       errors.push({ email, nftType, error: err.message });
       await updateNftMint(record.id, { 'Retry Count': (record.fields['Retry Count'] ?? 0) + 1, Notes: `Retry failed: ${err.message}` }).catch(() => {});
     }
   }
 
-  return { retried: retried.length, errors: errors.length, details: { retried, errors } };
+  return {
+    retried: retried.length,
+    errors: errors.length,
+    skippedDuplicates: skippedDup.length,
+    details: { retried, errors, skippedDuplicates: skippedDup },
+  };
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────

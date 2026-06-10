@@ -9,11 +9,14 @@
  *   { type: "action.failed",    data: { ... } }
  *   { type: "nft.minted",       data: { ... } }
  *
- * Set CROSSMINT_WEBHOOK_SECRET in Vercel to enable HMAC verification.
- * If not set, we still process but log a warning.
+ * CROSSMINT_WEBHOOK_SECRET is REQUIRED. Verification is mandatory (fail-closed):
+ * if the secret is unset the handler returns 500 (misconfigured) and processes
+ * nothing; a present-but-invalid signature returns 401. This prevents a forged
+ * `action.succeeded` from granting Discord roles / entitlements.
  */
 
 import crypto from 'node:crypto';
+import { waitUntil } from '@vercel/functions';
 import { updateNftMint, findMemberByEmail, listNftMints } from '../_lib/airtable.js';
 import { resolveEntitlementFromNftType, getRoleId } from '../_lib/entitlements.js';
 import { addRoleToMember } from '../_lib/discord-bot.js';
@@ -25,8 +28,11 @@ import { onEntitlementActivated } from '../_lib/engage.js';
 function verifyCrossmintSignature(rawBody, sigHeader) {
   const secret = process.env.CROSSMINT_WEBHOOK_SECRET;
   if (!secret) {
-    console.warn('[Crossmint Webhook] CROSSMINT_WEBHOOK_SECRET not set — proceeding without verification');
-    return true;
+    // Defensive: the handler guards on this before calling us, so this is
+    // unreachable in normal flow. Fail closed regardless — never treat an
+    // unconfigured secret as a passing signature.
+    console.error('[Crossmint Webhook] CROSSMINT_WEBHOOK_SECRET not set — rejecting');
+    return false;
   }
   if (!sigHeader) {
     console.warn('[Crossmint Webhook] Missing crossmint-signature header');
@@ -171,6 +177,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Failed to read body' });
   }
 
+  // Fail-closed: the webhook secret is mandatory. Missing config ⇒ 500 (don't
+  // process unverifiable events); present-but-invalid signature ⇒ 401.
+  if (!process.env.CROSSMINT_WEBHOOK_SECRET) {
+    console.error('[Crossmint Webhook] CROSSMINT_WEBHOOK_SECRET not configured — refusing to process');
+    return res.status(500).json({ error: 'Webhook verification not configured' });
+  }
   const sigHeader = req.headers['crossmint-signature'] ?? req.headers['x-crossmint-signature'] ?? '';
   if (!verifyCrossmintSignature(rawBody, sigHeader)) {
     return res.status(401).json({ error: 'Invalid signature' });
@@ -192,14 +204,18 @@ export default async function handler(req, res) {
   const isSuccess = ['action.succeeded', 'nft.minted', 'mint.succeeded'].includes(eventType);
   const isFailure = ['action.failed', 'mint.failed'].includes(eventType);
 
+  // Register the post-ack work with waitUntil so Vercel keeps the function alive
+  // until it settles. Fired detached after res.json(), this work would otherwise
+  // be frozen after the response flushes — silently dropping the Airtable update
+  // and Discord role assignment (the durability bug this branch targets).
   if (isSuccess) {
-    handleMintSuccess(event).catch((e) =>
+    waitUntil(handleMintSuccess(event).catch((e) =>
       console.error(`[Crossmint Webhook] handleMintSuccess error: ${e.message}`, e.stack)
-    );
+    ));
   } else if (isFailure) {
-    handleMintFailure(event).catch((e) =>
+    waitUntil(handleMintFailure(event).catch((e) =>
       console.error(`[Crossmint Webhook] handleMintFailure error: ${e.message}`)
-    );
+    ));
   } else {
     console.log(`[Crossmint Webhook] Ignoring event type="${eventType}"`);
   }

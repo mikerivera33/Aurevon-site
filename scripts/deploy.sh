@@ -96,15 +96,14 @@ echo ""
 log "Starting Vercel deployment..."
 echo ""
 
+DEPLOY_EXIT=0
 if $PROD; then
   log "Deploying to PRODUCTION..."
-  vercel --prod --yes
+  vercel --prod --yes || DEPLOY_EXIT=$?
 else
   log "Deploying to PREVIEW..."
-  vercel --yes
+  vercel --yes || DEPLOY_EXIT=$?
 fi
-
-DEPLOY_EXIT=$?
 
 echo ""
 if [[ $DEPLOY_EXIT -eq 0 ]]; then

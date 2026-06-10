@@ -326,7 +326,15 @@ window.bktCheckBackend = async function(){
     const r = await fetch('/api/health', { cache: 'no-store' });
     if(!r.ok){ throw new Error('HTTP ' + r.status); }
     const data = await r.json();
+    // /api/health reports presence via `missing_required` (array of unset env
+    // var names); older builds used an `env_check` map. Support both so the grid
+    // reflects real status instead of always showing "Set env vars".
     const env = (data && data.env_check) || {};
+    const missing = (data && Array.isArray(data.missing_required)) ? data.missing_required : null;
+    function present(envKey, legacyKey){
+      if (missing) return !missing.includes(envKey);
+      return env[envKey] === true || (legacyKey && env[legacyKey] === true);
+    }
     function setRow(svc, ok, msg){
       const row = grid.querySelector('[data-svc="'+svc+'"]');
       if(!row) return;
@@ -334,12 +342,12 @@ window.bktCheckBackend = async function(){
       el.setAttribute('data-state', ok ? 'ok' : 'not-configured');
       el.textContent = ok ? '✓ Configured' : (msg || '⚠ Set env vars');
     }
-    setRow('airtable', env.airtable === true || env.AIRTABLE_PAT === true);
-    setRow('stripe', env.stripe === true || env.STRIPE_SECRET_KEY === true);
-    setRow('paypal', env.paypal === true || env.PAYPAL_BUSINESS_EMAIL === true);
-    setRow('crossmint', env.crossmint === true || env.CROSSMINT_API_KEY === true);
-    setRow('resend', env.resend === true || env.RESEND_API_KEY === true);
-    setRow('discord', env.discord === true || env.DISCORD_BOT_TOKEN === true);
+    setRow('airtable', present('AIRTABLE_PAT', 'airtable'));
+    setRow('stripe', present('STRIPE_SECRET_KEY', 'stripe'));
+    setRow('paypal', present('PAYPAL_BUSINESS_EMAIL', 'paypal'));
+    setRow('crossmint', present('CROSSMINT_API_KEY', 'crossmint'));
+    setRow('resend', present('RESEND_API_KEY', 'resend'));
+    setRow('discord', present('DISCORD_BOT_TOKEN', 'discord'));
     const pill = document.getElementById('automation-backend-livepill');
     if(pill){ pill.className = 'live-pill'; pill.textContent = 'LIVE'; }
   } catch(e){
@@ -371,7 +379,7 @@ document.addEventListener('DOMContentLoaded', function(){
       <div id="airtableStatus" class="airtable-status">⚠ Not connected — paste your Airtable PAT below to load live data.</div>
       <div style="margin-top:1rem;display:grid;grid-template-columns:1fr;gap:0.75rem;max-width:560px;">
         <label style="font-size:.78rem;color:var(--txt2);font-weight:600;">Airtable Personal Access Token (PAT)</label>
-        <input type="password" id="airtablePat" placeholder="patXXXXXXXXXXXXX..." style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.7rem 1rem;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:0.85rem;outline:none;" autocomplete="off" spellcheck="false">
+        <input type="password" id="airtablePat" placeholder="patXXXXXXXXXXXXX..." aria-label="Airtable Personal Access Token" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.7rem 1rem;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:0.85rem;outline:none;" autocomplete="off" spellcheck="false">
         <label style="font-size:.78rem;color:var(--txt2);font-weight:600;margin-top:0.4rem;">Base ID (pre-filled — Aurevon Operations)</label>
         <input type="text" id="airtableBaseId" value="appI9X8vcRcK1QZ1l" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.7rem 1rem;color:var(--txt);font-family:'DM Sans',monospace;font-size:0.85rem;outline:none;" readonly>
         <div style="display:flex;gap:0.6rem;margin-top:0.4rem;flex-wrap:wrap;">

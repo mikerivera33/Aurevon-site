@@ -14,7 +14,7 @@ exists in that platform's dashboard **and** the ID/link is wired in the repo.
 | Stripe checkout call | already wired — buttons POST `tier` to `/api/stripe/checkout` | no per-button URL needed |
 | PayPal tier links (main 5) | `aurevon-re.html` → `AUREVON_CONFIG.PAYPAL_*_URL` | NCP link `https://www.paypal.com/ncp/payment/XXXX` |
 | **PayPal add-on links (new)** | `aurevon-re.html` → `AUREVON_CONFIG.PAYPAL_ADDON_*_URL` | NCP link per add-on (empty = button auto-hides) |
-| PayPal API amounts (web3/nft + add-ons) | `api/paypal/index.js` → `PASS_PRICES` | server-side amount/description map |
+| PayPal NCP link amounts must match tier prices | `api/_lib/tiers.js` → `_BASE.*.amount` | the IPN webhook infers the tier from `mc_gross` (±$1), so each hosted link's price must equal the tier price here |
 | Crossmint template/collection IDs | Vercel env (`CROSSMINT_*`) | not a button — drives the minted NFT |
 
 > **Stripe** needs only a Product + Price; the site calls `/api/stripe/checkout` with the

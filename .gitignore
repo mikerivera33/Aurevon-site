@@ -1,8 +1,7 @@
 node_modules/
 .vercel/
-.env
-.env.local
-.env*.local
+.env*
+!.env.example
 discord/.env
 *.log
 .DS_Store

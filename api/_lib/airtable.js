@@ -29,6 +29,16 @@ function getBase() {
   return process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
 }
 
+/**
+ * Escape a value for safe interpolation into an Airtable filterByFormula string
+ * literal. Our email regex permits a literal `"` (it only excludes whitespace
+ * and `@`), so an attacker-supplied address like `a"b@x.com` could otherwise
+ * break out of the quoted literal and inject formula logic.
+ */
+function escapeFormulaValue(v) {
+  return String(v).replace(/"/g, '\\"');
+}
+
 function getHeaders() {
   const pat = process.env.AIRTABLE_PAT ?? process.env.AIRTABLE_API_KEY;
   if (!pat) throw new Error('Missing AIRTABLE_PAT env var');
@@ -180,7 +190,37 @@ export async function listNftMints(filterFormula, { maxRecords = 100 } = {}) {
  * Returns null if none found.
  */
 export async function findActiveMintByEmail(email) {
-  const formula = `AND(LOWER({Email})="${email.toLowerCase()}",OR({Mint Status}="Minted",{Mint Status}="Sent",{Mint Status}="Queued"))`;
+  const safeEmail = escapeFormulaValue(String(email).toLowerCase());
+  const formula = `AND(LOWER({Email})="${safeEmail}",OR({Mint Status}="Minted",{Mint Status}="Sent",{Mint Status}="Queued"))`;
+  const recs = await listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords: 1 });
+  return recs[0] ?? null;
+}
+
+/**
+ * Find an active (Minted/Sent/Queued) mint for an email AND a specific NFT type.
+ * Used by the retry-mints cron to avoid double-minting: if a successful mint of
+ * the same type already exists, a "Failed" row is a stale artifact (the original
+ * mint went through) and must NOT be re-minted into a second on-chain asset.
+ * Returns the record, or null.
+ */
+export async function findActiveMintByEmailAndType(email, nftType) {
+  const safeEmail = String(email).toLowerCase().replace(/"/g, '\\"');
+  const safeType = String(nftType).replace(/"/g, '\\"');
+  const formula = `AND(LOWER({Email})="${safeEmail}",{NFT Type}="${safeType}",OR({Mint Status}="Minted",{Mint Status}="Sent",{Mint Status}="Queued"))`;
+  const recs = await listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords: 1 });
+  return recs[0] ?? null;
+}
+
+/**
+ * Find ANY NFT_Mints row (any status, incl. Failed) for an email + type.
+ * Used by the orphan-payment recovery sweep: a paid NFT-tier customer with no
+ * mint row at all means the webhook died mid-pipeline (after the Payments marker,
+ * before createNftMint). Returns the record, or null.
+ */
+export async function findAnyMintByEmailAndType(email, nftType) {
+  const safeEmail = String(email).toLowerCase().replace(/"/g, '\\"');
+  const safeType = String(nftType).replace(/"/g, '\\"');
+  const formula = `AND(LOWER({Email})="${safeEmail}",{NFT Type}="${safeType}")`;
   const recs = await listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords: 1 });
   return recs[0] ?? null;
 }
@@ -230,6 +270,29 @@ export async function createPayment({
   });
 }
 
+/**
+ * Find a Payments row by its Transaction ID (Stripe session id / PayPal txn_id).
+ * Used as the idempotency marker so webhook redelivery cannot double-process.
+ * Returns the record, or null if none exists.
+ */
+export async function findPaymentByTransactionId(transactionId) {
+  const safeId = String(transactionId).replace(/"/g, '\\"');
+  const formula = `{Transaction ID}="${safeId}"`;
+  const recs = await listRecords(TABLE.Payments, { filterFormula: formula, maxRecords: 1 });
+  return recs[0] ?? null;
+}
+
+/**
+ * List Payments rows created within the last `days` days. Used by the
+ * orphan-payment recovery sweep to find paid customers whose mint may have
+ * been dropped by a mid-pipeline webhook failure.
+ */
+export async function listPaymentsSince(days = 3) {
+  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+  const formula = `IS_AFTER({Payment Date},"${cutoff}")`;
+  return listRecords(TABLE.Payments, { filterFormula: formula, maxRecords: 200 });
+}
+
 // ── Members ───────────────────────────────────────────────────────────────────
 
 /**
@@ -243,7 +306,7 @@ export async function createPayment({
  */
 export async function upsertMemberByEmail(email, fields) {
   const normalized = email.toLowerCase().trim();
-  const formula = `LOWER({Email})="${normalized}"`;
+  const formula = `LOWER({Email})="${escapeFormulaValue(normalized)}"`;
   return upsertRecord(TABLE.Members, formula, { 'Email': normalized, ...fields });
 }
 
@@ -251,7 +314,7 @@ export async function upsertMemberByEmail(email, fields) {
  * Find a member record by email. Returns null if not found.
  */
 export async function findMemberByEmail(email) {
-  const formula = `LOWER({Email})="${email.toLowerCase().trim()}"`;
+  const formula = `LOWER({Email})="${escapeFormulaValue(email.toLowerCase().trim())}"`;
   const recs = await listRecords(TABLE.Members, { filterFormula: formula, maxRecords: 1 });
   return recs[0] ?? null;
 }

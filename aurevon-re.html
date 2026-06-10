@@ -1153,6 +1153,22 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 <script>
 /* ---------- config wiring ---------- */
 const CFG = window.AUREVON_CONFIG || {};
+
+/* ---------- Post-checkout → forward to intake form ----------
+   The Stripe API checkout path (__CHECKOUT__ tiers) returns the buyer to
+   /aurevon-re?purchased=<tier>&session_id=... . The intended UX is to
+   auto-forward them to the deal intake form. Before redirecting to Stripe we
+   stash the intake URL (with its paid token) in sessionStorage as
+   `bkt_pending_intake`; consume it here. Guarded by the `purchased` param so
+   ordinary page loads are unaffected. */
+(function(){
+  try {
+    if (!new URLSearchParams(window.location.search).has('purchased')) return;
+    var dest = sessionStorage.getItem('bkt_pending_intake');
+    if (dest) { sessionStorage.removeItem('bkt_pending_intake'); window.location.replace(dest); }
+  } catch (e) { /* stay on page */ }
+})();
+
 function showPaymentError(msg) {
   var el = document.getElementById('bkt-pay-error');
   if (el) { el.textContent = msg; el.style.display = 'block'; }

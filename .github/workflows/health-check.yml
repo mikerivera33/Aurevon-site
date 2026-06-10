@@ -22,7 +22,7 @@ jobs:
       - name: Check /api/health endpoint
         id: health
         env:
-          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://aurevon-site.vercel.app' }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://www.aurevonvc.com' }}
         run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" "$PRODUCTION_URL/api/health")
           HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
@@ -72,7 +72,7 @@ jobs:
       - name: Check page routes
         id: routes
         env:
-          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://aurevon-site.vercel.app' }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://www.aurevonvc.com' }}
         run: |
           ROUTES=(
             "$PRODUCTION_URL/"
@@ -148,7 +148,7 @@ jobs:
       - name: Write health summary
         if: always()
         env:
-          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://aurevon-site.vercel.app' }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://www.aurevonvc.com' }}
         run: |
           NOW=$(date -u '+%Y-%m-%d %H:%M UTC')
           HTTP_STATUS="${{ steps.health.outputs.status }}"

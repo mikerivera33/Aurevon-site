@@ -6,9 +6,10 @@
  */
 
 import crypto from 'node:crypto';
+import { waitUntil } from '@vercel/functions';
 import { TIER_NFT_MAP, inferTierFromAmount, getNextSerial, formatSerial } from '../_lib/tiers.js';
 import { mintToEmail } from '../_lib/crossmint.js';
-import { createPayment, createNftMint, updateDiscordSyncStatus, findMemberByEmail } from '../_lib/airtable.js';
+import { createPayment, createNftMint, updateDiscordSyncStatus, findMemberByEmail, findPaymentByTransactionId } from '../_lib/airtable.js';
 import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
 import { resolveEntitlementFromSku, getRoleId, ENTITLEMENT_MAP } from '../_lib/entitlements.js';
 import { removeRoleFromMember } from '../_lib/discord-bot.js';
@@ -52,7 +53,7 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
 // Core pipeline
 // ---------------------------------------------------------------------------
 
-async function handleCheckoutSessionCompleted(session) {
+export async function handleCheckoutSessionCompleted(session) {
     const sessionId = session.id;
     const customerEmail = session.customer_details?.email ?? session.customer_email;
     const customerName = session.customer_details?.name ?? 'Aurevon Member';
@@ -60,6 +61,23 @@ async function handleCheckoutSessionCompleted(session) {
 
   if (!customerEmail) {
         console.error(`[Stripe] No customer email on session ${sessionId} — aborting pipeline`);
+        return;
+  }
+
+  // ── Idempotency guard ──────────────────────────────────────────────────────
+  // Stripe redelivers an event whenever it doesn't receive a 2xx (network blip,
+  // timeout). The Payments row written below is the dedup marker: if one already
+  // exists for this session, this is a redelivery and we must NOT mint again.
+  // If the lookup itself fails we abort rather than risk a blind double-mint —
+  // Stripe (or the reconcile cron) can retry once Airtable is healthy.
+  try {
+        const prior = await findPaymentByTransactionId(sessionId);
+        if (prior) {
+                console.log(`[Stripe] Session ${sessionId} already processed (Payments row exists) — skipping to avoid double-mint`);
+                return;
+        }
+  } catch (err) {
+        console.error(`[Stripe] Idempotency lookup failed for ${sessionId}: ${err.message} — aborting before mint`);
         return;
   }
 
@@ -80,7 +98,9 @@ async function handleCheckoutSessionCompleted(session) {
     const token = `paid_${tier}_${Date.now()}`;
     const now = new Date().toISOString();
 
-  // 2. Write Payments row
+  // 2. Write Payments row — this is the idempotency MARKER and must land before
+  //    the irreversible Crossmint mint. If it fails we abort: minting without a
+  //    persisted marker would let a later redelivery double-mint. No marker ⇒ no mint.
   try {
         await createPayment({
                 transactionId: sessionId,
@@ -93,8 +113,8 @@ async function handleCheckoutSessionCompleted(session) {
                 token,
         });
   } catch (err) {
-        console.error(`[Stripe] Airtable createPayment failed: ${err.message}`);
-        // Non-fatal — continue pipeline
+        console.error(`[Stripe] createPayment (idempotency marker) failed for ${sessionId}: ${err.message} — aborting before mint`);
+        return;
   }
 
   // If subscription mode, save customer email in subscription metadata
@@ -326,27 +346,32 @@ export default async function handler(req, res) {
 
   console.log(`[Stripe] Received event type="${event.type}" id="${event.id}"`);
 
-  // Return 200 immediately — process asynchronously to avoid Stripe timeout
-  res.status(200).json({ received: true });
-
-  // Handle relevant events
+  // Register the pipeline with waitUntil BEFORE acking 200. Vercel keeps the
+  // function alive until the registered promise settles, so the work runs
+  // durably instead of being frozen after res.end(). Acking fast (rather than
+  // awaiting the full pipeline) keeps us inside Stripe's ~10s window and avoids
+  // the timeout→redelivery loop that could disable the endpoint. The idempotency
+  // guard above makes any redelivery that does occur a safe no-op.
   if (event.type === 'checkout.session.completed') {
-        try {
-                await handleCheckoutSessionCompleted(event.data.object);
-        } catch (err) {
-                console.error(`[Stripe] Unhandled pipeline error: ${err.message}`, err.stack);
-        }
+        waitUntil(
+                handleCheckoutSessionCompleted(event.data.object).catch((err) => {
+                        console.error(`[Stripe] Unhandled pipeline error: ${err.message}`, err.stack);
+                })
+        );
   } else if (event.type === 'customer.subscription.deleted') {
-        try {
-                await handleSubscriptionDeleted(event.data.object);
-        } catch (err) {
-                console.error(`[Stripe] Unhandled subscription.deleted error: ${err.message}`, err.stack);
-        }
+        waitUntil(
+                handleSubscriptionDeleted(event.data.object).catch((err) => {
+                        console.error(`[Stripe] Unhandled subscription.deleted error: ${err.message}`, err.stack);
+                })
+        );
   } else if (event.type === 'invoice.payment_failed') {
         console.log(`[Stripe] invoice.payment_failed for subscription ${event.data.object.subscription} — logged only`);
   } else {
         console.log(`[Stripe] Ignoring event type="${event.type}"`);
   }
+
+  // Acknowledge receipt. Work continues in the background via waitUntil.
+  res.status(200).json({ received: true });
 }
 
 // Disable Vercel's automatic body parsing so we get the raw body for signature verification

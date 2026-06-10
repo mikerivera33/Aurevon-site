@@ -165,7 +165,10 @@ async function handleSync(req, res) {
   const bodySecret = req.body?.secret ?? '';
   const providedSecret = authHeader.replace('Bearer ', '').trim() || bodySecret;
 
-  if (SYNC_SECRET && providedSecret !== SYNC_SECRET) {
+  // Fail CLOSED: if no secret is configured, reject rather than allow
+  // unauthenticated role assignment (handleCheckMembership already fails closed;
+  // this previously failed OPEN when neither SYNC_SECRET nor CRON_SECRET was set).
+  if (!SYNC_SECRET || providedSecret !== SYNC_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
