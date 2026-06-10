@@ -13,7 +13,7 @@
 | 1.2 | All environment variables set in Vercel Dashboard | [ ] | See `.env.example` for full list |
 | 1.3 | `vercel --prod` deployment completed without errors | [ ] | |
 | 1.4 | Vercel build logs show no warnings or errors | [ ] | |
-| 1.5 | `/api/health` returns `{"status":"ok","env":"complete"}` | [ ] | |
+| 1.5 | `/api/health` returns `{"status":"healthy","env":"complete"}` | [ ] | |
 | 1.6 | Vercel cron jobs visible in Dashboard → Crons | [ ] | retry-mints + check-membership |
 
 ---
