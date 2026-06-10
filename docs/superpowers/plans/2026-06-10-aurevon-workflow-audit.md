@@ -56,7 +56,7 @@ Carry these as operator checks, not confirmed code defects:
 
 - **O1 — Confirm PayPal NCP link amounts exactly equal `_BASE` prices** in `tiers.js` (and whether links set `custom`). Directly governs whether F1 ever fires.
 - **O2 — Deploy config:** ensure `CRON_SECRET` and `CROSSMINT_WEBHOOK_SECRET` are set in Vercel prod (crons + Discord-role sync depend on them).
-- **O3 — Vercel plan:** crons require Pro. The git log has a "Vercel Pro optimization pass" commit (#17) — strong evidence the project is already on Pro — but confirm in project settings. (This defuses the agent's "Hobby crons won't fire" P0.)
+- **O3 — Vercel plan: ✅ CONFIRMED PRO (2026-06-10).** Crons require Pro; the project is on Pro, so `retry-mints` + `reconcile` fire on schedule and the F1/F2 orphan-recovery durability runs in production. (Defuses the agent's "Hobby crons won't fire" P0.)
 - **O4 — Env hygiene (P2/P3):** `.env.example` documents ~11 vars the code never reads (`NEXT_PUBLIC_URL`, `PAYPAL_SANDBOX`, per-entitlement `CROSSMINT_COLLECTION_*`, etc.) and `DISCORD_ROLE_VERIFIED` ships as a `000…` placeholder. Dead config; prune to reduce operator error surface. Not workflow-breaking.
 
 ---
