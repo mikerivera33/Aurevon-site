@@ -167,7 +167,7 @@ Follow these steps in order. Each step has a time estimate.
 
 ```bash
 git clone https://github.com/YOUR_ORG/aurevon-site.git
-cd aurevon-site/site
+cd aurevon-site
 npm install
 ```
 
