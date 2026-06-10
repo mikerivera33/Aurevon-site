@@ -96,7 +96,7 @@ export default function handler(req, res) {
           env: allRequired ? 'complete' : 'partial',
           missing_required: allRequired ? [] : missing,
           optional_env: `${optionalPresent}/${OPTIONAL_ENV.length}`,
-          function_count: 12,
+          function_count: 11,
           function_limit: 12,
   });
 }
