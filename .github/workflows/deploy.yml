@@ -40,9 +40,14 @@ jobs:
             echo "✗ .env.example is missing"
             exit 1
           fi
-          # Ensure no real secrets are in .env.example (must only contain placeholder values)
-          if grep -qE "(sk_live_[a-zA-Z0-9]{20,}|whsec_[a-zA-Z0-9]{20,}|pat[a-zA-Z0-9]{16,}\.[a-zA-Z0-9]{60,})" .env.example; then
+          # Ensure no real secrets are in .env.example (must only contain placeholder values).
+          # Match secret-shaped tokens (Stripe live/test, Stripe webhook, Airtable PAT,
+          # Crossmint/Stripe sk_*, Resend re_*, Discord bot token), then drop anything that
+          # is obviously a placeholder (xxxx…, ..., your_, placeholder, example, changeme).
+          SECRET_HITS=$(grep -nE "(sk_(live|test|production|staging)_[a-zA-Z0-9]{20,}|whsec_[a-zA-Z0-9]{20,}|pat[a-zA-Z0-9]{16,}\.[a-zA-Z0-9]{60,}|re_[a-zA-Z0-9]{24,}|[MNO][a-zA-Z0-9_-]{23}\.[a-zA-Z0-9_-]{6}\.[a-zA-Z0-9_-]{27,})" .env.example | grep -vEi "x{4,}|\.\.\.|your[_-]|placeholder|example|changeme|replace|<your" || true)
+          if [ -n "$SECRET_HITS" ]; then
             echo "✗ .env.example appears to contain real secrets — remove them!"
+            echo "$SECRET_HITS"
             exit 1
           fi
           echo "✓ .env.example looks clean"

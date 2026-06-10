@@ -72,13 +72,13 @@ If you're about to flag a missing "Web3 Starter" product — first check the arc
 
 Each of these has been flagged by a code-review or audit subagent and is **not** a bug:
 
-1. **Inline `onclick=` / `onsubmit=` handlers everywhere** (100+ across all HTML files). Vanilla site, no event-delegation framework. The strict-CSP question lives at `Content-Security-Policy-Report-Only` in `vercel.json` with `'unsafe-inline'` allowed — necessary trade-off, documented.
+1. **Inline `onclick=` / `onsubmit=` handlers everywhere** (100+ across all HTML files). Vanilla site, no event-delegation framework. The enforcing `Content-Security-Policy` in `vercel.json` allows `'unsafe-inline'` for scripts/styles to permit these — necessary trade-off, documented.
 2. **Inline `<style>` attributes** — same reason. No build step to extract.
 3. **`<img src="assets/MAIN AUREVON HEADER.png">` with literal spaces** — browsers auto-encode for `<img src>` (lenient). For `<source srcset>` and `<link rel=preload>` use `%20` (strict). The `site-guards.test.js` test enforces this.
 4. **`framework: null` + `buildCommand: null` in `vercel.json`** — static site, deliberate.
 5. **`installCommand: null`** — `package.json` has `engines.node: 20.x`; Vercel auto-runs `npm install` for `/api/*` deps.
 6. **`images:` block in `vercel.json` but no `/_vercel/image` references** — forward-looking config, not dead. Allows the optimizer if we ever wire it up.
-7. **CSP-Report-Only without per-page CSP customization** — single global policy is fine for a static site.
+7. **Single global enforcing CSP without per-page customization** — one policy in `vercel.json` is fine for a static site.
 8. **`NFT_TIERS = new Set()` (empty) in `checkout.js`** — pre-existing, the branch is unreachable; not from any recent PR; not in scope to clean up unless you're doing a checkout.js refactor.
 9. **`api/_lib/tiers.js` Proxy with `re_*` aliases** — see "Tier-key conventions" above.
 10. **`vercel.json` `"/cancel"` rewrite is GONE** as of PR #21. Stripe checkout builds per-session cancel URLs (`checkout.js:196`).
@@ -113,7 +113,7 @@ Production also needs: `STRIPE_WEBHOOK_SECRET`, `PAYPAL_*`, `CROSSMINT_*` (API k
 
 ## Known limitations (don't fix unless asked)
 
-1. **Function count is 12/12** on `/api/health` — at the Hobby cap. PR #19 added `/api/csp-report` to fill the last slot. Project may be on Pro now; `api/health.js` hardcodes the 12 number. Update only if you've confirmed Pro is active and want accurate reporting.
+1. **Function count: `api/health.js` hardcodes `function_count: 11`** (`:99`) — was 12/12 at the Hobby cap (PR #19 added `/api/csp-report`); dropped to 11 when the dead `api/paypal/index.js` capture route was removed (PR #27). Project is on **Pro**, so the 12-function cap no longer binds; this is now just a reporting value — update the literal if the function count changes.
 2. **`/merch` Snipcart placeholder key** — `SNIPCART_KEY_PENDING_SETUP`. Real key needs to be set in Vercel env; until then `/merch` checkout is broken by design.
 3. **`/merch` product images return 401** from `hyperagent.com` — need real images self-hosted at `/assets/merch/*`. Until then the cards show broken images.
-4. **CSP-Report-Only has `report-uri /api/csp-report`** — violations log to Vercel runtime logs. Useful for one-engineer-at-a-time inspection; for a production rollout, point at an aggregator (Sentry / Report URI).
+4. **CSP is ENFORCING** (`Content-Security-Policy` in `vercel.json:197`, not Report-Only) with `'unsafe-inline'` allowed for scripts/styles and `report-uri /api/csp-report` — violations log to Vercel runtime logs. For a production rollout, point the report-uri at an aggregator (Sentry / Report URI).

@@ -76,8 +76,8 @@ if [[ "$HEALTH_RESPONSE" == "CURL_FAILED" ]]; then
   fail "GET /api/health — could not reach server at ${BASE_URL}"
 else
   STATUS=$(echo "$HEALTH_RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','unknown'))" 2>/dev/null || echo "parse_error")
-  if [[ "$STATUS" == "ok" ]]; then
-    pass "GET /api/health returned status=ok"
+  if [[ "$STATUS" == "healthy" ]]; then
+    pass "GET /api/health returned status=healthy"
   else
     fail "GET /api/health returned unexpected status: $STATUS (body: $HEALTH_RESPONSE)"
   fi

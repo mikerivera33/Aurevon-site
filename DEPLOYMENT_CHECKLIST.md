@@ -13,7 +13,7 @@
 | 1.2 | All environment variables set in Vercel Dashboard | [ ] | See `.env.example` for full list |
 | 1.3 | `vercel --prod` deployment completed without errors | [ ] | |
 | 1.4 | Vercel build logs show no warnings or errors | [ ] | |
-| 1.5 | `/api/health` returns `{"status":"ok","env":"complete"}` | [ ] | |
+| 1.5 | `/api/health` returns `{"status":"healthy","env":"complete"}` | [ ] | |
 | 1.6 | Vercel cron jobs visible in Dashboard → Crons | [ ] | retry-mints + check-membership |
 
 ---
@@ -66,13 +66,13 @@
 | # | Item | Done | Notes |
 |---|---|---|---|
 | 5.1 | Crossmint business verification approved | [ ] | Takes 1–2 business days |
-| 5.2 | Collection deployed on **Polygon Mainnet** | [ ] | Not staging, not testnet |
+| 5.2 | Collection deployed on **Base Mainnet** | [ ] | Not staging, not testnet (base-sepolia) |
 | 5.3 | All 5 NFT templates created (Insider, Ember, Obsidian, 001 Genesis, 004 Chrome) | [ ] | |
 | 5.4 | All template IDs set in env vars (`CROSSMINT_TEMPLATE_*`) | [ ] | |
 | 5.5 | `CROSSMINT_ENVIRONMENT=production` in env vars | [ ] | |
-| 5.6 | `CROSSMINT_CHAIN=polygon` in env vars | [ ] | |
+| 5.6 | `CROSSMINT_CHAIN=base` in env vars | [ ] | |
 | 5.7 | Test mint in production environment succeeded | [ ] | Use a test email address |
-| 5.8 | Crossmint wallet funded with enough MATIC for gas | [ ] | $5 worth covers ~100+ mints |
+| 5.8 | Crossmint wallet funded with enough ETH (Base) for gas | [ ] | $5 worth covers ~100+ mints |
 
 ---
 

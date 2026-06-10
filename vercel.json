@@ -149,7 +149,7 @@
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
-          "value": "*"
+          "value": "https://www.aurevonvc.com"
         },
         {
           "key": "Access-Control-Allow-Methods",

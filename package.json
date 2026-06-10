@@ -7,6 +7,7 @@
     "dev": "vercel dev",
     "deploy": "bash scripts/deploy.sh",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:qa": "bash qa-test.sh",
     "test:pipeline": "bash qa-test.sh --full-pipeline",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "^4.1.6",
     "eslint": "^10.3.0",
     "vitest": "^4.1.6"
   },
