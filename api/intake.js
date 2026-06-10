@@ -71,11 +71,33 @@ export function verifyGrant(grant) {
   return payload;
 }
 
+// ── Body helpers ────────────────────────────────────────────────────────────
+// bodyParser is disabled for this file (see config export) so the `submit` action
+// can stream the raw multipart upload through to Formspree unparsed. That means
+// `grant` must read+parse its own JSON body.
+
+function readRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+async function readJsonBody(req) {
+  // Honor a pre-parsed body (dev-server / tests) before touching the stream.
+  if (req.body && typeof req.body === 'object' && Object.keys(req.body).length) return req.body;
+  const buf = await readRawBody(req);
+  if (!buf || !buf.length) return {};
+  try { return JSON.parse(buf.toString('utf8')); } catch { return {}; }
+}
+
 // ── action=grant ──────────────────────────────────────────────────────────────
 
 async function handleGrant(req, res) {
   if (!grantSecret()) return res.status(500).json({ error: 'Paywall not configured (signing secret unset)' });
-  const { session_id, email, tier } = req.body ?? {};
+  const { session_id, email, tier } = await readJsonBody(req);
 
   // Stripe path — verify the checkout session live (avoids the webhook race).
   if (session_id) {
@@ -118,8 +140,12 @@ async function handleGrant(req, res) {
 
 async function handleSubmit(req, res) {
   if (!grantSecret()) return res.status(500).json({ error: 'Paywall not configured (signing secret unset)' });
-  const { grant, ...fields } = req.body ?? {};
 
+  // Grant travels in the query string (or header), NOT the body — so the body
+  // stays a pristine multipart/form-data payload (with the buyer's file uploads)
+  // that we forward to Formspree verbatim. Verify BEFORE reading the body so a
+  // forged grant is rejected without consuming the upload.
+  const grant = req.query?.grant ?? req.headers?.['x-intake-grant'] ?? '';
   let payload;
   try {
     payload = verifyGrant(grant);
@@ -127,13 +153,27 @@ async function handleSubmit(req, res) {
     return res.status(401).json({ error: 'Invalid or expired access grant — payment required', detail: err.message });
   }
 
-  // Forward to Formspree (the owner's existing inbox), tagged with the verified
-  // tier + payment ref so the submission is provably tied to a real payment.
+  let rawBody;
+  try {
+    rawBody = await readRawBody(req);
+  } catch (err) {
+    return res.status(400).json({ error: 'Failed to read submission body', detail: err.message });
+  }
+
+  // Forward the raw body to Formspree under its original Content-Type (preserves
+  // the multipart boundary + file uploads). The verified tier/ref ride along as
+  // headers + are logged so the gated submission is traceable to a real payment.
+  console.log(`[Intake] Verified submission tier=${payload.tier} ref=${payload.ref}`);
   try {
     const r = await fetch(formspreeUrl(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ ...fields, _verified_tier: payload.tier, _payment_ref: payload.ref }),
+      headers: {
+        'Content-Type': req.headers?.['content-type'] ?? 'application/octet-stream',
+        Accept: 'application/json',
+        'X-Intake-Verified-Tier': String(payload.tier ?? ''),
+        'X-Intake-Payment-Ref': String(payload.ref ?? ''),
+      },
+      body: rawBody,
     });
     if (!r.ok) {
       const txt = await r.text().catch(() => '');
@@ -159,3 +199,11 @@ export default async function handler(req, res) {
   if (action === 'submit') return handleSubmit(req, res);
   return res.status(400).json({ error: 'Invalid action', valid: ['grant', 'submit'] });
 }
+
+// Disable Vercel's body parsing so `submit` can stream the raw multipart upload
+// (file attachments) straight through to Formspree. `grant` parses JSON itself.
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};

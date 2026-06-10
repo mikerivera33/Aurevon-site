@@ -1163,9 +1163,30 @@ const CFG = window.AUREVON_CONFIG || {};
    ordinary page loads are unaffected. */
 (function(){
   try {
-    if (!new URLSearchParams(window.location.search).has('purchased')) return;
-    var dest = sessionStorage.getItem('bkt_pending_intake');
-    if (dest) { sessionStorage.removeItem('bkt_pending_intake'); window.location.replace(dest); }
+    var q = new URLSearchParams(window.location.search);
+    if (!q.has('purchased')) return;
+    var sid = q.get('session_id');
+    var tier = q.get('purchased') || '';
+    sessionStorage.removeItem('bkt_pending_intake');
+    if (sid) {
+      // HARD PAYWALL: exchange the real Stripe session for a server-signed access
+      // grant (the server verifies payment_status=paid). The intake form then
+      // submits that grant to /api/intake/submit, the enforced gate. The old
+      // client-made paid_ token is no longer trusted.
+      fetch('/api/intake/grant', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ session_id: sid }) })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d && d.ok && d.grant) {
+            window.location.replace('aurevon-re-intake.html?grant=' + encodeURIComponent(d.grant));
+          } else {
+            window.location.replace('aurevon-re-intake.html?verify=1&tier=' + encodeURIComponent(tier));
+          }
+        })
+        .catch(function(){ window.location.replace('aurevon-re-intake.html?verify=1&tier=' + encodeURIComponent(tier)); });
+      return;
+    }
+    // No session_id (e.g. a non-Stripe return) — hand off to the email-verify flow.
+    window.location.replace('aurevon-re-intake.html?verify=1&tier=' + encodeURIComponent(tier));
   } catch (e) { /* stay on page */ }
 })();
 

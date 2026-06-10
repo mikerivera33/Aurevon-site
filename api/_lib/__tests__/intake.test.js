@@ -31,6 +31,23 @@ function mockRes() {
 }
 const call = (query, body) => { const res = mockRes(); return handler({ method: 'POST', query, body }, res).then(() => res); };
 
+// submit carries the grant in the query and the upload as a raw streamed body.
+function callSubmit({ grant, contentType = 'multipart/form-data; boundary=XB', body = Buffer.from('--XB--\r\n') } = {}) {
+  const res = mockRes();
+  const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
+  const req = {
+    method: 'POST',
+    headers: { 'content-type': contentType },
+    query: { action: 'submit', ...(grant !== undefined ? { grant } : {}) },
+    on(event, cb) {
+      if (event === 'data' && buf.length) setTimeout(() => cb(buf), 0);
+      if (event === 'end') setTimeout(cb, 1);
+      return this;
+    },
+  };
+  return handler(req, res).then(() => res);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.STATE_SECRET = 'unit-test-signing-secret';
@@ -88,30 +105,33 @@ describe('action=grant (PayPal / email+tier)', () => {
 });
 
 describe('action=submit (the gate)', () => {
-  it('forwards to Formspree with a valid grant', async () => {
+  it('forwards the raw multipart body to Formspree verbatim with a valid grant', async () => {
     const grant = signGrant({ tier: 're_full', ref: 'stripe:cs_1', exp: Date.now() + 60000 });
-    const res = await call({ action: 'submit' }, { grant, property: '123 Main St' });
+    const body = Buffer.from('--XB\r\nContent-Disposition: form-data; name="property"\r\n\r\n123 Main St\r\n--XB--\r\n');
+    const res = await callSubmit({ grant, body });
     expect(res.statusCode).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(fetch).toHaveBeenCalledTimes(1);
-    const sent = JSON.parse(fetch.mock.calls[0][1].body);
-    expect(sent).toMatchObject({ property: '123 Main St', _verified_tier: 're_full', _payment_ref: 'stripe:cs_1' });
-    expect(sent.grant).toBeUndefined(); // grant is stripped, not forwarded
+    const [url, opts] = fetch.mock.calls[0];
+    expect(url).toContain('formspree.io');
+    expect(opts.headers['Content-Type']).toContain('multipart/form-data'); // boundary preserved
+    expect(opts.headers['X-Intake-Verified-Tier']).toBe('re_full');
+    expect(Buffer.compare(opts.body, body)).toBe(0); // upload bytes (files) untouched
   });
-  it('rejects a forged grant with 401 and does NOT forward', async () => {
-    const res = await call({ action: 'submit' }, { grant: 'paid_full_deadbeef.notavalidmac', property: 'x' });
+  it('rejects a forged grant with 401 and does NOT forward (upload not consumed)', async () => {
+    const res = await callSubmit({ grant: 'paid_full_deadbeef.notavalidmac' });
     expect(res.statusCode).toBe(401);
     expect(fetch).not.toHaveBeenCalled();
   });
   it('rejects a missing grant with 401', async () => {
-    const res = await call({ action: 'submit' }, { property: 'x' });
+    const res = await callSubmit({});
     expect(res.statusCode).toBe(401);
     expect(fetch).not.toHaveBeenCalled();
   });
   it('fails closed (500) when the signing secret is unset', async () => {
     delete process.env.STATE_SECRET;
     delete process.env.INTAKE_SECRET;
-    const res = await call({ action: 'submit' }, { grant: 'whatever.x', property: 'x' });
+    const res = await callSubmit({ grant: 'whatever.x' });
     expect(res.statusCode).toBe(500);
     expect(fetch).not.toHaveBeenCalled();
   });
