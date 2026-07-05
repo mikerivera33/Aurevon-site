@@ -30,13 +30,25 @@ function getBase() {
 }
 
 /**
- * Escape a value for safe interpolation into an Airtable filterByFormula string
- * literal. Our email regex permits a literal `"` (it only excludes whitespace
- * and `@`), so an attacker-supplied address like `a"b@x.com` could otherwise
- * break out of the quoted literal and inject formula logic.
+ * Sanitize a value for safe interpolation into an Airtable filterByFormula
+ * string literal ("...").
+ *
+ * Airtable formula string literals have NO backslash escape: inside "..." a
+ * `\"` is parsed as a literal backslash followed by a string-TERMINATING `"`.
+ * So the old `replace(/"/g, '\\"')` did NOT neutralize the quote — an
+ * attacker-supplied address like `a"b@x.com` (our email regex permits `"`,
+ * excluding only whitespace and `@`) would break out of the literal and inject
+ * formula logic, reachable unauthenticated via /api/member/claim and discord.js.
+ *
+ * There is no safe escape, so we STRIP every character that could terminate or
+ * corrupt the literal: both quote styles (Airtable accepts "..." and '...'),
+ * backslashes, and control chars / newlines. Legitimate emails and Stripe/PayPal
+ * transaction IDs never contain any of these, so they pass through unchanged.
+ * Mirrors the quote-rejection guard in api/portal/data.js.
  */
-function escapeFormulaValue(v) {
-  return String(v).replace(/"/g, '\\"');
+export function escapeFormulaValue(v) {
+  // eslint-disable-next-line no-control-regex
+  return String(v).replace(/["'\\\x00-\x1F\x7F]/g, '');
 }
 
 function getHeaders() {
@@ -204,8 +216,8 @@ export async function findActiveMintByEmail(email) {
  * Returns the record, or null.
  */
 export async function findActiveMintByEmailAndType(email, nftType) {
-  const safeEmail = String(email).toLowerCase().replace(/"/g, '\\"');
-  const safeType = String(nftType).replace(/"/g, '\\"');
+  const safeEmail = escapeFormulaValue(String(email).toLowerCase());
+  const safeType = escapeFormulaValue(nftType);
   const formula = `AND(LOWER({Email})="${safeEmail}",{NFT Type}="${safeType}",OR({Mint Status}="Minted",{Mint Status}="Sent",{Mint Status}="Queued"))`;
   const recs = await listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords: 1 });
   return recs[0] ?? null;
@@ -218,8 +230,8 @@ export async function findActiveMintByEmailAndType(email, nftType) {
  * before createNftMint). Returns the record, or null.
  */
 export async function findAnyMintByEmailAndType(email, nftType) {
-  const safeEmail = String(email).toLowerCase().replace(/"/g, '\\"');
-  const safeType = String(nftType).replace(/"/g, '\\"');
+  const safeEmail = escapeFormulaValue(String(email).toLowerCase());
+  const safeType = escapeFormulaValue(nftType);
   const formula = `AND(LOWER({Email})="${safeEmail}",{NFT Type}="${safeType}")`;
   const recs = await listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords: 1 });
   return recs[0] ?? null;
@@ -276,7 +288,7 @@ export async function createPayment({
  * Returns the record, or null if none exists.
  */
 export async function findPaymentByTransactionId(transactionId) {
-  const safeId = String(transactionId).replace(/"/g, '\\"');
+  const safeId = escapeFormulaValue(transactionId);
   const formula = `{Transaction ID}="${safeId}"`;
   const recs = await listRecords(TABLE.Payments, { filterFormula: formula, maxRecords: 1 });
   return recs[0] ?? null;
