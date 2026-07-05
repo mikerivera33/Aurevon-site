@@ -5,6 +5,21 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'mike@aurevonvc.com';
 const FROM_NAME = process.env.RESEND_FROM_NAME || 'Aurevon';
 
+/**
+ * HTML-escape a user-controlled value before interpolating it into the email
+ * template (L4). Prevents HTML/phishing-content injection via caller-supplied
+ * name fields. Coerces null/undefined to ''.
+ */
+function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const PASS_CONFIGS = {
   OBSIDIAN: { color: '#1a1a2e', accent: '#7c3aed', title: 'OBSIDIAN EXECUTIVE', price: '$2,499/mo', tier: 'RE Tier 3 - Apex', benefits: ['Full Enterprise RE Platform Access','Dedicated Account Manager','24/7 Priority Support','OBSIDIAN NFT Pass','Discord Executive Role','All Platform Access'] },
   EMBER:    { color: '#1a0a00', accent: '#f97316', title: 'EMBER',              price: '$1,499/mo', tier: 'RE Tier 2',       benefits: ['Pro RE Platform Access','Priority Support','EMBER NFT Pass','Discord Pro Role','NFT Minting Access'] },
@@ -14,7 +29,7 @@ const PASS_CONFIGS = {
   COMMUNITY:{ color: '#0a0a0f', accent: '#22c55e', title: 'GENESIS COMMUNITY',  price: '$29.99/mo', tier: 'Community',       benefits: ['Community Discord Access','Monthly Newsletters','Early Access Announcements'] },
 };
 
-function buildEmailHTML(passType, customerName, portalLink, nftLink) {
+export function buildEmailHTML(passType, customerName, portalLink, nftLink) {
   const cfg = PASS_CONFIGS[passType] || PASS_CONFIGS.COMMUNITY;
   const benefitsList = cfg.benefits.map(b => `<li style="margin:6px 0;color:#cbd5e1;">${b}</li>`).join('');
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -28,7 +43,7 @@ function buildEmailHTML(passType, customerName, portalLink, nftLink) {
     <p style="margin:8px 0 0;font-size:13px;color:#94a3b8;letter-spacing:2px;text-transform:uppercase;">${cfg.tier}</p>
   </td></tr>
   <tr><td style="padding:32px 40px;">
-    <p style="color:#e2e8f0;font-size:16px;">Welcome, <strong style="color:${cfg.accent};">${customerName || 'Member'}</strong></p>
+    <p style="color:#e2e8f0;font-size:16px;">Welcome, <strong style="color:${cfg.accent};">${escapeHtml(customerName) || 'Member'}</strong></p>
     <p style="color:#94a3b8;font-size:14px;line-height:1.6;">Your <strong>${cfg.title} pass</strong> is now active. You now have access to everything included in your tier.</p>
     <div style="background:${cfg.accent}11;border:1px solid ${cfg.accent}33;border-radius:10px;padding:20px;margin:24px 0;">
       <p style="margin:0 0 12px;font-size:11px;letter-spacing:3px;color:${cfg.accent};text-transform:uppercase;">Your Benefits</p>

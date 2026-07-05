@@ -5,6 +5,7 @@
  * Never reveals values — only presence (true/false).
  */
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -110,6 +111,26 @@ export default function handler(req, res) {
       if (req.method !== 'GET') {
               return res.status(405).json({ error: 'Method not allowed' });
       }
+
+  // Info-disclosure hardening (L1): the full diagnostic body below is a precise
+  // misconfiguration map (env completeness, the exact names of any missing
+  // required vars, version). Public/unauthenticated callers get a minimal
+  // liveness body only. The diagnostic is gated behind a bearer secret
+  // (INTERNAL_API_SECRET — already used by the internal mint automation), compared
+  // timing-safely with a length guard. Fail CLOSED: a health endpoint must always
+  // answer and never leak, so when the secret is unset nobody can authenticate and
+  // no caller ever receives diagnostics.
+  const secret = process.env.INTERNAL_API_SECRET;
+  const rawAuth = req.headers?.authorization ?? '';
+  const provided = rawAuth.startsWith('Bearer ') ? rawAuth.slice(7) : '';
+  const authed =
+        Boolean(secret) &&
+        provided.length === secret.length &&
+        crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(secret));
+
+  if (!authed) {
+        return res.status(200).json({ ok: true, status: 'healthy' });
+  }
 
   const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
       const allRequired = missing.length === 0;
