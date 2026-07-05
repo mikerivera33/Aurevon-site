@@ -33,6 +33,23 @@ const DISCORD_API   = 'https://discord.com/api/v10';
 const DISCORD_OAUTH = 'https://discord.com/api/oauth2/authorize';
 const SCOPES        = 'identify guilds.join';
 
+// ── Timing-safe secret compare ───────────────────────────────────────────────
+// Length-guarded crypto.timingSafeEqual for variable-length secrets, matching
+// the pattern in api/member/claim.js and api/email/send.js. Returns true only
+// on an exact match. Callers MUST still guard against an unset/empty configured
+// secret BEFORE calling this — two empty strings compare equal here.
+export function timingSafeStrEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  try {
+    return timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
+
 // ── HMAC state helpers ───────────────────────────────────────────────────────
 
 function signState(email) {
@@ -168,7 +185,7 @@ async function handleSync(req, res) {
   // Fail CLOSED: if no secret is configured, reject rather than allow
   // unauthenticated role assignment (handleCheckMembership already fails closed;
   // this previously failed OPEN when neither SYNC_SECRET nor CRON_SECRET was set).
-  if (!SYNC_SECRET || providedSecret !== SYNC_SECRET) {
+  if (!SYNC_SECRET || !timingSafeStrEqual(providedSecret, SYNC_SECRET)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -242,7 +259,7 @@ async function handleCheckMembership(req, res) {
   }
   const auth  = req.headers?.authorization ?? '';
   const query = req.query?.secret ?? '';
-  if (auth !== `Bearer ${secret}` && query !== secret) {
+  if (!timingSafeStrEqual(auth, `Bearer ${secret}`) && !timingSafeStrEqual(query, secret)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
