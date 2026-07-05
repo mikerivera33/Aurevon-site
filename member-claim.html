@@ -68,112 +68,60 @@ footer{margin-top:2rem;font-size:.75rem;color:var(--txt2);text-align:center;}
   <div class="subtitle">Member Access Portal</div>
 
   <h1>Claim Your Access</h1>
-        
-  <form id="claimForm" onsubmit="handleLookup(event)">
+  <p class="desc">Enter the email you purchased with. If it has an Aurevon membership, we'll email you a secure one-click link to connect Discord and unlock your role.</p>
+
+  <form id="claimForm" onsubmit="handleClaim(event)">
     <label for="email">Purchase Email</label>
     <input type="email" id="email" placeholder="you@example.com" required autocomplete="email"/>
-    <button type="submit" class="btn" id="lookupBtn">Look Up My Account</button>
+    <button type="submit" class="btn" id="claimBtn">Email My Access Link</button>
   </form>
 
   <div class="result" id="result"></div>
-
-  <div id="discordSection" style="display:none;">
-    <div class="divider"></div>
-    <p class="desc" style="margin-bottom:1rem;">Your NFT is ready. Connect Discord to receive your role.</p>
-    <a class="discord-btn" id="discordLink" href="#">
-      🔐 Connect Discord Account
-    </a>
-  </div>
 </div>
 
 <footer>Aurevon Ventures LLC &middot; <a href="mailto:mike@aurevonvc.com" style="color:var(--gold);text-decoration:none;">mike@aurevonvc.com</a></footer>
 
 <script>
-const DOMAIN = window.location.origin;
-
-async function handleLookup(e) {
+// Request-my-access-link flow. The endpoint responds UNIFORMLY regardless of
+// whether the email has a membership (no enumeration oracle) and, when a real
+// membership exists, emails a signed one-click Discord linking token to the inbox
+// owner. The browser never learns membership status or receives a linking URL —
+// that only ever arrives in the member's email (proof of inbox ownership).
+async function handleClaim(e) {
   e.preventDefault();
-  const email = document.getElementById('email').value.trim();
-  const btn   = document.getElementById('lookupBtn');
-  const result = document.getElementById('result');
+  const email  = document.getElementById('email').value.trim();
+  const btn    = document.getElementById('claimBtn');
 
   btn.disabled = true;
-  btn.textContent = 'Looking up…';
-  result.style.display = 'none';
+  btn.textContent = 'Sending…';
 
   try {
-    // Check status
-    const secret = '';  // Public status check — no secret needed without ?action=reconcile
-    const r = await fetch(`/api/member/claim?action=status&email=${encodeURIComponent(email)}`);
+    const r = await fetch('/api/member/claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await r.json().catch(() => ({}));
 
-    // If 401, the endpoint requires a secret which we shouldn't expose client-side.
-    // Fall through to POST claim which is public.
-    if (r.status === 401) {
-      await doClaimPost(email);
-      return;
+    if (r.ok) {
+      showResult('success', (data && data.message)
+        ? data.message
+        : "If this email has an Aurevon membership, we've emailed your secure access link. Check your inbox (and spam).");
+    } else {
+      showResult('error', (data && data.error) ? data.error : 'Something went wrong — please try again.');
     }
-
-    const data = await r.json();
-
-    if (!data.nftFound) {
-      showResult('info', `No NFT purchase found for <strong>${email}</strong>. If you just purchased, it can take a few minutes to process. Try again shortly or email <a href="mailto:mike@aurevonvc.com" style="color:#93c5fd;">mike@aurevonvc.com</a>.`);
-      return;
-    }
-
-    // Show status
-    showStatusCard(data, email);
-
   } catch (err) {
     showResult('error', 'Network error — please try again.');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Look Up My Account';
+    btn.textContent = 'Email My Access Link';
   }
 }
 
-async function doClaimPost(email) {
-  const r = await fetch('/api/member/claim', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
-  });
-  const data = await r.json();
-  if (data.nftFound) {
-    showStatusCard(data, email);
-  } else {
-    showResult('info', `No active NFT found for <strong>${email}</strong>. Contact <a href="mailto:mike@aurevonvc.com" style="color:#93c5fd;">support</a> if you believe this is an error.`);
-  }
-}
-
-function showStatusCard(data, email) {
-  const result = document.getElementById('result');
-  const discordSection = document.getElementById('discordSection');
-
-  const syncBadge = data.discordSync === 'synced' ? '<span class="badge green">Synced ✓</span>'
-    : data.discordSync === 'pending' ? '<span class="badge yellow">Pending</span>'
-    : data.discordSync === 'failed'  ? '<span class="badge red">Failed</span>'
-    : '<span class="badge grey">Not linked</span>';
-
-  result.innerHTML = `
-    <div class="status-row"><span>Email</span><span style="color:var(--txt)">${email}</span></div>
-    <div class="status-row"><span>NFT</span><span style="color:var(--gold)">${data.nftType ?? '—'}</span></div>
-    <div class="status-row"><span>Mint Status</span><span>${data.mintStatus ?? '—'}</span></div>
-    <div class="status-row"><span>Discord</span>${syncBadge}</div>
-  `;
-  result.className = 'result info';
-  result.style.display = 'block';
-
-  if (data.discordSync !== 'synced' && data.nftFound) {
-    const discordUrl = data.discordAuthUrl ?? `/api/discord?action=auth&email=${encodeURIComponent(email)}`;
-    document.getElementById('discordLink').href = discordUrl;
-    discordSection.style.display = 'block';
-  }
-}
-
-function showResult(type, html) {
+function showResult(type, text) {
   const el = document.getElementById('result');
   el.className = `result ${type}`;
-  el.innerHTML = html;
+  el.textContent = text;
   el.style.display = 'block';
 }
 </script>

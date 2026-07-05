@@ -335,13 +335,28 @@ export async function findMemberByEmail(email) {
  * Update Discord link information on a member record.
  * Also sets Discord Sync Status to 'pending' so the reconcile job picks it up.
  */
-export async function upsertDiscordLink(email, { discordId, discordUsername }) {
-  return upsertMemberByEmail(email, {
+export async function upsertDiscordLink(email, { discordId, discordUsername, authNonce } = {}) {
+  const fields = {
     'Discord ID':          discordId,
     'Discord Username':    discordUsername ?? '',
     'Discord Linked At':   new Date().toISOString(),
     'Discord Sync Status': 'pending',
-  });
+  };
+  // Record the single-use access-token nonce as consumed (H2 defense-in-depth).
+  if (authNonce) fields['Discord Auth Nonce Used'] = authNonce;
+  return upsertMemberByEmail(email, fields);
+}
+
+/**
+ * Single-use check for Discord access-token nonces (H2). Returns true if this
+ * exact nonce was already consumed by a prior successful link for this email.
+ * Stores only the most-recently-consumed nonce on the member row (see the
+ * limitation note in api/discord.js handleCallback).
+ */
+export async function isDiscordAuthNonceUsed(email, nonce) {
+  if (!nonce) return false;
+  const member = await findMemberByEmail(email);
+  return member?.fields?.['Discord Auth Nonce Used'] === nonce;
 }
 
 /**

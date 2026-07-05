@@ -1,7 +1,7 @@
 /**
  * Unified Discord handler — /api/discord?action=auth|callback|sync
  *
- * action=auth&email=xxx     → redirect to Discord OAuth consent screen
+ * action=auth&token=xxx     → verify email-ownership token, redirect to Discord OAuth
  * action=callback&code=x    → handle OAuth callback, assign role, write Airtable
  * action=sync  (POST)       → bot-assign role for a member who already has a Discord ID
  *                             Body: { email, secret? }  OR use CRON_SECRET header
@@ -10,9 +10,9 @@
  * the Vercel Hobby 12-function limit.
  */
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 import { addRoleToMember, addMemberToGuild } from './_lib/discord-bot.js';
-import { upsertDiscordLink, updateDiscordSyncStatus, findActiveMintByEmail, findMemberByEmail } from './_lib/airtable.js';
+import { upsertDiscordLink, updateDiscordSyncStatus, findActiveMintByEmail, findMemberByEmail, isDiscordAuthNonceUsed } from './_lib/airtable.js';
 import { resolveEntitlementFromNftType, getRoleId } from './_lib/entitlements.js';
 import { onEntitlementActivated } from './_lib/engage.js';
 
@@ -50,23 +50,69 @@ export function timingSafeStrEqual(a, b) {
   }
 }
 
-// ── HMAC state helpers ───────────────────────────────────────────────────────
+// ── Email-ownership access tokens (H2 fix) ───────────────────────────────────
+// The OAuth flow must not trust a bare ?email= — that granted the paid role to
+// ANYONE who knew a member's address (HMAC = integrity, NOT authorization). Instead
+// we require a SIGNED, email-bound, EXPIRING, single-use token that is only ever
+// delivered to the member's inbox (mint-success + claim-request emails). Possessing
+// a valid token IS the proof of inbox ownership, and the email is derived FROM the
+// token — never from a separate query param.
+//
+// Token = base64url(JSON{e:email, x:expiryMs, n:nonce}) + "." + base64url(HMAC).
+// The MAC is computed over the exact serialized payload bytes so the delimiter can
+// never collide with email contents. Verified timing-safe. Single-use is enforced
+// at the callback (the point of the actual role grant) via an Airtable-stored
+// consumed-nonce — see api/_lib/airtable.js.
+//
+// TTL: 7 days. Product decision — a mint-delivery email may sit unread for days;
+// 7d keeps the marketed "click the link in your email" flow working while bounding
+// replay exposure. Re-requesting a fresh link via /member-claim.html is one click.
+const ACCESS_TOKEN_TTL_MS = Number(process.env.DISCORD_ACCESS_TOKEN_TTL_MS) || 7 * 24 * 60 * 60 * 1000;
 
-function signState(email) {
-  const mac = createHmac('sha256', STATE_SECRET).update(email).digest('hex').slice(0, 32);
-  return `${email}.${mac}`;
+function b64url(input) {
+  return Buffer.from(input).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64urlDecodeToString(str) {
+  return Buffer.from(str.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
 }
 
-function verifyState(state) {
-  const lastDot = state.lastIndexOf('.');
-  if (lastDot === -1) throw new Error('Invalid state format');
-  const email = state.slice(0, lastDot);
-  const received = state.slice(lastDot + 1);
-  const expected = createHmac('sha256', STATE_SECRET).update(email).digest('hex').slice(0, 32);
-  const a = Buffer.from(received.padEnd(32, '0'));
-  const b = Buffer.from(expected.padEnd(32, '0'));
-  if (a.length !== b.length || !timingSafeEqual(a, b)) throw new Error('State HMAC mismatch');
-  return email;
+/**
+ * Mint a signed, email-bound, expiring, single-use access token. Throws if
+ * STATE_SECRET is not configured (fail closed — never issue an unsigned token).
+ */
+export function signDiscordAccessToken(email) {
+  const secret = process.env.STATE_SECRET;
+  if (!secret) throw new Error('STATE_SECRET not configured');
+  const normalized = String(email).toLowerCase().trim();
+  const payloadB64 = b64url(JSON.stringify({ e: normalized, x: Date.now() + ACCESS_TOKEN_TTL_MS, n: randomBytes(12).toString('hex') }));
+  const mac = b64url(createHmac('sha256', secret).update(payloadB64).digest());
+  return `${payloadB64}.${mac}`;
+}
+
+/**
+ * Verify an access token: timing-safe signature check + expiry. Returns
+ * { email, nonce, exp } derived FROM the token. Throws on any failure.
+ */
+export function verifyDiscordAccessToken(token) {
+  const secret = process.env.STATE_SECRET;
+  if (!secret) throw new Error('STATE_SECRET not configured');
+  if (typeof token !== 'string') throw new Error('Missing token');
+  const lastDot = token.lastIndexOf('.');
+  if (lastDot <= 0) throw new Error('Malformed token');
+  const payloadB64 = token.slice(0, lastDot);
+  const macB64 = token.slice(lastDot + 1);
+  const expectedMac = b64url(createHmac('sha256', secret).update(payloadB64).digest());
+  const a = Buffer.from(macB64);
+  const b = Buffer.from(expectedMac);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) throw new Error('Signature mismatch');
+  let payload;
+  try { payload = JSON.parse(b64urlDecodeToString(payloadB64)); }
+  catch { throw new Error('Malformed payload'); }
+  if (!payload || typeof payload.e !== 'string' || typeof payload.x !== 'number' || typeof payload.n !== 'string') {
+    throw new Error('Invalid payload');
+  }
+  if (Date.now() > payload.x) throw new Error('Token expired');
+  return { email: payload.e, nonce: payload.n, exp: payload.x };
 }
 
 // ── Discord OAuth helpers ────────────────────────────────────────────────────
@@ -100,14 +146,29 @@ async function getDiscordUser(accessToken) {
 // ── Route: auth ──────────────────────────────────────────────────────────────
 
 function handleAuth(req, res) {
-  const { email } = req.query ?? {};
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: 'Valid email required as ?email= query param' });
+  // AuthZ: require a signed email-ownership token. We DO NOT accept a bare
+  // ?email= (that was the H2 hole). OLD ?email=-only links already sent to
+  // customers FAIL CLOSED here — they must re-request a fresh link from the
+  // member-claim page (documented UX tradeoff; do not reopen the hole for compat).
+  const { token } = req.query ?? {};
+  if (!token) {
+    return res.status(400).json({
+      error: 'A valid access link is required. Request a fresh one from the member portal.',
+      requestLink: `${DOMAIN}/member-claim.html`,
+    });
   }
-  const state = signState(email.toLowerCase().trim());
+  try { verifyDiscordAccessToken(token); }
+  catch {
+    return res.status(403).json({
+      error: 'This access link is invalid or has expired. Request a fresh one from the member portal.',
+      requestLink: `${DOMAIN}/member-claim.html`,
+    });
+  }
+  // The token is already email-bound, signed and expiring — reuse it verbatim as
+  // the OAuth `state` so the callback re-derives the email from it (never a param).
   const params = new URLSearchParams({
     client_id: CLIENT_ID, redirect_uri: REDIRECT_URI,
-    response_type: 'code', scope: SCOPES, state, prompt: 'consent',
+    response_type: 'code', scope: SCOPES, state: token, prompt: 'consent',
   });
   res.redirect(302, `${DISCORD_OAUTH}?${params}`);
 }
@@ -119,9 +180,28 @@ async function handleCallback(req, res) {
   if (oauthErr) return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=denied`);
   if (!code || !state) return res.status(400).json({ error: 'Missing code or state' });
 
-  let email;
-  try { email = verifyState(state); }
-  catch (e) { return res.status(403).json({ error: 'Invalid state', detail: e.message }); }
+  // `state` is the same signed access token issued at auth-time. Re-verify it
+  // (signature + expiry, timing-safe) and derive the email + single-use nonce
+  // from it — never trust a separate param.
+  let email, nonce;
+  try { ({ email, nonce } = verifyDiscordAccessToken(state)); }
+  catch { return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=invalid_link`); }
+
+  // Single-use (defense-in-depth vs. a leaked/forwarded link being replayed after
+  // it was already redeemed). Enforced HERE — at the actual role grant — not at
+  // auth, so an aborted OAuth doesn't waste the token. Fails OPEN on lookup error:
+  // the signature already authorizes, and blocking on Airtable downtime would deny
+  // legitimate first-time linking. Limitation: only the most-recently-consumed
+  // nonce is stored, so redeeming a newer token does not retroactively invalidate
+  // an older still-valid one — but every such token was inbox-delivered, so that
+  // only ever benefits someone who already controls the inbox (already authorized).
+  try {
+    if (await isDiscordAuthNonceUsed(email, nonce)) {
+      return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=link_used`);
+    }
+  } catch (e) {
+    console.error(`[Discord] single-use nonce check failed (continuing): ${e.message}`);
+  }
 
   let token, user;
   try { token = await exchangeCode(code); user = await getDiscordUser(token.access_token); }
@@ -155,9 +235,10 @@ async function handleCallback(req, res) {
     return res.status(502).json({ error: 'Role assignment failed', detail: e.message });
   }
 
-  // Persist Discord link to Airtable
+  // Persist Discord link to Airtable + burn the single-use nonce (records this
+  // token as consumed so a replay of the same link is rejected above).
   try {
-    await upsertDiscordLink(email, { discordId: user.id, discordUsername: user.username });
+    await upsertDiscordLink(email, { discordId: user.id, discordUsername: user.username, authNonce: nonce });
     await updateDiscordSyncStatus(email, 'synced');
   } catch (e) {
     console.error(`[Discord] Airtable update failed: ${e.message}`);
@@ -257,9 +338,10 @@ async function handleCheckMembership(req, res) {
   if (!secret) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const auth  = req.headers?.authorization ?? '';
-  const query = req.query?.secret ?? '';
-  if (!timingSafeStrEqual(auth, `Bearer ${secret}`) && !timingSafeStrEqual(query, secret)) {
+  // Header-only (L2): never accept the secret via ?secret= — query strings are
+  // captured in Vercel/CDN access logs. Vercel cron sends the Bearer header.
+  const auth = req.headers?.authorization ?? '';
+  if (!timingSafeStrEqual(auth, `Bearer ${secret}`)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
