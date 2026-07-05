@@ -12,7 +12,7 @@
 
 import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 import { addRoleToMember, addMemberToGuild } from './_lib/discord-bot.js';
-import { upsertDiscordLink, updateDiscordSyncStatus, findActiveMintByEmail, findMemberByEmail, isDiscordAuthNonceUsed } from './_lib/airtable.js';
+import { upsertDiscordLink, updateDiscordSyncStatus, findActiveMintByEmail, findMemberByEmail, isDiscordAuthNonceUsed, markDiscordAuthNonceUsed } from './_lib/airtable.js';
 import { resolveEntitlementFromNftType, getRoleId } from './_lib/entitlements.js';
 import { onEntitlementActivated } from './_lib/engage.js';
 
@@ -235,13 +235,21 @@ async function handleCallback(req, res) {
     return res.status(502).json({ error: 'Role assignment failed', detail: e.message });
   }
 
-  // Persist Discord link to Airtable + burn the single-use nonce (records this
-  // token as consumed so a replay of the same link is rejected above).
+  // Persist Discord link to Airtable.
   try {
-    await upsertDiscordLink(email, { discordId: user.id, discordUsername: user.username, authNonce: nonce });
+    await upsertDiscordLink(email, { discordId: user.id, discordUsername: user.username });
     await updateDiscordSyncStatus(email, 'synced');
   } catch (e) {
     console.error(`[Discord] Airtable update failed: ${e.message}`);
+  }
+
+  // Burn the single-use nonce as a SEPARATE best-effort write (records this token
+  // as consumed so a replay of the same link is rejected above). Isolated so that
+  // a missing "Discord Auth Nonce Used" field cannot 422 the whole link-persist.
+  try {
+    await markDiscordAuthNonceUsed(email, nonce);
+  } catch (e) {
+    console.error(`[Discord] single-use nonce write failed (link still persisted): ${e.message}`);
   }
 
   // Fire Engage event (non-fatal)
