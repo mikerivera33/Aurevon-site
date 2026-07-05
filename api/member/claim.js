@@ -23,6 +23,7 @@
  */
 
 import crypto from 'node:crypto';
+import { waitUntil } from '@vercel/functions';
 import { findMemberByEmail, findActiveMintByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listNftMints, listPaymentsSince, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint } from '../_lib/airtable.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
 import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess } from '../_lib/entitlements.js';
@@ -175,13 +176,27 @@ async function handleClaim(req, res) {
 
   if (mintRecord) {
     // Real membership — deliver the tokenized access link to the inbox owner.
-    // Fire-and-forget failures are logged but never leak into the response.
-    try {
-      const result = await sendDiscordAccessLink({ email: normalizedEmail });
-      if (!result?.ok) console.error(`[Claim] access-link send failed: ${result?.error}`);
-    } catch (err) {
-      console.error(`[Claim] access-link send threw: ${err.message}`);
-    }
+    //
+    // TIMING ORACLE (M2): findActiveMintByEmail runs in BOTH branches, so the
+    // synchronous work is symmetric. But the Resend send is a ~100-800ms external
+    // HTTPS round-trip; awaiting it ONLY on the member branch would make member
+    // responses measurably slower than non-member responses, letting an anonymous
+    // caller enumerate who is/isn't a member by latency alone — reopening the very
+    // enumeration hole the uniform body closed. So we do NOT await the send here.
+    //
+    // We register it with waitUntil instead: the handler returns IMMEDIATELY in
+    // both branches (identical timing), while Vercel keeps the function alive until
+    // the send resolves. A bare un-awaited promise would NOT work — on Vercel it is
+    // frozen/killed the moment the function returns, silently dropping the email.
+    // Send failures are logged only (never surfaced) so nothing leaks into the
+    // uniform response.
+    waitUntil(
+      sendDiscordAccessLink({ email: normalizedEmail })
+        .then((result) => {
+          if (!result?.ok) console.error(`[Claim] access-link send failed: ${result?.error}`);
+        })
+        .catch((err) => console.error(`[Claim] access-link send threw: ${err.message}`))
+    );
   }
 
   return res.status(200).json({ ok: true, message: CLAIM_UNIFORM_MESSAGE });
