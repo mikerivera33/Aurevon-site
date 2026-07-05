@@ -5,6 +5,21 @@
 
 const RESEND_BASE_URL = 'https://api.resend.com';
 
+/**
+ * HTML-escape a user-controlled value before interpolating it into an email
+ * template (L4). Prevents HTML/phishing-content injection via payment-provider
+ * name fields and other caller-supplied text. Coerces null/undefined to ''.
+ */
+function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function getFromAddress() {
   const name = process.env.RESEND_FROM_NAME ?? 'Aurevon';
   const email = process.env.RESEND_FROM_EMAIL ?? 'mike@aurevonvc.com';
@@ -14,15 +29,19 @@ function getFromAddress() {
 /**
  * Build the branded HTML email for NFT delivery.
  */
-function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, discordInviteUrl, tier, serial, edition }) {
-  const firstName = customerName?.split(' ')[0] ?? 'Operator';
-  const tierLabel = tier ? tier.toUpperCase().replace('_', ' ') : 'MEMBER';
+export function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, discordInviteUrl, tier, serial, edition }) {
+  // User/provider-controlled text fields — escape before interpolating into HTML.
+  const firstName = escapeHtml(customerName?.split(' ')[0] ?? 'Operator');
+  const tierLabel = escapeHtml(tier ? tier.toUpperCase().replace('_', ' ') : 'MEMBER');
+  const safeNftType = escapeHtml(nftType);
+  const safeMintId = escapeHtml(mintId);
+  const safeSerial = escapeHtml(serial);
   const imageBlock = nftImageUrl
-    ? `<img src="${nftImageUrl}" alt="${nftType} NFT" style="display:block;width:100%;max-width:380px;margin:0 auto 12px;border-radius:12px;border:1px solid rgba(59,130,246,0.25);" />`
+    ? `<img src="${nftImageUrl}" alt="${safeNftType} NFT" style="display:block;width:100%;max-width:380px;margin:0 auto 12px;border-radius:12px;border:1px solid rgba(59,130,246,0.25);" />`
     : `<div style="width:100%;max-width:380px;height:200px;margin:0 auto 12px;background:linear-gradient(135deg,#1a1206,#2a1c08);border-radius:12px;border:1px solid rgba(59,130,246,0.25);display:flex;align-items:center;justify-content:center;"><span style="color:#3B82F6;font-size:14px;font-family:sans-serif;">NFT Image Loading...</span></div>`;
 
   const serialBlock = serial
-    ? `<div style="font-family:'Courier New',monospace;font-size:1.2rem;color:#3B82F6;letter-spacing:0.15em;text-align:center;margin:0.8rem 0;">${serial}</div>`
+    ? `<div style="font-family:'Courier New',monospace;font-size:1.2rem;color:#3B82F6;letter-spacing:0.15em;text-align:center;margin:0.8rem 0;">${safeSerial}</div>`
     : '';
 
   const editionDisplay = edition !== null ? String(edition).padStart(3, '0') : null;
@@ -36,7 +55,7 @@ function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, disc
 </head>
 <body style="margin:0;padding:0;background:#0A0A0A;font-family:'DM Sans',Arial,sans-serif;color:#d4d4d8;">
   <!-- Preheader -->
-  <div style="display:none;max-height:0;overflow:hidden;color:#0A0A0A;">Your ${nftType} NFT has been minted and delivered. Welcome to the operator tier.</div>
+  <div style="display:none;max-height:0;overflow:hidden;color:#0A0A0A;">Your ${safeNftType} NFT has been minted and delivered. Welcome to the operator tier.</div>
 
   <!-- Outer wrapper -->
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0A0A;padding:40px 16px;">
@@ -92,7 +111,7 @@ function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, disc
           <tr>
             <td style="padding:0 40px 28px;">
               <p style="margin:0 0 16px;font-size:16px;color:#d4d4d8;line-height:1.6;">
-                ${firstName}, you're now holding the <strong style="color:#3B82F6;">${nftType}</strong> — your proof-of-access on-chain. This NFT lives in your email wallet, no MetaMask required.
+                ${firstName}, you're now holding the <strong style="color:#3B82F6;">${safeNftType}</strong> — your proof-of-access on-chain. This NFT lives in your email wallet, no MetaMask required.
               </p>
               <p style="margin:0;font-size:15px;color:#a1a1aa;line-height:1.6;">
                 Inside the Aurevon community you'll find deal flow, operator resources, and direct access to the team. No fluff. No noise.
@@ -114,12 +133,12 @@ function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, disc
                     <table width="100%" cellpadding="0" cellspacing="0">
                       <tr>
                         <td style="padding:6px 0;font-size:14px;color:#71717a;">Token Name</td>
-                        <td align="right" style="padding:6px 0;font-size:14px;color:#3B82F6;font-weight:600;">${nftType}</td>
+                        <td align="right" style="padding:6px 0;font-size:14px;color:#3B82F6;font-weight:600;">${safeNftType}</td>
                       </tr>
                       ${serial ? `
                       <tr>
                         <td style="padding:6px 0;font-size:14px;color:#71717a;border-top:1px solid rgba(255,255,255,0.05);">Serial</td>
-                        <td align="right" style="padding:6px 0;font-size:13px;color:#3B82F6;font-family:monospace;font-weight:600;letter-spacing:0.1em;border-top:1px solid rgba(255,255,255,0.05);">${serial}</td>
+                        <td align="right" style="padding:6px 0;font-size:13px;color:#3B82F6;font-family:monospace;font-weight:600;letter-spacing:0.1em;border-top:1px solid rgba(255,255,255,0.05);">${safeSerial}</td>
                       </tr>` : ''}
                       ${editionDisplay ? `
                       <tr>
@@ -128,7 +147,7 @@ function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, disc
                       </tr>` : ''}
                       <tr>
                         <td style="padding:6px 0;font-size:14px;color:#71717a;border-top:1px solid rgba(255,255,255,0.05);">Mint ID</td>
-                        <td align="right" style="padding:6px 0;font-size:13px;color:#a1a1aa;font-family:monospace;word-break:break-all;border-top:1px solid rgba(255,255,255,0.05);">${mintId}</td>
+                        <td align="right" style="padding:6px 0;font-size:13px;color:#a1a1aa;font-family:monospace;word-break:break-all;border-top:1px solid rgba(255,255,255,0.05);">${safeMintId}</td>
                       </tr>
                       <tr>
                         <td style="padding:6px 0;font-size:14px;color:#71717a;border-top:1px solid rgba(255,255,255,0.05);">Delivery</td>
@@ -243,9 +262,9 @@ function tierDisplay(tier) {
   return TIER_DISPLAY_NAMES[tier] ?? (tier ?? '').toUpperCase();
 }
 
-function buildPurchaseConfirmHtml({ customerName, tier }) {
-  const firstName = customerName?.split(' ')[0] ?? 'Client';
-  const tierLabel = tierDisplay(tier);
+export function buildPurchaseConfirmHtml({ customerName, tier }) {
+  const firstName = escapeHtml(customerName?.split(' ')[0] ?? 'Client');
+  const tierLabel = escapeHtml(tierDisplay(tier));
   const isAddon = (tier ?? '').startsWith('addon_');
   const heading = isAddon ? 'Add-On Confirmed.' : 'Purchase Confirmed.';
   const blurb = isAddon
