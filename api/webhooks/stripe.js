@@ -13,6 +13,7 @@ import { createPayment, createNftMint, updateDiscordSyncStatus, findMemberByEmai
 import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
 import { resolveEntitlementFromSku, getRoleId, ENTITLEMENT_MAP } from '../_lib/entitlements.js';
 import { removeRoleFromMember } from '../_lib/discord-bot.js';
+import { sendAlert } from '../_lib/alert.js';
 
 // ---------------------------------------------------------------------------
 // Stripe signature verification (no Stripe SDK dependency)
@@ -78,6 +79,7 @@ export async function handleCheckoutSessionCompleted(session) {
         }
   } catch (err) {
         console.error(`[Stripe] Idempotency lookup failed for ${sessionId}: ${err.message} — aborting before mint`);
+        await sendAlert('stripe.idempotency_lookup_failed', { sessionId, error: err.message });
         return;
   }
 
@@ -114,6 +116,7 @@ export async function handleCheckoutSessionCompleted(session) {
         });
   } catch (err) {
         console.error(`[Stripe] createPayment (idempotency marker) failed for ${sessionId}: ${err.message} — aborting before mint`);
+        await sendAlert('stripe.payment_marker_failed', { sessionId, tier, error: err.message });
         return;
   }
 
@@ -191,11 +194,13 @@ export async function handleCheckoutSessionCompleted(session) {
         mintStatus = 'Failed';
         mintNotes = `Crossmint error: ${err.message}`;
         console.error(`[Stripe] Crossmint mint failed: ${err.message}`);
+        await sendAlert('stripe.mint_failed', { sessionId, tier, nftType, error: err.message });
   }
 
   // 7. Write NFT_Mints row — use serial as the reference; retry on collision (race condition guard)
   const reference = serial ?? `MINT_${sessionId.slice(-8)}_${nftType.replace(/\s+/g, '_')}`;
     let insertedSerial = serial;
+    let mintRowWritten = false;
 
   for (let attempt = 0; attempt < 3; attempt++) {
         const ref = attempt === 0 ? reference : (() => {
@@ -224,6 +229,7 @@ export async function handleCheckoutSessionCompleted(session) {
                         retryCount: 0,
               });
               if (!insertedSerial) insertedSerial = ref; // track actual ref for null-serial tiers
+              mintRowWritten = true;
               console.log(`[Stripe] NFT_Mints record created with reference=${ref}`);
               break;
       } catch (err) {
@@ -235,6 +241,14 @@ export async function handleCheckoutSessionCompleted(session) {
                         break;
               }
       }
+  }
+
+  // If the on-chain mint SUCCEEDED but no NFT_Mints row landed, this purchase is an
+  // orphan: the mint exists but nothing records it. Orphan-recovery + the idempotent
+  // mint key make it self-heal (no double-mint), but it must NOT be silent — alert so
+  // it's confirmed rather than discovered by a customer complaint.
+  if (!mintRowWritten) {
+        await sendAlert('stripe.mint_row_dropped', { sessionId, tier, nftType, minted: mintStatus === 'Sent' });
   }
 
   // 8. Parse edition number from serial for email

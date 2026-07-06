@@ -13,6 +13,7 @@ import { TIER_NFT_MAP, getNextSerial, formatSerial, inferTierFromAmount } from '
 import { mintToEmail } from '../_lib/crossmint.js';
 import { createPayment, createNftMint } from '../_lib/airtable.js';
 import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
+import { sendAlert } from '../_lib/alert.js';
 
 const PAYPAL_IPN_VERIFY_URL_LIVE    = 'https://ipnpb.paypal.com/cgi-bin/webscr';
 const PAYPAL_IPN_VERIFY_URL_SANDBOX = 'https://ipnpb.sandbox.paypal.com/cgi-bin/webscr';
@@ -134,6 +135,7 @@ async function handleVerifiedIPN(ipn) {
     });
   } catch (err) {
     console.error(`[PayPal IPN] createPayment (idempotency marker) failed: ${err.message} — aborting before mint`);
+    await sendAlert('paypal.payment_marker_failed', { txnId, tier: tier ?? 'unknown', error: err.message });
     return;
   }
 
@@ -194,11 +196,13 @@ async function handleVerifiedIPN(ipn) {
     mintStatus = 'Failed';
     mintNotes = `Crossmint error: ${err.message}`;
     console.error(`[PayPal IPN] Crossmint mint failed: ${err.message}`);
+    await sendAlert('paypal.mint_failed', { txnId, tier, nftType, error: err.message });
   }
 
   // Write NFT_Mints row — use serial as reference; retry on collision (race condition guard)
   const reference = serial ?? `MINT_${txnId.slice(-8)}_${nftType.replace(/\s+/g, '_')}`;
   let insertedSerial = serial;
+  let mintRowWritten = false;
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const ref = attempt === 0 ? reference : (() => {
@@ -227,6 +231,7 @@ async function handleVerifiedIPN(ipn) {
         retryCount: 0,
       });
       if (!insertedSerial) insertedSerial = ref; // track actual ref for null-serial tiers
+      mintRowWritten = true;
       console.log(`[PayPal IPN] NFT_Mints record created with reference=${ref}`);
       break;
     } catch (err) {
@@ -238,6 +243,12 @@ async function handleVerifiedIPN(ipn) {
         break;
       }
     }
+  }
+
+  // Minted on-chain but no NFT_Mints row landed → orphan (self-heals via recovery +
+  // idempotent key, but must be visible, not silent).
+  if (!mintRowWritten) {
+    await sendAlert('paypal.mint_row_dropped', { txnId, tier, nftType, minted: mintStatus === 'Sent' });
   }
 
   // Parse edition number from serial for email
