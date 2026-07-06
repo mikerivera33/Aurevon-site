@@ -61,6 +61,35 @@ describe('handleRetryMints idempotency', () => {
     expect(report.retried).toBe(1);
   });
 
+  it('reuses the original payment id as the mint idempotency key for a recovered orphan', async () => {
+    // The double-mint fix: a recovered orphan row is `RECOVER_<txnId>`, and the
+    // webhook minted with THAT txnId as its Crossmint key. Reusing it makes this
+    // re-mint a server-side no-op (returns the existing NFT) instead of a 2nd asset.
+    airtable.listFailedMints.mockResolvedValueOnce([
+      { id: 'recOrphan', fields: { Email: 'buyer@example.com', 'NFT Type': 'Aurevon Insider', 'Tier Source': 'full', Reference: 'RECOVER_cs_live_ABC123' } },
+    ]);
+    airtable.findActiveMintByEmailAndType.mockResolvedValueOnce(null); // no row yet (that's why it orphaned)
+
+    await handleRetryMints();
+
+    expect(crossmint.mintToEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'cs_live_ABC123' })
+    );
+  });
+
+  it('falls back to a stable per-row key when the Reference is a plain serial', async () => {
+    airtable.listFailedMints.mockResolvedValueOnce([
+      { id: 'recPlain', fields: { Email: 'x@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', Reference: 'EMB_0007' } },
+    ]);
+    airtable.findActiveMintByEmailAndType.mockResolvedValueOnce(null);
+
+    await handleRetryMints();
+
+    expect(crossmint.mintToEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'EMB_0007' })
+    );
+  });
+
   it('does NOT stamp a row Sent when the retry mint returns ok:false', async () => {
     airtable.listFailedMints.mockResolvedValueOnce([
       { id: 'recFailed3', fields: { Email: 'fail@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer' } },

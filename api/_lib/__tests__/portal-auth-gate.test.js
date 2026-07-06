@@ -11,6 +11,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import handler from '../../portal/data.js';
 
 const MEMBERS = process.env.AIRTABLE_TABLE_MEMBERS ?? 'tblYPn7hxnrgH723B';
+const PAYMENTS = process.env.AIRTABLE_TABLE_PAYMENTS ?? 'tbl6KlhM9fIH19W5i';
 const RESEND = 'api.resend.com/emails';
 
 const SAVED = { ...process.env };
@@ -31,13 +32,14 @@ function authReq(email) {
 
 /** Route fetch by URL: membership tables return `members` for the MEMBERS table
  *  (others empty), Resend + Airtable writes are recorded. */
-function installFetch({ memberRows = [] } = {}) {
-  const calls = { resend: 0, authWrite: 0 };
+function installFetch({ memberRows = [], paymentRows = [] } = {}) {
+  const calls = { resend: 0, authWrite: 0, paymentQuery: null };
   vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => {
     if (url.includes(RESEND)) { calls.resend++; return { ok: true, text: async () => 'ok', json: async () => ({}) }; }
     if (url.includes(MEMBERS)) return { ok: true, json: async () => ({ records: memberRows }) };
+    if (url.includes(PAYMENTS)) { calls.paymentQuery = decodeURIComponent(url); return { ok: true, json: async () => ({ records: paymentRows }) }; }
     if ((opts.method === 'POST' || opts.method === 'PATCH')) { calls.authWrite++; return { ok: true, json: async () => ({ id: 'rec1' }) }; }
-    return { ok: true, json: async () => ({ records: [] }) }; // NFT / Payments / auth GET
+    return { ok: true, json: async () => ({ records: [] }) }; // NFT / auth GET
   }));
   return calls;
 }
@@ -65,6 +67,18 @@ describe('portal auth membership gate', () => {
     await handler(authReq('member@example.com'), r);
     expect(r.statusCode).toBe(200);
     expect(calls.resend).toBe(1);
+  });
+
+  it('add-on-only buyer (Payments row, no Members/NFT) is NOT locked out', async () => {
+    // Regression: Payments stores 'Customer Email', not 'Email'. An add-on purchase
+    // creates only a Payments row — querying the wrong field would silently deny a
+    // real payer their portal login link.
+    const calls = installFetch({ paymentRows: [{ id: 'p1', fields: { 'Customer Email': 'addon@example.com' } }] });
+    const r = res();
+    await handler(authReq('addon@example.com'), r);
+    expect(r.statusCode).toBe(200);
+    expect(calls.resend).toBe(1); // link WAS sent
+    expect(calls.paymentQuery.replace(/\+/g, ' ')).toContain('Customer Email'); // queried the field createPayment writes (spaces are +-encoded in the query string)
   });
 
   it('non-member response is byte-identical to the member success message (no oracle)', async () => {

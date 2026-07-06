@@ -78,10 +78,14 @@ async function handleAuth(req, res) {
   // Firewall) is still required — this stops NON-member bombing, but a member inbox
   // can still be hit (cooldown-bounded), and claim/verify/csp-report stay unthrottled.
   const memberFormula = `LOWER({Email})="${normalizedEmail}"`;
+    // Payments stores the buyer address as 'Customer Email' (airtable.js createPayment),
+    // NOT 'Email' — an add-on-only buyer has a Payments row but no Members/NFT row, so
+    // querying the wrong field here would silently lock a real payer out of the portal.
+    const paymentFormula = `LOWER({Customer Email})="${normalizedEmail}"`;
     const [memberHits, mintHits, paymentHits] = await Promise.all([
           fetchRecords(MEMBERS_TABLE, memberFormula),
           fetchRecords(NFT_TABLE, memberFormula),
-          fetchRecords(PAYMENTS_TABLE, memberFormula),
+          fetchRecords(PAYMENTS_TABLE, paymentFormula),
         ]);
     if (memberHits.length === 0 && mintHits.length === 0 && paymentHits.length === 0) {
           return res.status(200).json({ ok: true, message: 'Check your email for a login link.' });
