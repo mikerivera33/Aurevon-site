@@ -1,19 +1,21 @@
 /**
  * Member claim + reconcile endpoint — /api/member/claim
  *
- * POST  body: { email, discordId?, discordUsername?, walletAddress? }
- *   → Links Discord/wallet to member record
- *   → If active entitlement exists and Discord is linked, assigns role immediately
- *   → Returns member status
+ * POST  body: { email }   ("request my access link" — UNAUTHENTICATED, public)
+ *   → Looks up membership READ-ONLY. If a real mint exists, emails a signed,
+ *     email-bound, expiring, single-use Discord access link to that inbox.
+ *   → ALWAYS returns the same uniform body — no membership/tier disclosure (M2),
+ *     no member-row writes. Discord binding happens ONLY via the token-gated
+ *     OAuth flow in api/discord.js.
  *
- * GET  ?action=reconcile&secret=<RECONCILE_SECRET>
- *   → Finds members with Discord linked but sync pending
- *   → Assigns roles for all pending members
- *   → Finds monthly members whose access should be revoked
- *   → Returns reconcile report
+ * All GET actions are secret-gated. Secret is HEADER-ONLY (L2):
+ *   Authorization: Bearer <RECONCILE_SECRET|CRON_SECRET>  (never ?secret=)
  *
- * GET  ?action=status&email=<email>&secret=<RECONCILE_SECRET>
- *   → Returns member entitlement + sync status
+ * GET  ?action=reconcile
+ *   → Assigns roles for pending members, revokes expired monthly members, etc.
+ *
+ * GET  ?action=status&email=<email>
+ *   → Operator-only: returns member entitlement + sync status.
  *
  * POST ?action=mint
  *   body: { recipientEmail, walletAddress?, passType, metadata? }
@@ -21,10 +23,12 @@
  */
 
 import crypto from 'node:crypto';
-import { upsertMemberByEmail, findMemberByEmail, findActiveMintByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listNftMints, listPaymentsSince, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint } from '../_lib/airtable.js';
+import { waitUntil } from '@vercel/functions';
+import { findMemberByEmail, findActiveMintByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listNftMints, listPaymentsSince, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint } from '../_lib/airtable.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
 import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
+import { sendDiscordAccessLink } from '../_lib/email.js';
 
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 
@@ -42,7 +46,11 @@ function getReconcileSecrets() {
 export function validateReconcileSecret(req) {
   const secrets = getReconcileSecrets();
   if (secrets.length === 0) return false;
-  const provided = req.query?.secret ?? req.headers?.['authorization']?.replace('Bearer ', '') ?? '';
+  // Header-only (L2): the secret must arrive via `Authorization: Bearer <secret>`,
+  // never via ?secret= — query strings are captured in Vercel/CDN access logs.
+  // Vercel cron already sends the Bearer header; manual operator flows must too.
+  const authHeader = req.headers?.['authorization'] ?? '';
+  const provided = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length).trim() : '';
   if (!provided) return false;
   return secrets.some((secret) => {
     if (provided.length !== secret.length) return false;
@@ -135,6 +143,11 @@ async function handleMint(req, res) {
 
 // ── POST: claim / link ───────────────────────────────────────────────────────
 
+// Uniform, non-disclosing reply. Same body regardless of membership state so an
+// anonymous caller cannot use this endpoint as a membership/tier enumeration oracle.
+const CLAIM_UNIFORM_MESSAGE =
+  "If this email has an Aurevon membership, we've emailed your secure access link. Check your inbox (and spam).";
+
 async function handleClaim(req, res) {
   const { email } = req.body ?? {};
 
@@ -144,22 +157,16 @@ async function handleClaim(req, res) {
 
   const normalizedEmail = email.toLowerCase().trim();
 
-  // SECURITY: this endpoint is UNAUTHENTICATED (the public member-claim page posts
-  // only { email }). We therefore DO NOT honor a body-supplied discordId /
-  // discordUsername / walletAddress and DO NOT assign Discord roles here.
-  // Previously a request like { email: victim@x.com, discordId: <attacker> } both
-  // granted the attacker the role immediately AND persisted the attacker's Discord
-  // ID onto the victim's member record — after which the reconcile/sync crons would
-  // keep re-granting it forever (persistent privilege escalation / entitlement
-  // theft). The ONLY legitimate way to bind a Discord account is the OAuth flow in
-  // api/discord.js, which proves control of the account via signed HMAC state.
-  try {
-    await upsertMemberByEmail(normalizedEmail, { 'Active': true });
-  } catch (err) {
-    return res.status(502).json({ error: 'Failed to update member record', detail: err.message });
-  }
-
-  // Find active mint (read-only status lookup)
+  // SECURITY (M2): this endpoint is UNAUTHENTICATED. It MUST NOT:
+  //   (a) disclose membership/NFT/tier details (enumeration oracle), or
+  //   (b) write member rows for arbitrary emails (table pollution — the old
+  //       upsertMemberByEmail(email,{Active:true}) let anyone create Active members).
+  // Instead we treat this as "request my access link": look up the mint READ-ONLY,
+  // and if (and only if) a real membership exists, EMAIL a signed, email-bound,
+  // expiring, single-use Discord access link to that address — so only the inbox
+  // owner learns their status and can complete linking. We ALWAYS return the same
+  // uniform body. We also do NOT honor any body-supplied discordId/wallet: the ONLY
+  // way to bind a Discord account is the token-gated OAuth flow in api/discord.js.
   let mintRecord = null;
   try {
     mintRecord = await findActiveMintByEmail(normalizedEmail);
@@ -167,29 +174,32 @@ async function handleClaim(req, res) {
     console.error(`[Claim] findActiveMintByEmail error: ${err.message}`);
   }
 
-  if (!mintRecord) {
-    return res.status(200).json({
-      ok: true,
-      message: 'Member record updated. No active NFT found yet — check back after purchase.',
-      discordLinked: false,
-      nftFound: false,
-    });
+  if (mintRecord) {
+    // Real membership — deliver the tokenized access link to the inbox owner.
+    //
+    // TIMING ORACLE (M2): findActiveMintByEmail runs in BOTH branches, so the
+    // synchronous work is symmetric. But the Resend send is a ~100-800ms external
+    // HTTPS round-trip; awaiting it ONLY on the member branch would make member
+    // responses measurably slower than non-member responses, letting an anonymous
+    // caller enumerate who is/isn't a member by latency alone — reopening the very
+    // enumeration hole the uniform body closed. So we do NOT await the send here.
+    //
+    // We register it with waitUntil instead: the handler returns IMMEDIATELY in
+    // both branches (identical timing), while Vercel keeps the function alive until
+    // the send resolves. A bare un-awaited promise would NOT work — on Vercel it is
+    // frozen/killed the moment the function returns, silently dropping the email.
+    // Send failures are logged only (never surfaced) so nothing leaks into the
+    // uniform response.
+    waitUntil(
+      sendDiscordAccessLink({ email: normalizedEmail })
+        .then((result) => {
+          if (!result?.ok) console.error(`[Claim] access-link send failed: ${result?.error}`);
+        })
+        .catch((err) => console.error(`[Claim] access-link send threw: ${err.message}`))
+    );
   }
 
-  const nftType        = mintRecord.fields['NFT Type'] ?? '';
-  const entitlementKey = resolveEntitlementFromNftType(nftType);
-
-  return res.status(200).json({
-    ok: true,
-    email: normalizedEmail,
-    nftFound: true,
-    nftType,
-    mintStatus: mintRecord.fields['Mint Status'] ?? null,
-    entitlementKey,
-    discordLinked: false,
-    // Always direct the user to the authenticated OAuth linking flow.
-    discordAuthUrl: `${DOMAIN}/api/discord?action=auth&email=${encodeURIComponent(normalizedEmail)}`,
-  });
+  return res.status(200).json({ ok: true, message: CLAIM_UNIFORM_MESSAGE });
 }
 
 // ── Orphan-payment recovery ──────────────────────────────────────────────────
@@ -401,9 +411,11 @@ async function handleStatus(email, res) {
     discordId:     member?.fields?.['Discord ID'] ?? null,
     discordSync:   member?.fields?.['Discord Sync Status'] ?? null,
     entitlementKey: mint ? resolveEntitlementFromNftType(mint.fields?.['NFT Type'] ?? '') : null,
-    discordAuthUrl: !member?.fields?.['Discord ID']
-      ? `${DOMAIN}/api/discord?action=auth&email=${encodeURIComponent(normalizedEmail)}`
-      : null,
+    // Operator-only (this handler is secret-gated). Do NOT emit a forgeable
+    // ?email= auth URL — /api/discord?action=auth now requires a signed token that
+    // only the member can obtain via their emailed access link. Point operators at
+    // the member-claim page, which triggers that tokenized email.
+    claimPageUrl: !member?.fields?.['Discord ID'] ? `${DOMAIN}/member-claim.html` : null,
   });
 }
 
@@ -492,7 +504,7 @@ export default async function handler(req, res) {
     const action = req.query?.action ?? 'status';
 
     if (!validateReconcileSecret(req)) {
-      return res.status(401).json({ error: 'Unauthorized — provide ?secret= or Authorization: Bearer header' });
+      return res.status(401).json({ error: 'Unauthorized — provide Authorization: Bearer <secret> header' });
     }
 
     if (action === 'reconcile') {
