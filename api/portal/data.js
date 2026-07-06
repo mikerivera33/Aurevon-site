@@ -12,7 +12,10 @@
 import crypto from 'node:crypto';
 
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
+// No stale fallback — a missing AIRTABLE_BASE_ID previously resolved to a hardcoded
+// dev base, silently reading/writing the wrong base. The action handlers already
+// guard on AIRTABLE_PAT and surface a configuration error.
+const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AUTH_TABLE = process.env.AIRTABLE_TABLE_CUSTOMER_AUTH ?? 'tblbCS7TL65FcOiWn';
 const PAYMENTS_TABLE = process.env.AIRTABLE_TABLE_PAYMENTS ?? 'tbl6KlhM9fIH19W5i';
 const NFT_TABLE = process.env.AIRTABLE_TABLE_NFT_MINTS ?? 'tbliXEGJdoEIAJU06';

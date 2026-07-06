@@ -11,7 +11,7 @@
 import { waitUntil } from '@vercel/functions';
 import { TIER_NFT_MAP, getNextSerial, formatSerial, inferTierFromAmount } from '../_lib/tiers.js';
 import { mintToEmail } from '../_lib/crossmint.js';
-import { createPayment, createNftMint } from '../_lib/airtable.js';
+import { createPayment, createNftMint, findPaymentByTransactionId } from '../_lib/airtable.js';
 import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
 
@@ -331,20 +331,15 @@ async function processIPN(rawBody) {
   const ipn = parseIPN(rawBody);
   console.log(`[PayPal IPN] Verified. txn_id=${ipn.txn_id}, payment_status=${ipn.payment_status}`);
 
-  // Idempotency check — skip if this txn_id has already been processed
+  // Idempotency check — skip if this txn_id has already been processed. Uses the
+  // shared airtable helper instead of a bespoke raw fetch: it resolves the base/table
+  // via the same (now fail-loud, no stale hardcoded fallback) config path and runs the
+  // Transaction ID through escapeFormulaValue. Proceed-anyway on error is preserved.
   const txnId = ipn.txn_id;
   if (txnId) {
     try {
-      const airtableBase = process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
-      const airtablePat  = process.env.AIRTABLE_PAT;
-      const paymentsTableId = process.env.AIRTABLE_TABLE_PAYMENTS ?? 'tbl6KlhM9fIH19W5i';
-      const filterFormula = encodeURIComponent(`{Transaction ID}="${txnId}"`);
-      const checkUrl = `https://api.airtable.com/v0/${airtableBase}/${paymentsTableId}?filterByFormula=${filterFormula}&maxRecords=1`;
-      const checkRes = await fetch(checkUrl, {
-        headers: { Authorization: `Bearer ${airtablePat}` },
-      });
-      const checkData = await checkRes.json();
-      if (checkData.records && checkData.records.length > 0) {
+      const prior = await findPaymentByTransactionId(txnId);
+      if (prior) {
         console.log(`[PayPal IPN] Duplicate txn_id ${txnId} — skipping`);
         return;
       }

@@ -26,7 +26,12 @@ const TABLE = {
 };
 
 function getBase() {
-  return process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
+  // No stale fallback: a missing AIRTABLE_BASE_ID used to silently resolve to a
+  // hardcoded dev base (appI9X8vcRcK1QZ1l), so a misconfigured deploy would read/write
+  // the WRONG base instead of erroring. Fail loud instead (mirrors getHeaders()).
+  const base = process.env.AIRTABLE_BASE_ID;
+  if (!base) throw new Error('Missing AIRTABLE_BASE_ID env var');
+  return base;
 }
 
 /**

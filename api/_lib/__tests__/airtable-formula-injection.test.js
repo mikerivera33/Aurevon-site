@@ -88,7 +88,7 @@ describe('escapeFormulaValue', () => {
 });
 
 describe('formula-building call sites neutralize injected quotes', () => {
-  beforeEach(() => { process.env.AIRTABLE_PAT = 'test_pat'; });
+  beforeEach(() => { process.env.AIRTABLE_PAT = 'test_pat'; process.env.AIRTABLE_BASE_ID = 'app_test'; });
   afterEach(() => { vi.unstubAllGlobals(); });
 
   async function assertNoBreakout(fn) {

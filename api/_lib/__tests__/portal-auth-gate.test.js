@@ -48,6 +48,7 @@ describe('portal auth membership gate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.AIRTABLE_PAT = 'pat_test';
+    process.env.AIRTABLE_BASE_ID = 'app_test';
     process.env.RESEND_API_KEY = 're_test';
   });
 
