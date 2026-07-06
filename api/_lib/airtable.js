@@ -386,6 +386,29 @@ export async function listPendingDiscordSync({ maxRecords = 50 } = {}) {
 }
 
 /**
+ * Write recurring-membership entitlement state onto a member row so the daily
+ * revocation backstop (listOutOfSyncEntitlements + shouldRevokeAccess) has the
+ * fields it reads. Nothing wrote these before, so the backstop matched no one.
+ *
+ * Fields written (must exist on the Members table for the backstop to function):
+ *   Entitlement Type, Entitlement Status, Entitlement Expires At, Billing State
+ *
+ * This is a SEPARATE, isolated write. Callers wrap it in try/catch so that if the
+ * Members table is missing any of these fields (Airtable 422s the whole PATCH on an
+ * unknown field), only entitlement tracking degrades — the mint/payment path is
+ * untouched. Mirrors the defensive split used by markDiscordAuthNonceUsed.
+ */
+export async function updateEntitlementState(email, { entitlementType, status, expiresAt, billingState } = {}) {
+  const fields = {};
+  if (entitlementType !== undefined) fields['Entitlement Type'] = entitlementType;
+  if (status !== undefined) fields['Entitlement Status'] = status;
+  if (expiresAt !== undefined) fields['Entitlement Expires At'] = expiresAt;
+  if (billingState !== undefined) fields['Billing State'] = billingState;
+  if (Object.keys(fields).length === 0) return null;
+  return upsertMemberByEmail(email, fields);
+}
+
+/**
  * List monthly members whose entitlement should be revoked (expired + past grace period).
  * Checks for `Entitlement Expires At` field being in the past beyond the grace period.
  */
