@@ -68,6 +68,25 @@ async function handleAuth(req, res) {
           return res.status(400).json({ error: 'Invalid email format' });
     }
 
+  // Membership gate (abuse control). Only send a login link — and only write a
+  // CustomerAuth row — for an email that already belongs to a member. Without this,
+  // this UNAUTHENTICATED endpoint emails arbitrary attacker-chosen inboxes (spam
+  // from our verified sender → domain-reputation damage) and floods the auth table.
+  // Check the canonical membership tables (Members / NFT_Mints / Payments) so comped
+  // or NFT-only members aren't locked out. Return the SAME success body either way so
+  // it can't be used as a membership oracle. NOTE: a per-IP rate limit (Vercel
+  // Firewall) is still required — this stops NON-member bombing, but a member inbox
+  // can still be hit (cooldown-bounded), and claim/verify/csp-report stay unthrottled.
+  const memberFormula = `LOWER({Email})="${normalizedEmail}"`;
+    const [memberHits, mintHits, paymentHits] = await Promise.all([
+          fetchRecords(MEMBERS_TABLE, memberFormula),
+          fetchRecords(NFT_TABLE, memberFormula),
+          fetchRecords(PAYMENTS_TABLE, memberFormula),
+        ]);
+    if (memberHits.length === 0 && mintHits.length === 0 && paymentHits.length === 0) {
+          return res.status(200).json({ ok: true, message: 'Check your email for a login link.' });
+    }
+
   try {
         // Cooldown: check if a link was issued < 1 minute ago
       const existing = await fetchRecords(AUTH_TABLE, `LOWER({Email})="${normalizedEmail}"`);
