@@ -180,6 +180,10 @@ async function handleVerifiedIPN(ipn) {
       serial,
       collectionName,
       tierKey: tier,
+      // Idempotency key = PayPal txn_id. If this mint succeeds but the NFT_Mints
+      // write below fails, orphan-recovery → retry-mints re-calls Crossmint with
+      // THIS SAME key, returning the existing NFT instead of double-minting.
+      idempotencyKey: txnId,
     });
     if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
     mintId = result.actionId;

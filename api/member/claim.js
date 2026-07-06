@@ -459,13 +459,25 @@ export async function handleRetryMints() {
     const serialPrefix  = tierConfig?.serialPrefix ?? null;
     const collectionName = tierConfig?.collectionName ?? null;
 
+    // Idempotency key for the retry mint. A recovered orphan row carries the
+    // original payment id as `RECOVER_<txnId>` (see recoverOrphanPayments), and the
+    // webhook minted with THAT SAME txnId as its key — so reusing it makes this retry
+    // a Crossmint no-op (returns the existing NFT) if the webhook actually minted but
+    // its Airtable row write failed. For a genuinely-failed webhook mint (Reference is
+    // a serial, no prior on-chain asset) the Reference is still a stable per-row key,
+    // so repeated retries of the same row can't double-mint either.
+    const reference = record.fields?.['Reference'] ?? '';
+    const idempotencyKey = reference.startsWith('RECOVER_')
+      ? reference.slice('RECOVER_'.length)
+      : (reference || `retry_${record.id}`);
+
     let serial = null;
     if (serialPrefix) {
       try { serial = await getNextSerial(serialPrefix); } catch { /* continue without serial */ }
     }
 
     try {
-      const result = await mintToEmail({ email, nftType, customerName: email, templateKey, serial, collectionName, tierKey: tier });
+      const result = await mintToEmail({ email, nftType, customerName: email, templateKey, serial, collectionName, tierKey: tier, idempotencyKey });
       // mintToEmail returns {ok:false} on API failure (it only throws for config errors).
       // Without this check a failed retry was stamped 'Sent' with an undefined Token ID,
       // leaving listFailedMints forever and poisoning the idempotency guard.

@@ -176,6 +176,11 @@ export async function handleCheckoutSessionCompleted(session) {
                 serial,
                 collectionName,
                 tierKey: tier,
+                // Idempotency key = Stripe session id. If this mint succeeds but the
+                // NFT_Mints write below fails, orphan-recovery → retry-mints re-calls
+                // Crossmint with THIS SAME key, which returns the existing NFT instead
+                // of minting a second on-chain asset (the double-mint fix).
+                idempotencyKey: sessionId,
         });
         if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
         mintId = result.actionId;
