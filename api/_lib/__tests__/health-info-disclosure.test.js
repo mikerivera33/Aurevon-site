@@ -76,6 +76,20 @@ describe('GET /api/health — info disclosure (L1)', () => {
     expect(res.body.version).toBeUndefined();
   });
 
+  it('a bearer with equal STRING length but different BYTE length does not throw (byte-length guard) and gets the minimal body', () => {
+    // secret is 29 chars / 29 bytes. This provided value is also 29 JS chars but
+    // 30 bytes (the 'é' is 2 UTF-8 bytes) — a string-length-only guard would pass
+    // it into timingSafeEqual, which throws RangeError on byte-length mismatch.
+    process.env.INTERNAL_API_SECRET = 'health_diag_secret_0123456789';
+    const res = mockRes();
+    expect(() =>
+      handler({ method: 'GET', headers: { authorization: 'Bearer health_diag_secret_012345678é' }, query: {} }, res),
+    ).not.toThrow();
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, status: 'healthy' });
+    expect(res.body.version).toBeUndefined();
+  });
+
   it('still rejects non-GET methods with 405', () => {
     const res = mockRes();
     handler({ method: 'POST', headers: {}, query: {} }, res);

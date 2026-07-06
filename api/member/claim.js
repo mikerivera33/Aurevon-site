@@ -32,8 +32,8 @@ import { sendDiscordAccessLink } from '../_lib/email.js';
 
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 
-// Two callers authenticate here with DIFFERENT secrets:
-//   - operator.html / manual retries  → ?secret=<RECONCILE_SECRET>
+// Two callers authenticate here with DIFFERENT secrets (both via header only, L2):
+//   - operator.html / manual retries  → Authorization: Bearer <RECONCILE_SECRET>
 //   - Vercel cron (retry-mints, reconcile) → Authorization: Bearer <CRON_SECRET>
 // Vercel only attaches that Bearer header when CRON_SECRET is set in the env.
 // Accepting EITHER configured secret means both paths authenticate even when

@@ -123,10 +123,18 @@ export default function handler(req, res) {
   const secret = process.env.INTERNAL_API_SECRET;
   const rawAuth = req.headers?.authorization ?? '';
   const provided = rawAuth.startsWith('Bearer ') ? rawAuth.slice(7) : '';
-  const authed =
-        Boolean(secret) &&
-        provided.length === secret.length &&
-        crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(secret));
+  // Compare on BYTE length (not JS string length) and wrap timingSafeEqual in
+  // try/catch — it throws RangeError on a byte-length mismatch, which a
+  // string-length guard does not prevent (multi-byte chars). Fails CLOSED to the
+  // minimal body on any mismatch/error. Matches the pattern in discord.js/claim.js.
+  let authed = false;
+  if (secret) {
+        const bufProvided = Buffer.from(provided);
+        const bufSecret = Buffer.from(secret);
+        if (bufProvided.length === bufSecret.length) {
+              try { authed = crypto.timingSafeEqual(bufProvided, bufSecret); } catch { authed = false; }
+        }
+  }
 
   if (!authed) {
         return res.status(200).json({ ok: true, status: 'healthy' });
