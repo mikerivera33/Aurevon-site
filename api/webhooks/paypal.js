@@ -85,7 +85,7 @@ export function inferTierFromIPN(ipn) {
 // Core pipeline (mirrors stripe handler)
 // ---------------------------------------------------------------------------
 
-async function handleVerifiedIPN(ipn) {
+export async function handleVerifiedIPN(ipn) {
   const txnId = ipn.txn_id ?? `pp_${Date.now()}`;
   const customerEmail = ipn.payer_email;
   const customerName = [ipn.first_name, ipn.last_name].filter(Boolean).join(' ') || 'Aurevon Member';
@@ -106,11 +106,17 @@ async function handleVerifiedIPN(ipn) {
     return;
   }
 
-  // Validate receiver email to prevent fraud
+  // Validate receiver email to prevent fraud. FAIL CLOSED: if PAYPAL_BUSINESS_EMAIL
+  // is unset we cannot prove the payment was made to us, so we refuse to mint/grant
+  // rather than trusting an unverifiable receiver. Compare case-insensitively —
+  // PayPal does not guarantee casing on receiver_email.
   const businessEmail = process.env.PAYPAL_BUSINESS_EMAIL;
   if (!businessEmail) {
-    console.warn('[PayPal IPN] PAYPAL_BUSINESS_EMAIL not set — receiver validation skipped. Set this env var in production.');
-  } else if (ipn.receiver_email !== businessEmail) {
+    console.error('[PayPal IPN] PAYPAL_BUSINESS_EMAIL not set — refusing to process (fail-closed). Set this env var in production.');
+    await sendAlert('paypal.business_email_unset', { txnId });
+    return;
+  }
+  if ((ipn.receiver_email ?? '').toLowerCase() !== businessEmail.toLowerCase()) {
     console.warn(`[PayPal IPN] Receiver mismatch: got ${ipn.receiver_email}, expected ${businessEmail}`);
     return;
   }

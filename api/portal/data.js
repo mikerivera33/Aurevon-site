@@ -21,6 +21,12 @@ const PAYMENTS_TABLE = process.env.AIRTABLE_TABLE_PAYMENTS ?? 'tbl6KlhM9fIH19W5i
 const NFT_TABLE = process.env.AIRTABLE_TABLE_NFT_MINTS ?? 'tbliXEGJdoEIAJU06';
 const MEMBERS_TABLE = process.env.AIRTABLE_TABLE_MEMBERS ?? 'tblYPn7hxnrgH723B';
 
+// Sessions expire 30 days after issue. The issue time is encoded in the session
+// token itself (`<base36 ms>.<random hex>`) so the TTL needs no extra Airtable
+// field. A token with no timestamp prefix (legacy / malformed) is treated as
+// expired and forces a fresh magic-link login.
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
 function getAirtableHeaders() {
     const pat = process.env.AIRTABLE_PAT ?? process.env.AIRTABLE_API_KEY;
     if (!pat) throw new Error('Missing AIRTABLE_PAT env var');
@@ -163,7 +169,7 @@ async function handleVerify(req, res) {
                 return res.status(401).json({ error: INVALID_MSG });
         }
 
-      const sessionToken = crypto.randomBytes(32).toString('hex');
+      const sessionToken = `${Date.now().toString(36)}.${crypto.randomBytes(32).toString('hex')}`;
         const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AUTH_TABLE}/${record.id}`;
         const updateResp = await fetch(url, {
                 method: 'PATCH',
@@ -199,10 +205,19 @@ async function handleData(req, res) {
         if (authRecords.length === 0) return res.status(401).json({ error: 'Session not found' });
 
       const authFields = authRecords[0].fields;
-        const storedToken = authFields['Session Token'] ?? authFields['Magic Link Token'] ?? '';
+        // Only the Session Token grants data access. The Magic Link Token is a
+        // one-time login credential (consumed at verify) — accepting it here would
+        // let a captured magic link act as a durable session.
+        const storedToken = authFields['Session Token'] ?? '';
         if (!authFields['Session Active'] || !storedToken ||
                     storedToken.length !== sessionToken.length ||
                     !crypto.timingSafeEqual(Buffer.from(storedToken, 'utf8'), Buffer.from(sessionToken, 'utf8'))) {
+                return res.status(401).json({ error: 'Session expired. Please log in again.' });
+        }
+        // Enforce the 30-day TTL from the timestamp embedded in the token.
+        const dotIdx = storedToken.indexOf('.');
+        const issuedAt = dotIdx > 0 ? parseInt(storedToken.slice(0, dotIdx), 36) : NaN;
+        if (!Number.isFinite(issuedAt) || Date.now() - issuedAt > SESSION_TTL_MS) {
                 return res.status(401).json({ error: 'Session expired. Please log in again.' });
         }
 
