@@ -15,6 +15,12 @@
 //   3. Hero `<img src>` ↔ `<link rel="preload">` href must be byte-identical
 //      per page — a mismatch (encoding, leading slash, etc.) silently breaks
 //      the preload optimization and can cause a double-fetch.
+//
+//   4. Portal auth handler (`api/portal/data.js`) must not reference CustomerAuth
+//      Airtable fields that don't exist. The real columns are `Magic Token` /
+//      `Token Expires` (no `Used` field). Writing `Magic Link Token` /
+//      `Token Expiry` / `Used` makes every Airtable write 422 → the login-link
+//      request 500s and portal login is dead. This guard pins the field names.
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -75,6 +81,27 @@ describe('JSON-LD pricing ↔ tiers.js', () => {
       expect(drift, `prices in ${page} JSON-LD that don't exist in tiers.js _BASE: ${JSON.stringify(drift)}`).toEqual([]);
     });
   }
+});
+
+describe('portal auth ↔ CustomerAuth field names', () => {
+  // The CustomerAuth table (Airtable base appI9X8vcRcK1QZ1l, tbl bCS7TL65FcOiWn)
+  // has these columns; Airtable rejects a write to any name not in this set with
+  // a 422, which surfaces as a 500 to the user. These three names were the drift
+  // that broke portal login — fail the build if any reappears in data.js.
+  const FORBIDDEN_FIELDS = ['Magic Link Token', 'Token Expiry', 'Used'];
+
+  it('data.js does not reference removed/renamed CustomerAuth fields', () => {
+    const src = read('api/portal/data.js');
+    // Only look at quoted field references, so the explanatory comment on the
+    // one-time-use PATCH (which mentions "Used" in prose) doesn't trip the guard.
+    const offenders = FORBIDDEN_FIELDS.filter(
+      (f) => src.includes(`'${f}'`) || src.includes(`"${f}"`),
+    );
+    expect(
+      offenders,
+      `data.js references nonexistent CustomerAuth field(s): ${JSON.stringify(offenders)} — real fields are 'Magic Token' / 'Token Expires'`,
+    ).toEqual([]);
+  });
 });
 
 describe('hero preload ↔ rendered image (img src or picture > source srcset)', () => {
