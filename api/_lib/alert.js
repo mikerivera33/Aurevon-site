@@ -29,9 +29,11 @@ export async function sendAlert(event, detail = {}) {
     await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // `text` satisfies Slack/Discord incoming webhooks; `event`/`detail`/`ts`
+      // `text` satisfies Slack incoming webhooks; `content` satisfies Discord
+      // (Discord ignores `text` and 400s a body with no `content`/`embeds`).
+      // Sending both makes one URL work for either sink. `event`/`detail`/`ts`
       // give structured consumers the same data.
-      body: JSON.stringify({ text, event, detail, ts: new Date().toISOString() }),
+      body: JSON.stringify({ text, content: text, event, detail, ts: new Date().toISOString() }),
     });
     return { ok: true };
   } catch (err) {
