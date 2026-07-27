@@ -106,6 +106,13 @@ function passType(tierKey) {
  * @param {string} serial - Unique serial number for this pass
  * @param {string} collectionName - Collection name for metadata
  * @param {string} tierKey - Internal tier key
+ * @param {string} [idempotencyKey] - Stable per-purchase key (payment transaction id).
+ *   When supplied we mint via Crossmint's idempotent PUT
+ *   /collections/{id}/nfts/{idempotencyKey}: a repeat call with the SAME key returns
+ *   the already-minted NFT instead of minting a second on-chain asset. This is what
+ *   makes orphan-recovery / retry-mints safe — if the webhook minted but the Airtable
+ *   row write failed, the recovery re-mint reuses this key and is a no-op. Without a
+ *   key we fall back to the non-idempotent POST (e.g. ad-hoc manual mints).
  * @returns {Promise<{ok: boolean, actionId?: string, error?: string}>}
  */
 export async function mintToEmail({
@@ -116,6 +123,7 @@ export async function mintToEmail({
   serial,
   collectionName,
   tierKey,
+  idempotencyKey,
 }) {
   const apiKey = process.env.CROSSMINT_API_KEY;
   const collectionId = process.env.CROSSMINT_COLLECTION_ID;
@@ -127,7 +135,16 @@ export async function mintToEmail({
   const pType = passType(tierKey);
   const rarity = RARITY_MAP[pType] || 'Standard';
 
-  const url = `${CROSSMINT_BASE_URL}/collections/${collectionId}/nfts`;
+  // Idempotent mint when we have a stable per-purchase key. Crossmint restricts the
+  // path id, so sanitize to a safe charset and bound the length; the payment
+  // transaction id (cs_live_… / PayPal txn) stays unique after this transform.
+  const safeKey = idempotencyKey
+    ? String(idempotencyKey).replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 100)
+    : null;
+  const method = safeKey ? 'PUT' : 'POST';
+  const url = safeKey
+    ? `${CROSSMINT_BASE_URL}/collections/${collectionId}/nfts/${safeKey}`
+    : `${CROSSMINT_BASE_URL}/collections/${collectionId}/nfts`;
 
   const body = {
     recipient: { email },
@@ -158,7 +175,7 @@ export async function mintToEmail({
 
   try {
     const response = await fetch(url, {
-      method: 'POST',
+      method,
       headers: {
         'X-API-KEY': apiKey,
         'Content-Type': 'application/json',

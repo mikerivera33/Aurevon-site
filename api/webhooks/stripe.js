@@ -9,10 +9,11 @@ import crypto from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
 import { TIER_NFT_MAP, inferTierFromAmount, getNextSerial, formatSerial } from '../_lib/tiers.js';
 import { mintToEmail } from '../_lib/crossmint.js';
-import { createPayment, createNftMint, updateDiscordSyncStatus, findMemberByEmail, findPaymentByTransactionId } from '../_lib/airtable.js';
+import { createPayment, createNftMint, updateDiscordSyncStatus, findMemberByEmail, findPaymentByTransactionId, updateEntitlementState } from '../_lib/airtable.js';
 import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
 import { resolveEntitlementFromSku, getRoleId, ENTITLEMENT_MAP } from '../_lib/entitlements.js';
 import { removeRoleFromMember } from '../_lib/discord-bot.js';
+import { sendAlert } from '../_lib/alert.js';
 
 // ---------------------------------------------------------------------------
 // Stripe signature verification (no Stripe SDK dependency)
@@ -78,6 +79,7 @@ export async function handleCheckoutSessionCompleted(session) {
         }
   } catch (err) {
         console.error(`[Stripe] Idempotency lookup failed for ${sessionId}: ${err.message} — aborting before mint`);
+        await sendAlert('stripe.idempotency_lookup_failed', { sessionId, error: err.message });
         return;
   }
 
@@ -114,6 +116,7 @@ export async function handleCheckoutSessionCompleted(session) {
         });
   } catch (err) {
         console.error(`[Stripe] createPayment (idempotency marker) failed for ${sessionId}: ${err.message} — aborting before mint`);
+        await sendAlert('stripe.payment_marker_failed', { sessionId, tier, error: err.message });
         return;
   }
 
@@ -176,6 +179,11 @@ export async function handleCheckoutSessionCompleted(session) {
                 serial,
                 collectionName,
                 tierKey: tier,
+                // Idempotency key = Stripe session id. If this mint succeeds but the
+                // NFT_Mints write below fails, orphan-recovery → retry-mints re-calls
+                // Crossmint with THIS SAME key, which returns the existing NFT instead
+                // of minting a second on-chain asset (the double-mint fix).
+                idempotencyKey: sessionId,
         });
         if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
         mintId = result.actionId;
@@ -186,11 +194,13 @@ export async function handleCheckoutSessionCompleted(session) {
         mintStatus = 'Failed';
         mintNotes = `Crossmint error: ${err.message}`;
         console.error(`[Stripe] Crossmint mint failed: ${err.message}`);
+        await sendAlert('stripe.mint_failed', { sessionId, tier, nftType, error: err.message });
   }
 
   // 7. Write NFT_Mints row — use serial as the reference; retry on collision (race condition guard)
   const reference = serial ?? `MINT_${sessionId.slice(-8)}_${nftType.replace(/\s+/g, '_')}`;
     let insertedSerial = serial;
+    let mintRowWritten = false;
 
   for (let attempt = 0; attempt < 3; attempt++) {
         const ref = attempt === 0 ? reference : (() => {
@@ -219,6 +229,7 @@ export async function handleCheckoutSessionCompleted(session) {
                         retryCount: 0,
               });
               if (!insertedSerial) insertedSerial = ref; // track actual ref for null-serial tiers
+              mintRowWritten = true;
               console.log(`[Stripe] NFT_Mints record created with reference=${ref}`);
               break;
       } catch (err) {
@@ -230,6 +241,14 @@ export async function handleCheckoutSessionCompleted(session) {
                         break;
               }
       }
+  }
+
+  // If the on-chain mint SUCCEEDED but no NFT_Mints row landed, this purchase is an
+  // orphan: the mint exists but nothing records it. Orphan-recovery + the idempotent
+  // mint key make it self-heal (no double-mint), but it must NOT be silent — alert so
+  // it's confirmed rather than discovered by a customer complaint.
+  if (!mintRowWritten) {
+        await sendAlert('stripe.mint_row_dropped', { sessionId, tier, nftType, minted: mintStatus === 'Sent' });
   }
 
   // 8. Parse edition number from serial for email
@@ -299,6 +318,78 @@ async function handleSubscriptionDeleted(subscription) {
   }
 }
 
+// A subscription invoice paid — the FIRST payment and every renewal. This is what
+// keeps the revocation backstop alive: it stamps the monthly member's entitlement
+// state so listOutOfSyncEntitlements can find (and shouldRevokeAccess can judge)
+// them. Without it, those fields were never written and the backstop matched no one,
+// so cancelled monthly members kept their Discord role forever.
+//
+// Only comm_monthly is recurring+revocable; retainer/enterprise subscriptions are
+// permanent, so we skip them (identified by the paid amount). Uses invoice.customer_email,
+// NOT subscription metadata, so a renewal isn't blocked by the metadata-write bug.
+export async function handleInvoicePaymentSucceeded(invoice) {
+  const amountPaid = invoice.amount_paid ?? invoice.total ?? 0; // cents
+  const tier = inferTierFromAmount(amountPaid);
+  const entitlementKey = tier ? resolveEntitlementFromSku(tier) : null;
+  if (entitlementKey !== 'monthly_membership') {
+    console.log(`[Stripe] invoice.payment_succeeded amount=${amountPaid} tier=${tier} — not monthly membership, no entitlement write`);
+    return;
+  }
+  const email = invoice.customer_email ?? invoice.subscription_details?.metadata?.email ?? null;
+  if (!email) {
+    console.warn('[Stripe] invoice.payment_succeeded (monthly) but no customer_email — skipping entitlement write');
+    return;
+  }
+  // Paid-through date. Pushing it forward each cycle keeps an active member out of the
+  // revoke set; a genuinely lapsed member falls into it after the grace period.
+  const periodEndUnix = invoice.lines?.data?.[0]?.period?.end ?? invoice.period_end ?? null;
+  const expiresAt = periodEndUnix ? new Date(periodEndUnix * 1000).toISOString() : undefined;
+  try {
+    await updateEntitlementState(email, {
+      entitlementType: 'monthly_membership',
+      status: 'active',
+      expiresAt,
+      billingState: 'active',
+    });
+    console.log(`[Stripe] Entitlement renewed through ${expiresAt ?? 'unknown'} for a monthly member`);
+  } catch (err) {
+    console.error(`[Stripe] updateEntitlementState (renewal) failed: ${err.message}`);
+    await sendAlert('stripe.entitlement_write_failed', { source: 'invoice.payment_succeeded', error: err.message });
+  }
+}
+
+// Subscription status changed (past_due / unpaid / canceled / reactivated). Records
+// the billing state the revocation backstop reads, and refreshes the paid-through
+// date. Only monthly membership is tracked (metadata.tier set at checkout).
+export async function handleSubscriptionUpdated(subscription) {
+  const email = subscription.metadata?.email ?? null;
+  const tier = subscription.metadata?.tier ?? null;
+  const entitlementKey = tier ? resolveEntitlementFromSku(tier) : null;
+  if (!email) {
+    console.warn('[Stripe] subscription.updated — no email in subscription metadata, skipping billing-state write');
+    return;
+  }
+  if (entitlementKey !== 'monthly_membership') {
+    console.log(`[Stripe] subscription.updated tier="${tier}" — not monthly membership, no billing-state write`);
+    return;
+  }
+  const status = subscription.status ?? '';
+  let billingState;
+  if (status === 'active' || status === 'trialing') billingState = 'active';
+  else if (status === 'past_due' || status === 'unpaid' || status === 'incomplete') billingState = 'past_due';
+  else if (status === 'canceled') billingState = 'cancelled';
+  else billingState = status;
+  const periodEndUnix = subscription.current_period_end ?? null;
+  const expiresAt = periodEndUnix ? new Date(periodEndUnix * 1000).toISOString() : undefined;
+  try {
+    await updateEntitlementState(email, { billingState, expiresAt });
+    console.log(`[Stripe] Billing state → ${billingState} (subscription status=${status})`);
+  } catch (err) {
+    console.error(`[Stripe] updateEntitlementState (subscription.updated) failed: ${err.message}`);
+    await sendAlert('stripe.entitlement_write_failed', { source: 'customer.subscription.updated', error: err.message });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Vercel handler
 // ---------------------------------------------------------------------------
@@ -362,6 +453,18 @@ export default async function handler(req, res) {
         waitUntil(
                 handleSubscriptionDeleted(event.data.object).catch((err) => {
                         console.error(`[Stripe] Unhandled subscription.deleted error: ${err.message}`, err.stack);
+                })
+        );
+  } else if (event.type === 'invoice.payment_succeeded') {
+        waitUntil(
+                handleInvoicePaymentSucceeded(event.data.object).catch((err) => {
+                        console.error(`[Stripe] Unhandled invoice.payment_succeeded error: ${err.message}`, err.stack);
+                })
+        );
+  } else if (event.type === 'customer.subscription.updated') {
+        waitUntil(
+                handleSubscriptionUpdated(event.data.object).catch((err) => {
+                        console.error(`[Stripe] Unhandled subscription.updated error: ${err.message}`, err.stack);
                 })
         );
   } else if (event.type === 'invoice.payment_failed') {

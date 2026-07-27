@@ -12,11 +12,20 @@
 import crypto from 'node:crypto';
 
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
+// No stale fallback — a missing AIRTABLE_BASE_ID previously resolved to a hardcoded
+// dev base, silently reading/writing the wrong base. The action handlers already
+// guard on AIRTABLE_PAT and surface a configuration error.
+const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AUTH_TABLE = process.env.AIRTABLE_TABLE_CUSTOMER_AUTH ?? 'tblbCS7TL65FcOiWn';
 const PAYMENTS_TABLE = process.env.AIRTABLE_TABLE_PAYMENTS ?? 'tbl6KlhM9fIH19W5i';
 const NFT_TABLE = process.env.AIRTABLE_TABLE_NFT_MINTS ?? 'tbliXEGJdoEIAJU06';
 const MEMBERS_TABLE = process.env.AIRTABLE_TABLE_MEMBERS ?? 'tblYPn7hxnrgH723B';
+
+// Sessions expire 30 days after issue. The issue time is encoded in the session
+// token itself (`<base36 ms>.<random hex>`) so the TTL needs no extra Airtable
+// field. A token with no timestamp prefix (legacy / malformed) is treated as
+// expired and forces a fresh magic-link login.
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 function getAirtableHeaders() {
     const pat = process.env.AIRTABLE_PAT ?? process.env.AIRTABLE_API_KEY;
@@ -66,6 +75,29 @@ async function handleAuth(req, res) {
   const normalizedEmail = email.trim().toLowerCase();
     if (normalizedEmail.includes('"') || normalizedEmail.includes("'")) {
           return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+  // Membership gate (abuse control). Only send a login link — and only write a
+  // CustomerAuth row — for an email that already belongs to a member. Without this,
+  // this UNAUTHENTICATED endpoint emails arbitrary attacker-chosen inboxes (spam
+  // from our verified sender → domain-reputation damage) and floods the auth table.
+  // Check the canonical membership tables (Members / NFT_Mints / Payments) so comped
+  // or NFT-only members aren't locked out. Return the SAME success body either way so
+  // it can't be used as a membership oracle. NOTE: a per-IP rate limit (Vercel
+  // Firewall) is still required — this stops NON-member bombing, but a member inbox
+  // can still be hit (cooldown-bounded), and claim/verify/csp-report stay unthrottled.
+  const memberFormula = `LOWER({Email})="${normalizedEmail}"`;
+    // Payments stores the buyer address as 'Customer Email' (airtable.js createPayment),
+    // NOT 'Email' — an add-on-only buyer has a Payments row but no Members/NFT row, so
+    // querying the wrong field here would silently lock a real payer out of the portal.
+    const paymentFormula = `LOWER({Customer Email})="${normalizedEmail}"`;
+    const [memberHits, mintHits, paymentHits] = await Promise.all([
+          fetchRecords(MEMBERS_TABLE, memberFormula),
+          fetchRecords(NFT_TABLE, memberFormula),
+          fetchRecords(PAYMENTS_TABLE, paymentFormula),
+        ]);
+    if (memberHits.length === 0 && mintHits.length === 0 && paymentHits.length === 0) {
+          return res.status(200).json({ ok: true, message: 'Check your email for a login link.' });
     }
 
   try {
@@ -136,7 +168,7 @@ async function handleVerify(req, res) {
                 return res.status(401).json({ error: INVALID_MSG });
         }
 
-      const sessionToken = crypto.randomBytes(32).toString('hex');
+      const sessionToken = `${Date.now().toString(36)}.${crypto.randomBytes(32).toString('hex')}`;
         // One-time use: clear the Magic Token so a replayed link fails the length
         // check above (the CustomerAuth table has no consumed-flag column).
         const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AUTH_TABLE}/${record.id}`;
@@ -174,10 +206,19 @@ async function handleData(req, res) {
         if (authRecords.length === 0) return res.status(401).json({ error: 'Session not found' });
 
       const authFields = authRecords[0].fields;
-        const storedToken = authFields['Session Token'] ?? authFields['Magic Token'] ?? '';
+        // Only the Session Token grants data access. The one-time Magic Token
+        // (consumed at verify) is deliberately NOT accepted here — a captured
+        // magic link must not act as a durable session credential.
+        const storedToken = authFields['Session Token'] ?? '';
         if (!authFields['Session Active'] || !storedToken ||
                     storedToken.length !== sessionToken.length ||
                     !crypto.timingSafeEqual(Buffer.from(storedToken, 'utf8'), Buffer.from(sessionToken, 'utf8'))) {
+                return res.status(401).json({ error: 'Session expired. Please log in again.' });
+        }
+        // Enforce the 30-day TTL from the timestamp embedded in the token.
+        const dotIdx = storedToken.indexOf('.');
+        const issuedAt = dotIdx > 0 ? parseInt(storedToken.slice(0, dotIdx), 36) : NaN;
+        if (!Number.isFinite(issuedAt) || Date.now() - issuedAt > SESSION_TTL_MS) {
                 return res.status(401).json({ error: 'Session expired. Please log in again.' });
         }
 

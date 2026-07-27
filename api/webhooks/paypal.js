@@ -11,8 +11,9 @@
 import { waitUntil } from '@vercel/functions';
 import { TIER_NFT_MAP, getNextSerial, formatSerial, inferTierFromAmount } from '../_lib/tiers.js';
 import { mintToEmail } from '../_lib/crossmint.js';
-import { createPayment, createNftMint } from '../_lib/airtable.js';
+import { createPayment, createNftMint, findPaymentByTransactionId } from '../_lib/airtable.js';
 import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
+import { sendAlert } from '../_lib/alert.js';
 
 const PAYPAL_IPN_VERIFY_URL_LIVE    = 'https://ipnpb.paypal.com/cgi-bin/webscr';
 const PAYPAL_IPN_VERIFY_URL_SANDBOX = 'https://ipnpb.sandbox.paypal.com/cgi-bin/webscr';
@@ -84,7 +85,7 @@ export function inferTierFromIPN(ipn) {
 // Core pipeline (mirrors stripe handler)
 // ---------------------------------------------------------------------------
 
-async function handleVerifiedIPN(ipn) {
+export async function handleVerifiedIPN(ipn) {
   const txnId = ipn.txn_id ?? `pp_${Date.now()}`;
   const customerEmail = ipn.payer_email;
   const customerName = [ipn.first_name, ipn.last_name].filter(Boolean).join(' ') || 'Aurevon Member';
@@ -105,11 +106,17 @@ async function handleVerifiedIPN(ipn) {
     return;
   }
 
-  // Validate receiver email to prevent fraud
+  // Validate receiver email to prevent fraud. FAIL CLOSED: if PAYPAL_BUSINESS_EMAIL
+  // is unset we cannot prove the payment was made to us, so we refuse to mint/grant
+  // rather than trusting an unverifiable receiver. Compare case-insensitively —
+  // PayPal does not guarantee casing on receiver_email.
   const businessEmail = process.env.PAYPAL_BUSINESS_EMAIL;
   if (!businessEmail) {
-    console.warn('[PayPal IPN] PAYPAL_BUSINESS_EMAIL not set — receiver validation skipped. Set this env var in production.');
-  } else if (ipn.receiver_email !== businessEmail) {
+    console.error('[PayPal IPN] PAYPAL_BUSINESS_EMAIL not set — refusing to process (fail-closed). Set this env var in production.');
+    await sendAlert('paypal.business_email_unset', { txnId });
+    return;
+  }
+  if ((ipn.receiver_email ?? '').toLowerCase() !== businessEmail.toLowerCase()) {
     console.warn(`[PayPal IPN] Receiver mismatch: got ${ipn.receiver_email}, expected ${businessEmail}`);
     return;
   }
@@ -134,6 +141,7 @@ async function handleVerifiedIPN(ipn) {
     });
   } catch (err) {
     console.error(`[PayPal IPN] createPayment (idempotency marker) failed: ${err.message} — aborting before mint`);
+    await sendAlert('paypal.payment_marker_failed', { txnId, tier: tier ?? 'unknown', error: err.message });
     return;
   }
 
@@ -180,6 +188,10 @@ async function handleVerifiedIPN(ipn) {
       serial,
       collectionName,
       tierKey: tier,
+      // Idempotency key = PayPal txn_id. If this mint succeeds but the NFT_Mints
+      // write below fails, orphan-recovery → retry-mints re-calls Crossmint with
+      // THIS SAME key, returning the existing NFT instead of double-minting.
+      idempotencyKey: txnId,
     });
     if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
     mintId = result.actionId;
@@ -190,11 +202,13 @@ async function handleVerifiedIPN(ipn) {
     mintStatus = 'Failed';
     mintNotes = `Crossmint error: ${err.message}`;
     console.error(`[PayPal IPN] Crossmint mint failed: ${err.message}`);
+    await sendAlert('paypal.mint_failed', { txnId, tier, nftType, error: err.message });
   }
 
   // Write NFT_Mints row — use serial as reference; retry on collision (race condition guard)
   const reference = serial ?? `MINT_${txnId.slice(-8)}_${nftType.replace(/\s+/g, '_')}`;
   let insertedSerial = serial;
+  let mintRowWritten = false;
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const ref = attempt === 0 ? reference : (() => {
@@ -223,6 +237,7 @@ async function handleVerifiedIPN(ipn) {
         retryCount: 0,
       });
       if (!insertedSerial) insertedSerial = ref; // track actual ref for null-serial tiers
+      mintRowWritten = true;
       console.log(`[PayPal IPN] NFT_Mints record created with reference=${ref}`);
       break;
     } catch (err) {
@@ -234,6 +249,12 @@ async function handleVerifiedIPN(ipn) {
         break;
       }
     }
+  }
+
+  // Minted on-chain but no NFT_Mints row landed → orphan (self-heals via recovery +
+  // idempotent key, but must be visible, not silent).
+  if (!mintRowWritten) {
+    await sendAlert('paypal.mint_row_dropped', { txnId, tier, nftType, minted: mintStatus === 'Sent' });
   }
 
   // Parse edition number from serial for email
@@ -316,20 +337,15 @@ async function processIPN(rawBody) {
   const ipn = parseIPN(rawBody);
   console.log(`[PayPal IPN] Verified. txn_id=${ipn.txn_id}, payment_status=${ipn.payment_status}`);
 
-  // Idempotency check — skip if this txn_id has already been processed
+  // Idempotency check — skip if this txn_id has already been processed. Uses the
+  // shared airtable helper instead of a bespoke raw fetch: it resolves the base/table
+  // via the same (now fail-loud, no stale hardcoded fallback) config path and runs the
+  // Transaction ID through escapeFormulaValue. Proceed-anyway on error is preserved.
   const txnId = ipn.txn_id;
   if (txnId) {
     try {
-      const airtableBase = process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
-      const airtablePat  = process.env.AIRTABLE_PAT;
-      const paymentsTableId = process.env.AIRTABLE_TABLE_PAYMENTS ?? 'tbl6KlhM9fIH19W5i';
-      const filterFormula = encodeURIComponent(`{Transaction ID}="${txnId}"`);
-      const checkUrl = `https://api.airtable.com/v0/${airtableBase}/${paymentsTableId}?filterByFormula=${filterFormula}&maxRecords=1`;
-      const checkRes = await fetch(checkUrl, {
-        headers: { Authorization: `Bearer ${airtablePat}` },
-      });
-      const checkData = await checkRes.json();
-      if (checkData.records && checkData.records.length > 0) {
+      const prior = await findPaymentByTransactionId(txnId);
+      if (prior) {
         console.log(`[PayPal IPN] Duplicate txn_id ${txnId} — skipping`);
         return;
       }

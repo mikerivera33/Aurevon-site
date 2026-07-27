@@ -26,7 +26,12 @@ const TABLE = {
 };
 
 function getBase() {
-  return process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
+  // No stale fallback: a missing AIRTABLE_BASE_ID used to silently resolve to a
+  // hardcoded dev base (appI9X8vcRcK1QZ1l), so a misconfigured deploy would read/write
+  // the WRONG base instead of erroring. Fail loud instead (mirrors getHeaders()).
+  const base = process.env.AIRTABLE_BASE_ID;
+  if (!base) throw new Error('Missing AIRTABLE_BASE_ID env var');
+  return base;
 }
 
 /**
@@ -383,6 +388,29 @@ export async function updateDiscordSyncStatus(email, status, { error = '' } = {}
 export async function listPendingDiscordSync({ maxRecords = 50 } = {}) {
   const formula = `{Discord Sync Status}="pending"`;
   return listRecords(TABLE.Members, { filterFormula: formula, maxRecords });
+}
+
+/**
+ * Write recurring-membership entitlement state onto a member row so the daily
+ * revocation backstop (listOutOfSyncEntitlements + shouldRevokeAccess) has the
+ * fields it reads. Nothing wrote these before, so the backstop matched no one.
+ *
+ * Fields written (must exist on the Members table for the backstop to function):
+ *   Entitlement Type, Entitlement Status, Entitlement Expires At, Billing State
+ *
+ * This is a SEPARATE, isolated write. Callers wrap it in try/catch so that if the
+ * Members table is missing any of these fields (Airtable 422s the whole PATCH on an
+ * unknown field), only entitlement tracking degrades — the mint/payment path is
+ * untouched. Mirrors the defensive split used by markDiscordAuthNonceUsed.
+ */
+export async function updateEntitlementState(email, { entitlementType, status, expiresAt, billingState } = {}) {
+  const fields = {};
+  if (entitlementType !== undefined) fields['Entitlement Type'] = entitlementType;
+  if (status !== undefined) fields['Entitlement Status'] = status;
+  if (expiresAt !== undefined) fields['Entitlement Expires At'] = expiresAt;
+  if (billingState !== undefined) fields['Billing State'] = billingState;
+  if (Object.keys(fields).length === 0) return null;
+  return upsertMemberByEmail(email, fields);
 }
 
 /**

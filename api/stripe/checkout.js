@@ -240,7 +240,10 @@ export default async function handler(req, res) {
         const session = await stripe.checkout.sessions.create(sessionParams);
           return res.status(200).json({ url: session.url });
   } catch (err) {
+          // Log the real reason server-side, but never echo err.message to the
+          // client — it can leak Stripe internals, catalog keys, or env state to
+          // an unauthenticated caller. Return a generic, actionable message.
           console.error('Stripe checkout error:', err.message);
-          return res.status(500).json({ error: err.message });
+          return res.status(500).json({ error: 'Unable to start checkout. Please try again or contact mike@aurevonvc.com.' });
   }
 }
