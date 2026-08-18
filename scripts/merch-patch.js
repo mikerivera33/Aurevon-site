@@ -39,13 +39,12 @@
         btn.setAttribute('disabled', 'disabled');
         btn.style.opacity = '0.5';
         btn.style.cursor = 'not-allowed';
-        btn.title = 'Store setup in progress — check back soon!';
+        btn.title = 'Checkout is not live yet.';
       });
-      // Show a banner
       var banner = document.createElement('div');
       banner.id = 'merch-setup-banner';
       banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1a1a2e;border-top:2px solid #3B82F6;color:#fff;text-align:center;padding:10px 16px;font-size:14px;z-index:9999;';
-      banner.innerHTML = '\u26a0\ufe0f <strong>Store checkout is being configured.</strong> Browse now \u2014 purchasing will be live very soon! Questions? <a href="mailto:mike@aurevonvc.com" style="color:#3B82F6">mike@aurevonvc.com</a>';
+      banner.innerHTML = '\u26a0\ufe0f <strong>The Aurevon store is opening soon \u2014 checkout is not yet live.</strong> Questions? <a href="mailto:mike@aurevonvc.com" style="color:#3B82F6">mike@aurevonvc.com</a>';
       document.body.appendChild(banner);
     }
   }
