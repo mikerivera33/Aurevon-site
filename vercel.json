@@ -107,6 +107,14 @@
       "destination": "/api/member/claim.js"
     },
     {
+      "source": "/api/intake/grant",
+      "destination": "/api/intake.js?action=grant"
+    },
+    {
+      "source": "/api/intake/submit",
+      "destination": "/api/intake.js?action=submit"
+    },
+    {
       "source": "/membership-confirmation",
       "destination": "/membership_confirmation"
     },
