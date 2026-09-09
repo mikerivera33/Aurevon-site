@@ -1328,7 +1328,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
       });
       const data = await res.json();
 
-      if (data.valid) {
+      if (data.ok && data.sessionToken) {
         _session = { email: data.email || email, sessionToken: data.sessionToken, customerName: data.customerName || '' };
         sessionStorage.setItem('bl_email', _session.email);
         sessionStorage.setItem('bl_session', _session.sessionToken);
@@ -1338,7 +1338,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
         await loadPortal();
       } else {
         showLogin();
-        showLoginMsg('error', data.reason || 'Link expired. Please request a new login link.');
+        showLoginMsg('error', data.error || data.reason || 'Link expired. Please request a new login link.');
       }
     } catch (e) {
       console.error(e);
@@ -1363,6 +1363,11 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
         return;
       }
       _data = await res.json();
+      if (!_data || !_data.profile) {
+        showLogin();
+        showLoginMsg('error', 'Failed to load your dashboard. Please try again.');
+        return;
+      }
       renderPortal();
     } catch (e) {
       console.error(e);
@@ -1371,9 +1376,48 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
     }
   }
 
+  // Map /api/portal/data fields onto the names the dashboard templates use.
+  // The API returns customerName/memberTier/joinDate/discordUsername, mintStatus,
+  // and no `leads` array — reading the old names crashed the dashboard and
+  // magic-link verify never succeeded (`ok` vs `valid`).
+  function normalizePortalPayload(raw) {
+    const src = raw && raw.profile ? raw.profile : {};
+    const profile = {
+      name: src.customerName || src.name || '',
+      tier: src.memberTier || src.tier || '',
+      memberSince: src.joinDate || src.memberSince || '',
+      discordId: src.discordUsername || src.discordId || '',
+    };
+    const payments = (Array.isArray(raw.payments) ? raw.payments : []).map(p => ({
+      ...p,
+      tier: p.tier || p.serviceProduct || '',
+      date: p.date || p.paymentDate || '',
+      method: p.method || p.paymentProvider || '',
+    }));
+    const nfts = (Array.isArray(raw.nfts) ? raw.nfts : []).map(n => ({
+      ...n,
+      type: n.nftType || n.type || n.collection || '',
+      collection: n.collection || n.nftType || '',
+      status: n.mintStatus || n.status || '',
+      dateSent: n.mintDate || n.dateSent,
+      serial: n.tokenId || n.serial,
+      mintTx: n.transactionHash || n.mintTx,
+    }));
+    const leads = Array.isArray(raw.leads)
+      ? raw.leads
+      : payments.map(p => ({
+          property: p.serviceProduct || p.tier || 'Purchase',
+          tier: profile.tier,
+          status: p.deliverableStatus || 'Not Started',
+          submitted: p.paymentDate || p.date || '',
+          notes: p.deliveryNotes || '',
+        }));
+    return { profile, payments, nfts, leads };
+  }
+
   // ─── RENDER PORTAL ───────────────────────────────────────────
   function renderPortal() {
-    const { profile, leads, payments, nfts } = _data;
+    const { profile, leads, payments, nfts } = normalizePortalPayload(_data);
 
     // Update name
     const displayName = profile.name || _session.customerName || _session.email.split('@')[0];
@@ -1427,7 +1471,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
       document.getElementById('discord-disconnected-view').classList.remove('hidden');
       document.getElementById('discord-connected-view').classList.add('hidden');
     }
-    const discordUrl = `/api/discord/auth?email=${encodeURIComponent(_session.email)}`;
+    const discordUrl = '/member-claim';
     document.getElementById('discord-connect-btn').href = discordUrl;
 
     // NFTs
@@ -1447,7 +1491,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
       : '—';
     document.getElementById('acc-since-display').textContent = profile.memberSince ? formatDate(profile.memberSince) : '—';
 
-    const accDiscordUrl = `/api/discord/auth?email=${encodeURIComponent(_session.email)}`;
+    const accDiscordUrl = '/member-claim';
     document.getElementById('acc-discord-connect-btn').href = accDiscordUrl;
     if (profile.discordId) {
       document.getElementById('acc-discord-connected').classList.remove('hidden');
@@ -1721,7 +1765,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
       });
       const data = await res.json();
 
-      if (res.ok && data.sent) {
+      if (res.ok && data.ok) {
         showLoginMsg('success', `📨 Check your inbox — login link sent to ${email}`);
         document.getElementById('login-form-wrap').classList.add('hidden');
       } else if (res.status === 404) {
