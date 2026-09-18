@@ -1589,10 +1589,10 @@ targets.forEach(t => spy.observe(t));
       html += '<a class="aurevon-pay-cta" href="' + (paypalUrl || '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with PayPal →</a>';
     } else if(method === 'cashapp'){
       html = '<div class="aurevon-pay-info"><span class="pmlogo">💵 Cash App Pay</span><strong>Tap to pay with Cash App.</strong> Cash App Pay is processed through Stripe — open the Cash App on your phone, scan the QR or confirm in-app, and you are done. Available on the same Stripe checkout page.</div>';
-      html += '<a class="aurevon-pay-cta" href="' + (stripeUrl ? stripeUrl + (stripeUrl.indexOf("?")>-1?"&":"?") + 'payment_method=cashapp' : '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with Cash App →</a>';
+      html += '<a class="aurevon-pay-cta" href="' + (stripeUrl || '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with Cash App →</a>';
     } else if(method === 'afterpay'){
       html = '<div class="aurevon-pay-info"><span class="pmlogo">⏰ Afterpay · Buy Now, Pay Later</span><strong>Split your purchase into 4 interest-free payments.</strong> Afterpay is processed through Stripe — pay just <strong>$' + (Math.round((parseFloat(currentAmount.replace(/[^0-9.]/g,""))/4)*100)/100).toFixed(2) + '</strong> today, then 3 equal payments every 2 weeks. No interest, no hidden fees.</div>';
-      html += '<a class="aurevon-pay-cta" href="' + (stripeUrl ? stripeUrl + (stripeUrl.indexOf("?")>-1?"&":"?") + 'payment_method=afterpay_clearpay' : '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with Afterpay →</a>';
+      html += '<a class="aurevon-pay-cta" href="' + (stripeUrl || '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with Afterpay →</a>';
     }
     content.innerHTML = html;
 
@@ -1604,7 +1604,7 @@ targets.forEach(t => spy.observe(t));
                     // Aurevon API Checkout — intercept __CHECKOUT__ tier keys
             if(href && href.startsWith('__CHECKOUT__')){
               e.preventDefault();
-              var tier = href.replace('__CHECKOUT__', '');
+              var tier = href.replace('__CHECKOUT__', '').split('?')[0];
               var promoParam = activePromo ? activePromo : null;
               var cancelPath = window.location.pathname;
               var btn = cta; btn.disabled = true; btn.textContent = 'Redirecting...';
@@ -1669,7 +1669,7 @@ document.querySelectorAll('.addon-btn').forEach(function(btn) {
     e.preventDefault();
     var href = btn.getAttribute('href') || '';
     if (!href.startsWith('__CHECKOUT__')) return;
-    var tier = href.replace('__CHECKOUT__', '');
+    var tier = href.replace('__CHECKOUT__', '').split('?')[0];
     var origText = btn.getAttribute('data-orig-text') || 'Add →';
     btn.setAttribute('disabled', 'true');
     btn.textContent = 'Redirecting…';

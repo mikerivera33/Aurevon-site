@@ -78,4 +78,12 @@ describe('stripe checkout promo + cancelPath', () => {
     await handler({ method: 'POST', body: { tier: 're_full', cancelPath: '//evil.com' } }, res);
     expect(created[0].cancel_url).toBe('https://www.aurevonvc.com/aurevon-re');
   });
+
+  it('rejects a catalog key with a payment_method query suffix', async () => {
+    const res = mockRes();
+    await handler({ method: 'POST', body: { tier: 're_full?payment_method=cashapp' } }, res);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/Unknown tier/);
+    expect(created).toHaveLength(0);
+  });
 });
