@@ -158,3 +158,31 @@ describe('hero preload ↔ rendered image (img src or picture > source srcset)',
     });
   }
 });
+
+describe('__CHECKOUT__ interceptors send a catalog key, not a query string', () => {
+  // Cash App / Afterpay used to concatenate `?payment_method=cashapp` onto
+  // `__CHECKOUT__re_full`. The click handler then POSTed
+  // `{ tier: "re_full?payment_method=cashapp" }`, which checkout.js rejects
+  // (`Unknown tier`). Card checkout worked; those two tabs were dead.
+  const pages = ['aurevon-re.html', 'aurevon-web3.html'];
+
+  for (const page of pages) {
+    it(`${page}: does not append payment_method onto Stripe checkout hrefs`, () => {
+      const html = read(page);
+      expect(html).not.toMatch(/payment_method=cashapp/);
+      expect(html).not.toMatch(/payment_method=afterpay/);
+      expect(html).not.toMatch(/stripeUrl\s*\+\s*\(stripeUrl\.indexOf\(/);
+    });
+
+    it(`${page}: every __CHECKOUT__ → tier extraction strips a query suffix`, () => {
+      const html = read(page);
+      const extractions = [...html.matchAll(/replace\('__CHECKOUT__',\s*''\)([^;\n]*)/g)];
+      expect(extractions.length, `${page} has no __CHECKOUT__ interceptors`).toBeGreaterThan(0);
+      const missingSplit = extractions.filter((m) => !m[1].includes(".split('?')[0]"));
+      expect(
+        missingSplit,
+        `${page} interceptor(s) take the catalog key without stripping '?…': ${missingSplit.map((m) => m[0]).join(' | ')}`,
+      ).toEqual([]);
+    });
+  }
+});
