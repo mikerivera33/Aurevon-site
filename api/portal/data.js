@@ -222,9 +222,14 @@ async function handleData(req, res) {
                 return res.status(401).json({ error: 'Session expired. Please log in again.' });
         }
 
+      // Payments stores the buyer address as 'Customer Email' (airtable.js
+      // createPayment), NOT 'Email'. Reusing the Members/NFT {Email} formula
+      // here returns no rows (or an Airtable field-name error → []), so every
+      // payer's dashboard shows an empty purchase history.
       const emailFormula = `LOWER({Email})="${normalizedEmail}"`;
+      const paymentFormula = `LOWER({Customer Email})="${normalizedEmail}"`;
         const [paymentRecords, nftRecords, memberRecords] = await Promise.all([
-                fetchRecords(PAYMENTS_TABLE, emailFormula),
+                fetchRecords(PAYMENTS_TABLE, paymentFormula),
                 fetchRecords(NFT_TABLE, emailFormula),
                 fetchRecords(MEMBERS_TABLE, emailFormula),
               ]);
