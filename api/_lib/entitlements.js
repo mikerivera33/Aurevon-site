@@ -177,6 +177,52 @@ export function shouldRevokeAccess({ membershipMode, revokeOnCancel, billingStat
 }
 
 /**
+ * Whether Discord role grant / access-link redemption is allowed for this
+ * entitlement given the member's billing fields.
+ *
+ * Permanent and lifetime NFTs always grant (revokeOnCancel is false). Recurring
+ * monthly membership grants unless billing is explicitly non-active AND past
+ * the grace window. Missing billing fields do not block — the first invoice
+ * webhook may still be in flight when a new buyer clicks their Discord link.
+ *
+ * @param {{
+ *   entitlementKey: EntitlementKey|null|undefined,
+ *   billingState?: string|null,
+ *   endsAt?: Date|string|null,
+ *   gracePeriodDays?: number,
+ * }} opts
+ * @returns {boolean}
+ */
+export function mayGrantPaidAccess({ entitlementKey, billingState = null, endsAt = null, gracePeriodDays = 7 }) {
+  const cfg = entitlementKey ? ENTITLEMENT_MAP[entitlementKey] : null;
+  if (!cfg?.revokeOnCancel) return true;
+  if (!billingState || billingState === 'active' || billingState === 'trialing') return true;
+  return !shouldRevokeAccess({
+    membershipMode: cfg.membershipMode,
+    revokeOnCancel: cfg.revokeOnCancel,
+    billingState,
+    endsAt,
+    gracePeriodDays,
+  });
+}
+
+/**
+ * Convenience wrapper over mayGrantPaidAccess that reads Airtable member fields.
+ * @param {EntitlementKey|null|undefined} entitlementKey
+ * @param {Record<string, unknown>|null|undefined} memberFields
+ * @returns {boolean}
+ */
+export function mayGrantPaidAccessFromMember(entitlementKey, memberFields) {
+  const gracePeriodDays = parseInt(process.env.ENTITLEMENT_GRACE_PERIOD_DAYS ?? '7', 10);
+  return mayGrantPaidAccess({
+    entitlementKey,
+    billingState: memberFields?.['Billing State'] ?? null,
+    endsAt: memberFields?.['Entitlement Expires At'] ?? null,
+    gracePeriodDays: Number.isFinite(gracePeriodDays) ? gracePeriodDays : 7,
+  });
+}
+
+/**
  * Build the Crossmint recipient object for a mint call.
  *
  * @param {{ email: string, walletAddress?: string|null, chain?: string }} opts

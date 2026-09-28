@@ -335,8 +335,8 @@
 
   <!-- Error state -->
   <div id="error-content" class="error-box" style="display:none">
-    <h2>Authorization Denied</h2>
-    <p>You cancelled the Discord authorization. You can try again from your NFT confirmation email.</p>
+    <h2 id="error-title">Authorization Denied</h2>
+    <p id="error-detail">You cancelled the Discord authorization. You can try again from your NFT confirmation email.</p>
   </div>
 
   <!-- Footer -->
@@ -354,8 +354,37 @@
   const error = params.get('error') || '';
   const inviteUrl = params.get('invite') || 'https://discord.gg/2fwFjMEh';
 
-  // Error path
-  if (error === 'denied') {
+  // Error path — any ?error= must NOT fall through to the success "role assigned" view.
+  if (error) {
+    const titleEl = document.getElementById('error-title');
+    const detailEl = document.getElementById('error-detail');
+    const copy = {
+      denied: {
+        title: 'Authorization Denied',
+        detail: 'You cancelled the Discord authorization. You can try again from your NFT confirmation email.',
+      },
+      revoked: {
+        title: 'Membership Inactive',
+        detail: 'This Discord role is tied to an active monthly membership. Renew on aurevonvc.com to rejoin, then request a fresh access link.',
+      },
+      no_nft: {
+        title: 'No Membership Found',
+        detail: 'We could not find an active membership for this email. Request a fresh access link from the member portal if you have already purchased.',
+      },
+      invalid_link: {
+        title: 'Link Expired',
+        detail: 'This access link is invalid or has expired. Request a fresh one from the member portal.',
+      },
+      link_used: {
+        title: 'Link Already Used',
+        detail: 'This access link has already been redeemed. Request a fresh one from the member portal.',
+      },
+    }[error] || {
+      title: 'Could Not Link Discord',
+      detail: 'Something went wrong linking your Discord account. Request a fresh access link from the member portal.',
+    };
+    if (titleEl) titleEl.textContent = copy.title;
+    if (detailEl) detailEl.textContent = copy.detail;
     document.getElementById('error-content').style.display = 'block';
     return;
   }
