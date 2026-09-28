@@ -13,7 +13,7 @@
 import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 import { addRoleToMember, addMemberToGuild } from './_lib/discord-bot.js';
 import { upsertDiscordLink, updateDiscordSyncStatus, findActiveMintByEmail, findMemberByEmail, isDiscordAuthNonceUsed, markDiscordAuthNonceUsed } from './_lib/airtable.js';
-import { resolveEntitlementFromNftType, getRoleId } from './_lib/entitlements.js';
+import { resolveEntitlementFromNftType, getRoleId, mayGrantPaidAccessFromMember } from './_lib/entitlements.js';
 import { onEntitlementActivated } from './_lib/engage.js';
 
 // ── Env ──────────────────────────────────────────────────────────────────────
@@ -225,6 +225,22 @@ async function handleCallback(req, res) {
     return res.status(500).json({ error: `No Discord role configured for NFT type: ${nftType}` });
   }
 
+  // Recurring monthly: the Genesis mint stays Minted/Sent after cancel, so an
+  // inbox-owned claim link would re-grant the role forever unless we re-check
+  // billing here — the same shouldRevokeAccess window the daily cron uses.
+  let memberForGrant = null;
+  try { memberForGrant = await findMemberByEmail(email); }
+  catch (e) {
+    console.error(`[Discord] billing lookup failed (fail-closed for revocable): ${e.message}`);
+    if (entitlementKey === 'monthly_membership') {
+      return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=revoked`);
+    }
+  }
+  if (!mayGrantPaidAccessFromMember(entitlementKey, memberForGrant?.fields)) {
+    console.warn(`[Discord] refusing role grant for cancelled/lapsed monthly email=${email}`);
+    return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=revoked`);
+  }
+
   // Add member to guild (OAuth flow)
   try { await addMemberToGuild(user.id, token.access_token, [roleId]); }
   catch (e) { console.warn(`[Discord] addMemberToGuild warning: ${e.message}`); }
@@ -304,6 +320,10 @@ async function handleSync(req, res) {
 
   if (!roleId) {
     return res.status(500).json({ error: `No Discord role configured for entitlement: ${entitlementKey}` });
+  }
+
+  if (!mayGrantPaidAccessFromMember(entitlementKey, member.fields)) {
+    return res.status(403).json({ error: 'Membership is no longer active' });
   }
 
   try {

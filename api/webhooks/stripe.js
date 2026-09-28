@@ -282,7 +282,7 @@ export async function handleCheckoutSessionCompleted(session) {
 // Subscription lifecycle handlers
 // ---------------------------------------------------------------------------
 
-async function handleSubscriptionDeleted(subscription) {
+export async function handleSubscriptionDeleted(subscription) {
   const customerEmail = subscription.metadata?.email ?? null;
   const tier = subscription.metadata?.tier ?? null;
   if (!customerEmail) {
@@ -296,8 +296,19 @@ async function handleSubscriptionDeleted(subscription) {
     console.error(`[Stripe] Failed to mark revocation in Airtable: ${e.message}`);
   });
 
+  // Stamp billing cancelled even if customer.subscription.updated never arrived
+  // (or arrived without metadata.email). Grant paths read this field; without
+  // it a cancelled monthly member can re-OAuth and get the Discord role back
+  // because the Genesis mint row stays Minted/Sent.
+  const deletedEntitlementKey = tier ? resolveEntitlementFromSku(tier) : null;
+  if (deletedEntitlementKey === 'monthly_membership') {
+    await updateEntitlementState(customerEmail, { billingState: 'cancelled' }).catch((e) => {
+      console.error(`[Stripe] Failed to mark billing cancelled on subscription.deleted: ${e.message}`);
+    });
+  }
+
   // Immediately remove Discord role — only for entitlements that allow revocation on cancellation
-  const entitlementKey = tier ? resolveEntitlementFromSku(tier) : null;
+  const entitlementKey = deletedEntitlementKey;
   const entitlementCfg = entitlementKey ? ENTITLEMENT_MAP[entitlementKey] : null;
   const roleId = entitlementCfg?.revokeOnCancel ? getRoleId(entitlementKey) : null;
   if (roleId) {
