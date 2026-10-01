@@ -35,12 +35,27 @@ describe('inferTierFromIPN', () => {
     expect(inferTierFromIPN({ mc_gross: '249.50' })).toBe('full'); // within $1 of $250
   });
 
-  it('reads tier from a JSON custom field', () => {
-    expect(inferTierFromIPN({ custom: '{"tier":"retainer"}' })).toBe('retainer');
+  it('accepts a JSON custom field only when the USD paid matches that tier', () => {
+    expect(inferTierFromIPN({ custom: '{"tier":"retainer"}', mc_gross: '1499.00', mc_currency: 'USD' })).toBe('retainer');
+    expect(inferTierFromIPN({ custom: '{"tier":"re_full"}', mc_gross: '250.00' })).toBe('full');
   });
 
-  it('reads tier from a plain-string custom field', () => {
-    expect(inferTierFromIPN({ custom: 'full' })).toBe('full');
+  it('accepts a plain-string custom field only when the USD paid matches that tier', () => {
+    expect(inferTierFromIPN({ custom: 'full', mc_gross: '250.00' })).toBe('full');
+  });
+
+  it('does NOT grant a spoofed custom.tier when the amount does not match', () => {
+    // Classic Buy Now tamper: $1 to the merchant with custom claiming Enterprise.
+    expect(inferTierFromIPN({ custom: '{"tier":"enterprise"}', mc_gross: '1.00' })).toBeNull();
+    expect(inferTierFromIPN({ custom: 'enterprise' })).toBeNull();
+    // Paid Full Package but claimed Enterprise → honor what was paid, not the hint.
+    expect(inferTierFromIPN({ custom: '{"tier":"enterprise"}', mc_gross: '250.00' })).toBe('full');
+  });
+
+  it('does NOT resolve a non-USD mc_gross as a USD catalog tier', () => {
+    expect(inferTierFromIPN({ mc_gross: '2499.00', mc_currency: 'JPY' })).toBeNull();
+    expect(inferTierFromIPN({ mc_gross: '250.00', mc_currency: 'EUR' })).toBeNull();
+    expect(inferTierFromIPN({ custom: '{"tier":"enterprise"}', mc_gross: '2499.00', mc_currency: 'MXN' })).toBeNull();
   });
 
   it('does NOT resolve an add-on price to an NFT tier', () => {

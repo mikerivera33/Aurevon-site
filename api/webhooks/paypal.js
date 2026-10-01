@@ -57,28 +57,64 @@ function parseIPN(rawBody) {
 // avoids collisions with add-on / archived web3 tiers that share dollar amounts.
 const IPN_ELIGIBLE_TIERS = ['single', 'full', 'bogo', 'retainer', 'enterprise', 'comm_monthly', 'comm_lifetime'];
 
-export function inferTierFromIPN(ipn) {
-  // Custom field can carry tier metadata: set in PayPal button/link as "custom" field
-  if (ipn.custom) {
-    try {
-      const custom = JSON.parse(ipn.custom);
-      if (custom.tier) return custom.tier;
-    } catch {
-      // custom is a plain string
-      if (TIER_NFT_MAP[ipn.custom]) return ipn.custom;
-    }
-  }
+const IPN_TIER_ALIASES = {
+  re_full: 'full',
+  re_bogo: 'bogo',
+  re_single: 'single',
+  re_retainer: 'retainer',
+  re_enterprise: 'enterprise',
+};
 
-  // Fallback: infer from mc_gross (payment amount). Reuse inferTierFromAmount —
-  // the SAME $1-tolerant helper the Stripe webhook relies on — instead of an
-  // exact-only compare. The hosted NCP links can't attach a per-transaction
-  // `custom` field, so without tolerance any processor rounding / minor price
-  // drift resolved to null and the mint was silently dropped (F1). Guard the
-  // result to IPN-eligible tiers so an add-on price can't masquerade as a tier.
+function canonicalizeIpnTier(raw) {
+  if (!raw) return null;
+  const key = String(raw).trim();
+  const canonical = IPN_TIER_ALIASES[key] || key;
+  return IPN_ELIGIBLE_TIERS.includes(canonical) ? canonical : null;
+}
+
+/** Buyer-controlled `custom` is a hint only — never a substitute for USD paid. */
+function claimedTierFromCustom(custom) {
+  if (!custom) return null;
+  try {
+    const parsed = JSON.parse(custom);
+    if (parsed && typeof parsed === 'object' && parsed.tier) {
+      return canonicalizeIpnTier(parsed.tier);
+    }
+  } catch {
+    return canonicalizeIpnTier(custom);
+  }
+  return canonicalizeIpnTier(custom);
+}
+
+function amountMatchesTier(tier, amountDollars) {
+  const cfg = TIER_NFT_MAP[tier];
+  if (!cfg || !Number.isFinite(amountDollars)) return false;
+  return Math.abs(amountDollars - cfg.amount) <= 1;
+}
+
+function ipnCurrencyIsUsd(ipn) {
+  return String(ipn.mc_currency ?? 'USD').trim().toUpperCase() === 'USD';
+}
+
+export function inferTierFromIPN(ipn) {
+  // Catalog prices are USD. mc_gross is in mc_currency — a 2499 JPY/MXN/HUF
+  // payment must not resolve as Enterprise. Missing currency stays USD so
+  // hosted NCP IPNs that omit the field still match.
+  if (!ipnCurrencyIsUsd(ipn)) return null;
+
   const amount = parseFloat(ipn.mc_gross ?? '0');
-  if (!amount) return null;
-  const inferred = inferTierFromAmount(Math.round(amount * 100));
-  return inferred && IPN_ELIGIBLE_TIERS.includes(inferred) ? inferred : null;
+  const inferred = Number.isFinite(amount) && amount > 0
+    ? inferTierFromAmount(Math.round(amount * 100))
+    : null;
+  const inferredEligible = inferred && IPN_ELIGIBLE_TIERS.includes(inferred) ? inferred : null;
+
+  // Anyone can host a PayPal Buy Now form aimed at PAYPAL_BUSINESS_EMAIL with
+  // custom={"tier":"enterprise"} and amount=1. Trust custom only when the
+  // USD paid matches that tier's catalog price (same $1 window as amount inference).
+  const claimed = claimedTierFromCustom(ipn.custom);
+  if (claimed && amountMatchesTier(claimed, amount)) return claimed;
+
+  return inferredEligible;
 }
 
 // ---------------------------------------------------------------------------
@@ -86,7 +122,16 @@ export function inferTierFromIPN(ipn) {
 // ---------------------------------------------------------------------------
 
 export async function handleVerifiedIPN(ipn) {
-  const txnId = ipn.txn_id ?? `pp_${Date.now()}`;
+  if (!ipn.txn_id) {
+    console.error('[PayPal IPN] Verified IPN missing txn_id — refusing to process (fail-closed)');
+    return;
+  }
+  if (!ipnCurrencyIsUsd(ipn)) {
+    console.warn(`[PayPal IPN] Rejecting non-USD payment (mc_currency=${ipn.mc_currency}) txnId=${ipn.txn_id}`);
+    return;
+  }
+
+  const txnId = ipn.txn_id;
   const customerEmail = ipn.payer_email;
   const customerName = [ipn.first_name, ipn.last_name].filter(Boolean).join(' ') || 'Aurevon Member';
   const amount = parseFloat(ipn.mc_gross ?? '0');
@@ -319,7 +364,7 @@ export default async function handler(req, res) {
   }));
 }
 
-async function processIPN(rawBody) {
+export async function processIPN(rawBody) {
   // Verify with PayPal
   let verified;
   try {
@@ -340,18 +385,23 @@ async function processIPN(rawBody) {
   // Idempotency check — skip if this txn_id has already been processed. Uses the
   // shared airtable helper instead of a bespoke raw fetch: it resolves the base/table
   // via the same (now fail-loud, no stale hardcoded fallback) config path and runs the
-  // Transaction ID through escapeFormulaValue. Proceed-anyway on error is preserved.
+  // Transaction ID through escapeFormulaValue. Lookup failure is fail-closed (same
+  // as Stripe): PayPal will redeliver once Airtable is healthy.
   const txnId = ipn.txn_id;
-  if (txnId) {
-    try {
-      const prior = await findPaymentByTransactionId(txnId);
-      if (prior) {
-        console.log(`[PayPal IPN] Duplicate txn_id ${txnId} — skipping`);
-        return;
-      }
-    } catch (err) {
-      console.error(`[PayPal IPN] Idempotency check failed: ${err.message} — proceeding anyway`);
+  if (!txnId) {
+    console.error('[PayPal IPN] Verified IPN missing txn_id — refusing to process (fail-closed)');
+    return;
+  }
+  try {
+    const prior = await findPaymentByTransactionId(txnId);
+    if (prior) {
+      console.log(`[PayPal IPN] Duplicate txn_id ${txnId} — skipping`);
+      return;
     }
+  } catch (err) {
+    console.error(`[PayPal IPN] Idempotency check failed: ${err.message} — aborting`);
+    await sendAlert('paypal.idempotency_lookup_failed', { txnId, error: err.message });
+    return;
   }
 
   await handleVerifiedIPN(ipn);
