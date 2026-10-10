@@ -84,38 +84,79 @@ footer a{color:var(--o2);text-decoration:none;}
 </style>
 <script>
 (function(){
-  var p = new URLSearchParams(window.location.search);
-  var token = p.get('paid') || sessionStorage.getItem('bkt_paid_token') || '';
-  var tier = p.get('tier') || sessionStorage.getItem('bkt_paid_tier') || '';
-  var amount = p.get('amount') || sessionStorage.getItem('bkt_paid_amount') || '';
-  var valid = token && token.indexOf('paid_') === 0 && token.length > 10;
-  if(!valid){
-    // show gate, hide everything else
-    document.addEventListener('DOMContentLoaded', function(){
-      var gate = document.getElementById('bktGate');
-      if(gate) gate.style.display = 'flex';
-      // hide form section + header for clean gate
-      document.querySelectorAll('.header, .form-section, footer').forEach(function(el){ el.style.display = 'none'; });
-    });
-    return;
+  // Fail closed: the form stays hidden until /api/intake/verify confirms a
+  // real Stripe session or PayPal txn_id. Client-minted ?paid=paid_* tokens
+  // are not payment proof and must not unlock underwriting intake.
+  function hideForm(){
+    var gate = document.getElementById('bktGate');
+    if(gate) gate.style.display = 'flex';
+    document.querySelectorAll('.header, .form-section, footer').forEach(function(el){ el.style.display = 'none'; });
   }
-  // token valid — set up confirmation badge with tier/amount details
-  window.BKT_PAID_INFO = { token: token, tier: tier, amount: amount };
-  document.addEventListener('DOMContentLoaded', function(){
+  function showForm(info){
+    var gate = document.getElementById('bktGate');
+    if(gate) gate.style.display = 'none';
+    document.querySelectorAll('.header, .form-section, footer').forEach(function(el){ el.style.display = ''; });
+    var tier = (info && info.tier) || '';
+    var proof = (info && (info.sessionId || info.txnId)) || '';
+    window.BKT_PAID_INFO = { tier: tier, sessionId: info.sessionId || '', txnId: info.txnId || '', method: info.method || '' };
     var badge = document.querySelector('.success-badge');
     if(badge && tier){
-      var tierMap = {bogo:'First-Timer BOGO', single:'Second Opinion', full:'Full Package', retainer:'Pro Retainer', enterprise:'Enterprise'};
+      var tierMap = {bogo:'First-Timer BOGO', single:'Second Opinion', full:'Full Package', retainer:'Pro Retainer', enterprise:'Enterprise', re_bogo:'First-Timer BOGO', re_single:'Second Opinion', re_full:'Full Package', re_retainer:'Pro Retainer', re_enterprise:'Enterprise'};
       var label = tierMap[tier] || tier;
-      badge.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6.5" stroke="#2ecc71" stroke-width="1"/><path d="M4 7l2 2 4-4" stroke="#2ecc71" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Payment Confirmed · ' + label + (amount ? ' · $' + amount : '');
+      badge.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6.5" stroke="#2ecc71" stroke-width="1"/><path d="M4 7l2 2 4-4" stroke="#2ecc71" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Payment Confirmed · ' + label;
     }
-    // pre-fill hidden tier field
     var tierInput = document.querySelector('input[name="tier"], input[name="package"]');
     if(tierInput && tier){ tierInput.value = tier; }
-    // pre-fill payment_token and amount hidden fields
     var tokenInput = document.querySelector('input[name=payment_token]');
-    if(tokenInput){ tokenInput.value = token; }
-    var amountInput = document.querySelector('input[name="amount"]');
-    if(amountInput && amount){ amountInput.value = amount; }
+    if(tokenInput){ tokenInput.value = proof; }
+  }
+  function setGateMsg(msg){
+    var el = document.getElementById('bktGateMsg');
+    if(el) el.textContent = msg;
+  }
+  function verify(body){
+    return fetch('/api/intake/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function(r){ return r.json().then(function(j){ return { status: r.status, body: j }; }); });
+  }
+  function tryUnlock(body){
+    setGateMsg('Confirming payment…');
+    return verify(body).then(function(res){
+      if(res.body && res.body.ok){
+        showForm({ tier: res.body.tier, method: res.body.method, sessionId: body.sessionId || '', txnId: body.txnId || '' });
+        return true;
+      }
+      if(res.status === 402) setGateMsg('That checkout is not paid yet. If you used Afterpay, Cash App, or a bank debit, wait for the payment to clear and refresh.');
+      else if(res.status === 404) setGateMsg('No completed payment matches that id. Check the Stripe session or PayPal transaction ID from your receipt.');
+      else setGateMsg('We could not confirm payment. Try again in a moment or email mike@aurevonvc.com.');
+      return false;
+    }).catch(function(){
+      setGateMsg('Network error confirming payment. Check your connection and try again.');
+      return false;
+    });
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    hideForm();
+    var p = new URLSearchParams(window.location.search);
+    var sessionId = p.get('session_id') || p.get('sessionId') || '';
+    var txnId = p.get('txn_id') || p.get('txn') || '';
+    if(sessionId.indexOf('cs_') === 0){
+      tryUnlock({ sessionId: sessionId });
+    } else if(txnId){
+      tryUnlock({ txnId: txnId });
+    }
+    var txnForm = document.getElementById('bktTxnForm');
+    if(txnForm){
+      txnForm.addEventListener('submit', function(e){
+        e.preventDefault();
+        var input = document.getElementById('bktTxnInput');
+        var val = (input && input.value || '').trim();
+        if(!val){ setGateMsg('Enter the PayPal transaction ID from your receipt.'); return; }
+        tryUnlock({ txnId: val });
+      });
+    }
   });
 })();
 </script>
@@ -133,13 +174,18 @@ footer a{color:var(--o2);text-decoration:none;}
 <script src="https://analytics.ahrefs.com/analytics.js" data-key="KT7/GL6HdSiab4F4btE2Tw" async></script>
 </head>
 <body>
-<div id="bktGate" class="bkt-gate" style="display:none;">
+<div id="bktGate" class="bkt-gate" style="display:flex;">
   <div class="bkt-gate-card">
     <div class="bkt-gate-icon">🔒</div>
     <h1>Payment Required</h1>
-    <p>The deal intake form opens automatically after your payment is confirmed. Please return to Aurevon Capital and complete checkout to access this page.</p>
+    <p id="bktGateMsg">The deal intake form opens after we confirm a paid Stripe checkout or a completed PayPal transaction. A <code>?paid=</code> link is not enough.</p>
+    <form id="bktTxnForm" style="margin:0 0 1.2rem;display:flex;flex-direction:column;gap:0.6rem;text-align:left;">
+      <label for="bktTxnInput" style="font-size:0.78rem;font-weight:600;color:#b8b3ab;">Paid with PayPal? Enter your transaction ID</label>
+      <input id="bktTxnInput" type="text" autocomplete="off" placeholder="PayPal txn id from your receipt" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:0.7rem 1rem;color:#f0ede8;font-family:inherit;font-size:0.88rem;">
+      <button type="submit" class="bkt-gate-cta" style="border:none;width:100%;cursor:pointer;">Confirm PayPal payment</button>
+    </form>
     <a href="aurevon-re.html#pricing" class="bkt-gate-cta">← Return to Pricing</a>
-    <p class="bkt-gate-foot">Already paid but landed here by accident? <a href="aurevon-re.html#faq">See FAQ</a> or email <a href="mailto:mike@aurevonvc.com">mike@aurevonvc.com</a>.</p>
+    <p class="bkt-gate-foot">Card checkout returns you here with a session id automatically. Already paid but stuck? Email <a href="mailto:mike@aurevonvc.com">mike@aurevonvc.com</a>.</p>
   </div>
 </div>
 <style>
