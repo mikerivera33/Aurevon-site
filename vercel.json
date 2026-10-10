@@ -67,6 +67,10 @@
       "destination": "/api/health.js"
     },
     {
+      "source": "/api/intake/verify",
+      "destination": "/api/intake/verify.js"
+    },
+    {
       "source": "/api/discord/auth",
       "destination": "/api/discord.js?action=auth"
     },
