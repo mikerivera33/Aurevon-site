@@ -217,6 +217,16 @@ export default async function handler(req, res) {
 
         if (req.body?.email) sessionParams.customer_email = req.body.email;
 
+        // Session metadata does not copy onto the Subscription. Cancel/update
+        // webhooks read subscription.metadata.tier; stamp it at create so a
+        // later checkout.session.completed PATCH failure cannot leave the
+        // subscription unidentifiable.
+        if (product.mode === 'subscription') {
+          const subMeta = { tier: product.tier };
+          if (req.body?.email) subMeta.email = req.body.email;
+          sessionParams.subscription_data = { metadata: subMeta };
+        }
+
         // Promotion codes. `discounts` and `allow_promotion_codes` are mutually
         // exclusive in the Stripe API. If the caller passed a specific code, try to
         // resolve and auto-apply it; on any miss/error fall back to letting the

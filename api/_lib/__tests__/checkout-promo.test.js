@@ -78,4 +78,17 @@ describe('stripe checkout promo + cancelPath', () => {
     await handler({ method: 'POST', body: { tier: 're_full', cancelPath: '//evil.com' } }, res);
     expect(created[0].cancel_url).toBe('https://www.aurevonvc.com/aurevon-re');
   });
+
+  it('stamps subscription_data.metadata.tier for monthly Checkout', async () => {
+    const res = mockRes();
+    await handler({ method: 'POST', body: { tier: 'comm_monthly' } }, res);
+    expect(created[0].mode).toBe('subscription');
+    expect(created[0].subscription_data).toEqual({ metadata: { tier: 'comm_monthly' } });
+  });
+
+  it('does not set subscription_data for one-time payments', async () => {
+    const res = mockRes();
+    await handler({ method: 'POST', body: { tier: 're_full' } }, res);
+    expect(created[0].subscription_data).toBeUndefined();
+  });
 });
