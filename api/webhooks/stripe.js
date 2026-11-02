@@ -2,7 +2,9 @@
  * Stripe webhook handler — POST /api/webhooks/stripe
  *
  * Vercel serverless function (ESM, Node 20+).
- * Handles checkout.session.completed → mints NFT → updates Airtable → sends email.
+ * Handles settled Checkout Sessions (card: checkout.session.completed with
+ * payment_status paid; Afterpay/Cash App/ACH: checkout.session.async_payment_succeeded)
+ * → mints NFT → updates Airtable → sends email.
  */
 
 import crypto from 'node:crypto';
@@ -54,11 +56,25 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
 // Core pipeline
 // ---------------------------------------------------------------------------
 
+/** Stripe marks a session settled as "paid", or "no_payment_required" for $0 / 100% promo. */
+export function isSettledCheckout(session) {
+  return session?.payment_status === 'paid' || session?.payment_status === 'no_payment_required';
+}
+
 export async function handleCheckoutSessionCompleted(session) {
     const sessionId = session.id;
     const customerEmail = session.customer_details?.email ?? session.customer_email;
     const customerName = session.customer_details?.name ?? 'Aurevon Member';
     const amountTotal = session.amount_total ?? 0; // cents
+
+  // Delayed methods (Afterpay, Cash App Pay, ACH) send checkout.session.completed
+  // with payment_status:"unpaid" before funds settle. Fulfilling here would mint
+  // the NFT and write Payments status=Succeeded even if the charge later fails.
+  // Wait for payment_status paid (or the later async_payment_succeeded event).
+  if (!isSettledCheckout(session)) {
+        console.log(`[Stripe] Session ${sessionId} payment_status=${session?.payment_status ?? 'missing'} — not settled, skipping fulfillment`);
+        return;
+  }
 
   if (!customerEmail) {
         console.error(`[Stripe] No customer email on session ${sessionId} — aborting pipeline`);
@@ -443,12 +459,14 @@ export default async function handler(req, res) {
   // awaiting the full pipeline) keeps us inside Stripe's ~10s window and avoids
   // the timeout→redelivery loop that could disable the endpoint. The idempotency
   // guard above makes any redelivery that does occur a safe no-op.
-  if (event.type === 'checkout.session.completed') {
+  if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
         waitUntil(
                 handleCheckoutSessionCompleted(event.data.object).catch((err) => {
                         console.error(`[Stripe] Unhandled pipeline error: ${err.message}`, err.stack);
                 })
         );
+  } else if (event.type === 'checkout.session.async_payment_failed') {
+        console.log(`[Stripe] async payment failed for session ${event.data.object?.id} — not fulfilling`);
   } else if (event.type === 'customer.subscription.deleted') {
         waitUntil(
                 handleSubscriptionDeleted(event.data.object).catch((err) => {
