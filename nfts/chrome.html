@@ -23,7 +23,6 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            perspective: 1000px;
         }
 
         .nft-container {
@@ -34,6 +33,10 @@
             animation: spin 10s linear infinite;
         }
 
+        /* No perspective on <body>: it would make body the containing block
+           for position:fixed descendants (the page-wide motion layers), which
+           would then scroll away. The old body perspective never reached the
+           card anyway (a wrapper sits between), so the flat spin is unchanged. */
         @keyframes spin {
             0% { transform: rotateY(0deg); }
             100% { transform: rotateY(360deg); }
@@ -233,6 +236,7 @@
 <script defer src="/_vercel/insights/script.js"></script>
 <!-- Ahrefs Analytics -->
 <script src="https://analytics.ahrefs.com/analytics.js" data-key="KT7/GL6HdSiab4F4btE2Tw" async></script>
+<link rel="stylesheet" href="/motion/motion-bg.css">
 </head>
 <body>
   <!-- NFT Video — place /assets/nfts/chrome.mp4 to activate -->
@@ -338,5 +342,10 @@
   </div>
 </nav>
 
+<!-- Aurevon shared motion background (ported from labs.aurevonvc.com) -->
+<script src="/motion/ticker.js" defer></script>
+<script src="/motion/lightning.js" defer></script>
+<script src="/motion/motion-bg.js" defer></script>
+<script type="module" src="/motion/motion-bg-3d.js"></script>
 </body>
 </html>

@@ -1,0 +1,223 @@
+/* =========================================================
+   AUREVON — Shared motion background
+   Ported from labs.aurevonvc.com so every Aurevon property shares the
+   same storm: a faint procedural grid, two electric-blue radial glows,
+   a drifting WebGL particle field, and the procedural lightning engine
+   (hero signature strike, ambient page-wide bolts, button crackle).
+
+   This file is self-contained and must not depend on a host page's
+   tokens. Colours are the Aurevon Labs palette; the hero/page layers
+   are inert without the matching scripts, so a blocked script degrades
+   to a plain dark page rather than a broken one.
+
+   Load order on a page:
+     <link rel="stylesheet" href="/motion/motion-bg.css">
+     <script src="/motion/ticker.js" defer></script>
+     <script src="/motion/lightning.js" defer></script>
+     <script src="/motion/motion-bg.js" defer></script>
+     <script type="module" src="/motion/motion-bg-3d.js"></script>
+   ========================================================= */
+
+:root {
+  --motion-grid-line: rgba(35, 42, 61, 0.28);
+  --motion-glow-a: rgba(10, 108, 255, 0.16);
+  --motion-glow-b: rgba(0, 194, 255, 0.1);
+}
+
+/* The grid and glow layers are negative-z pseudo-elements of <body>, so
+   the body background must propagate to the canvas (i.e. <html> must not
+   paint its own opaque background) or they end up behind it. */
+html {
+  background: transparent;
+}
+
+/* Subtle procedural background: faint grid + radial vignette */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(var(--motion-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--motion-grid-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 30%, transparent 85%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 30%, transparent 85%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  background:
+    radial-gradient(ellipse 60% 40% at 15% -5%, var(--motion-glow-a), transparent 60%),
+    radial-gradient(ellipse 50% 35% at 100% 20%, var(--motion-glow-b), transparent 60%);
+  pointer-events: none;
+}
+
+/* =========================================================
+   Hero layers — injected into the page's hero element by the
+   bootstrap scripts. The hero becomes its own stacking context so
+   both canvases can sit behind its in-flow content without falling
+   behind the page background.
+   ========================================================= */
+.motion-hero {
+  position: relative;
+  isolation: isolate;
+}
+
+.motion-hero > .hero-scene3d-layer,
+.motion-hero > .hero-canvas-layer {
+  position: absolute;
+  inset: 0;
+  /* A canvas is a replaced element: with width/height auto it keeps its
+     intrinsic 300x150 and `inset: 0` cannot stretch it. */
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* The 3D layers are created after load (three.js is lazy-loaded), so they
+   fade in rather than pop: the bootstrap adds .is-ready one frame after
+   the scene starts rendering. */
+.motion-hero > .hero-scene3d-layer {
+  z-index: -2;
+  opacity: 0;
+  transition: opacity 900ms ease-out;
+}
+
+.motion-hero > .hero-scene3d-layer.is-ready {
+  opacity: 0.9;
+}
+
+.motion-hero > .hero-canvas-layer {
+  z-index: -1;
+}
+
+/* =========================================================
+   Page-wide layers
+   ========================================================= */
+
+/* Faint full-page continuation of the 3D scene, fixed behind content.
+   100% width rather than 100vw: 100vw ignores the scrollbar and causes a
+   horizontal overflow on desktop. dvh tracks the mobile URL bar. */
+.page-scene3d-layer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1200ms ease-out;
+  mix-blend-mode: screen;
+}
+
+.page-scene3d-layer.is-ready {
+  opacity: 0.16;
+}
+
+/* Full-viewport ambient lightning overlay. Sits above in-flow content
+   (bolts cross the page) but below any sticky nav / drawer / dialog,
+   which all use far higher z-indexes on every Aurevon site. */
+.page-lightning-layer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.85;
+}
+
+/* Per-element crackle overlay. Inset negative so bolts can spill
+   outside the element bounds. */
+.crackle-layer {
+  position: absolute;
+  inset: -24px;
+  width: calc(100% + 48px);
+  height: calc(100% + 48px);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Full-screen flash accompanying the hero signature strike. */
+.screen-flash {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 20%,
+    rgba(230, 244, 255, 0.9),
+    rgba(0, 194, 255, 0.25) 40%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 998;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+/* =========================================================
+   Crackle edge-glow pulse — fired on the interactive element
+   itself alongside a lightning strike (hover/click/focus).
+   ========================================================= */
+@keyframes motion-crackle-pulse-ring {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(0, 194, 255, 0),
+      0 0 0 1px rgba(0, 194, 255, 0.4),
+      0 0 0 rgba(77, 163, 255, 0);
+    filter: brightness(1);
+  }
+  18% {
+    box-shadow:
+      0 0 0 2px rgba(230, 244, 255, 0.9),
+      0 0 22px 4px rgba(0, 194, 255, 0.85),
+      0 0 46px 10px rgba(10, 108, 255, 0.5);
+    filter: brightness(1.35);
+  }
+  55% {
+    box-shadow:
+      0 0 0 1px rgba(0, 194, 255, 0.55),
+      0 0 16px 2px rgba(0, 194, 255, 0.45),
+      0 0 30px 6px rgba(10, 108, 255, 0.25);
+    filter: brightness(1.12);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(0, 194, 255, 0),
+      0 0 0 1px rgba(0, 194, 255, 0),
+      0 0 0 rgba(10, 108, 255, 0);
+    filter: brightness(1);
+  }
+}
+
+.crackle-pulse {
+  animation: motion-crackle-pulse-ring 700ms ease-out;
+}
+
+/* =========================================================
+   Reduced motion: no bolts, no flash, no drifting particles. The
+   static grid + glow stay, as they do on Labs.
+   ========================================================= */
+@media (prefers-reduced-motion: reduce) {
+  .page-lightning-layer,
+  .crackle-layer,
+  .screen-flash,
+  .motion-hero > .hero-canvas-layer {
+    display: none;
+  }
+
+  .page-scene3d-layer.is-ready {
+    opacity: 0.08;
+  }
+
+  .crackle-pulse {
+    animation: none;
+  }
+}
