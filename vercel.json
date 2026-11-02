@@ -9,7 +9,7 @@
   "redirects": [
     {
       "source": "/__CHECKOUT__comm_:tier",
-      "destination": "/aurevon-web3#tiers",
+      "destination": "/aurevon-web3#community-nft",
       "permanent": false
     },
     {
