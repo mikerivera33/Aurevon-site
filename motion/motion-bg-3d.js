@@ -40,10 +40,18 @@ const HERO_SELECTORS =
   (window.AurevonMotionBGConfig && window.AurevonMotionBGConfig.heroSelectors) ||
   DEFAULT_HERO_SELECTORS;
 
+/* First *rendered* match — see motion-bg.js: a hidden (display:none)
+   segment kept around by a client router is a stale hero. */
+function isRendered(el) {
+  return el.getClientRects().length > 0;
+}
+
 function findHero() {
   for (let i = 0; i < HERO_SELECTORS.length; i++) {
-    const el = document.querySelector(HERO_SELECTORS[i]);
-    if (el) return el;
+    const matches = document.querySelectorAll(HERO_SELECTORS[i]);
+    for (let j = 0; j < matches.length; j++) {
+      if (isRendered(matches[j])) return matches[j];
+    }
   }
   return null;
 }

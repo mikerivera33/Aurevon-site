@@ -63,10 +63,19 @@
 
   const CRACKLE_SELECTOR = CONFIG.crackleSelector || '[data-crackle], .btn, .btn-g, .nav-link';
 
+  /* First *rendered* match: client routers (Next.js Activity) keep the
+     previous page's segment in the DOM under display:none, so a selector
+     hit that has no layout boxes is a stale hero, not this page's. */
+  function isRendered(el) {
+    return el.getClientRects().length > 0;
+  }
+
   function findHero() {
     for (let i = 0; i < HERO_SELECTORS.length; i++) {
-      const el = document.querySelector(HERO_SELECTORS[i]);
-      if (el) return el;
+      const matches = document.querySelectorAll(HERO_SELECTORS[i]);
+      for (let j = 0; j < matches.length; j++) {
+        if (isRendered(matches[j])) return matches[j];
+      }
     }
     return null;
   }
