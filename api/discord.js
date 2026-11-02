@@ -394,6 +394,12 @@ async function handleCheckMembership(req, res) {
         const entitlementKey = resolveEntitlementFromNftType(nftType);
         const roleId         = entitlementKey ? getRoleId(entitlementKey) : null;
         if (!roleId) continue;
+        // Same billing gate as the OAuth callback: a cancelled / lapsed monthly
+        // member still has a Minted Genesis row, so the mint alone isn't proof.
+        if (!mayGrantPaidAccessFromMember(entitlementKey, member.fields)) {
+          await updateSync(email, 'revoked');
+          continue;
+        }
         await addRoleToMember(discordId, roleId);
         await updateSync(email, 'synced');
         synced.push({ email, discordId, nftType });

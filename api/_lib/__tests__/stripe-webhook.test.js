@@ -20,6 +20,7 @@ vi.mock('../airtable.js', () => ({
   countNftMintsByPrefix: vi.fn().mockResolvedValue(0),
   updateDiscordSyncStatus: vi.fn().mockResolvedValue({}),
   findMemberByEmail: vi.fn().mockResolvedValue(null),
+  updateEntitlementState: vi.fn().mockResolvedValue({}),
 }));
 vi.mock('../crossmint.js', () => ({
   mintToEmail: vi.fn().mockResolvedValue({ ok: true, actionId: 'act_test', imageUrl: null }),
@@ -27,6 +28,18 @@ vi.mock('../crossmint.js', () => ({
 vi.mock('../email.js', () => ({
   sendNftDelivery: vi.fn().mockResolvedValue({}),
   sendPurchaseConfirmation: vi.fn().mockResolvedValue({}),
+}));
+vi.mock('../alert.js', () => ({ sendAlert: vi.fn().mockResolvedValue({}) }));
+vi.mock('../discord-bot.js', () => ({ removeRoleFromMember: vi.fn() }));
+
+const subscriptionsUpdate = vi.fn().mockResolvedValue({});
+vi.mock('stripe', () => ({
+  default: class StripeMock {
+    constructor() {
+      this.subscriptions = { update: subscriptionsUpdate };
+      this.customers = { retrieve: vi.fn() };
+    }
+  },
 }));
 
 import { handleCheckoutSessionCompleted, isSettledCheckout } from '../../webhooks/stripe.js';
@@ -85,6 +98,27 @@ describe('Stripe webhook idempotency (durability under retry)', () => {
 
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
     expect(airtable.createPayment).not.toHaveBeenCalled();
+  });
+
+  it('still writes subscription metadata when the Payments marker already exists', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_x';
+    airtable.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
+
+    await handleCheckoutSessionCompleted({
+      id: 'cs_retry_sub',
+      payment_status: 'paid',
+      mode: 'subscription',
+      subscription: 'sub_retry',
+      customer_details: { email: 'monthly@example.com', name: 'Monthly' },
+      metadata: { tier: 'comm_monthly' },
+      amount_total: 2999,
+    });
+
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(subscriptionsUpdate).toHaveBeenCalledWith('sub_retry', {
+      metadata: { email: 'monthly@example.com', tier: 'comm_monthly' },
+    });
   });
 });
 
