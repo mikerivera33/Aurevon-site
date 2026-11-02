@@ -115,14 +115,15 @@
      exists at refresh time, watch the document briefly and wire the hero
      the moment one appears. */
   let heroWatcher = null;
+  function stopHeroWatcher() {
+    if (!heroWatcher) return;
+    heroWatcher.observer.disconnect();
+    clearTimeout(heroWatcher.timer);
+    heroWatcher = null;
+  }
   function watchForLateHero() {
     if (heroWatcher || typeof MutationObserver !== 'function') return;
-    const stop = () => {
-      if (!heroWatcher) return;
-      heroWatcher.observer.disconnect();
-      clearTimeout(heroWatcher.timer);
-      heroWatcher = null;
-    };
+    const stop = stopHeroWatcher;
     const observer = new MutationObserver(() => {
       if (findHero()) {
         stop();
@@ -296,6 +297,7 @@
   }
 
   function destroy() {
+    stopHeroWatcher();
     unwireHero();
     [].concat(pageFields, crackleFields).forEach((f) => {
       try {

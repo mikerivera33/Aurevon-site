@@ -185,18 +185,22 @@ function reveal(canvas) {
 /* Same late-hero handling as motion-bg.js: watch briefly for a hero that
    page script reveals after load, then wire it. */
 let heroWatcher = null;
+function stopHeroWatcher() {
+  if (!heroWatcher) return;
+  heroWatcher.observer.disconnect();
+  clearTimeout(heroWatcher.timer);
+  heroWatcher = null;
+}
 function watchForLateHero(initScene3D) {
   if (heroWatcher || typeof MutationObserver !== 'function') return;
-  const stop = () => {
-    if (!heroWatcher) return;
-    heroWatcher.observer.disconnect();
-    clearTimeout(heroWatcher.timer);
-    heroWatcher = null;
-  };
+  const stop = stopHeroWatcher;
+  const gen = generation;
   const observer = new MutationObserver(() => {
     if (findHero()) {
       stop();
-      if (!reducedMotion()) wireHero(initScene3D);
+      /* destroy() bumps generation: a watch started before a teardown must
+         not resurrect the scene it tore down. */
+      if (gen === generation && !reducedMotion()) wireHero(initScene3D);
     }
   });
   observer.observe(document.documentElement, {
@@ -317,6 +321,7 @@ function refresh() {
 
 function destroy() {
   generation++;
+  stopHeroWatcher();
   unwireHero();
   if (pageState) {
     try {
