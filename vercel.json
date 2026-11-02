@@ -8,6 +8,11 @@
   "trailingSlash": false,
   "redirects": [
     {
+      "source": "/__CHECKOUT__comm_:tier",
+      "destination": "/aurevon-web3#tiers",
+      "permanent": false
+    },
+    {
       "source": "/__CHECKOUT__:tier",
       "destination": "/aurevon-re#pricing",
       "permanent": false
