@@ -1022,6 +1022,10 @@ const CFG = window.AUREVON_CONFIG || {};
   try {
     var params = new URLSearchParams(window.location.search);
     if (!params.has('purchased')) return;
+    // Only underwriting packages come with a deal-intake form; an à la carte
+    // add-on return stays on this page (the verifier would refuse it anyway).
+    var purchased = String(params.get('purchased') || '').toLowerCase().replace(/^re_/, '');
+    if (!/^(bogo|single|full|retainer|enterprise|deal)$/.test(purchased)) return;
     var sessionId = params.get('session_id') || '';
     if (sessionId.indexOf('cs_') === 0) {
       sessionStorage.removeItem('bkt_pending_intake');

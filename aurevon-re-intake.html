@@ -121,12 +121,22 @@ footer a{color:var(--o2);text-decoration:none;}
       body: JSON.stringify(body)
     }).then(function(r){ return r.json().then(function(j){ return { status: r.status, body: j }; }); });
   }
-  function tryUnlock(body){
+  // retries: PayPal auto-return can land before the IPN has written the
+  // Payments row, so an id that came from the return URL is re-checked for
+  // ~30s before "not found" is shown.
+  function tryUnlock(body, retries){
+    retries = retries || 0;
     setGateMsg('Confirming payment…');
     return verify(body).then(function(res){
       if(res.body && res.body.ok){
         showForm({ tier: res.body.tier, method: res.body.method, sessionId: body.sessionId || '', txnId: body.txnId || '' });
         return true;
+      }
+      if(res.status === 404 && retries > 0){
+        setGateMsg('Confirming your PayPal payment with PayPal… this can take up to a minute.');
+        return new Promise(function(resolve){
+          setTimeout(function(){ resolve(tryUnlock(body, retries - 1)); }, 4000);
+        });
       }
       if(res.status === 402) setGateMsg('That checkout is not paid yet. If you used Afterpay, Cash App, or a bank debit, wait for the payment to clear and refresh.');
       else if(res.status === 404) setGateMsg('No completed payment matches that id. Check the Stripe session or PayPal transaction ID from your receipt.');
@@ -147,7 +157,7 @@ footer a{color:var(--o2);text-decoration:none;}
     if(sessionId.indexOf('cs_') === 0){
       tryUnlock({ sessionId: sessionId });
     } else if(txnId){
-      tryUnlock({ txnId: txnId });
+      tryUnlock({ txnId: txnId }, 7);
     }
     var txnForm = document.getElementById('bktTxnForm');
     if(txnForm){
