@@ -228,6 +228,17 @@ export default async function handler(req, res) {
 
         if (req.body?.email) sessionParams.customer_email = req.body.email;
 
+        // Session metadata does not copy onto the Subscription. Cancel/update
+        // webhooks read subscription.metadata.tier; stamp it at create so a
+        // later checkout.session.completed PATCH failure cannot leave the
+        // subscription unidentifiable.
+        if (product.mode === 'subscription') {
+          // Tier only: req.body.email is unauthenticated and the payer can change
+          // it in Checkout. The settled email is written by the webhook, and
+          // lifecycle events resolve the member from the Stripe Customer.
+          sessionParams.subscription_data = { metadata: { tier: product.tier } };
+        }
+
         // Promotion codes. `discounts` and `allow_promotion_codes` are mutually
         // exclusive in the Stripe API. If the caller passed a specific code, try to
         // resolve and auto-apply it; on any miss/error fall back to letting the

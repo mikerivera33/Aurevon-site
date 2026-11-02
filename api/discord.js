@@ -12,8 +12,8 @@
 
 import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 import { addRoleToMember, addMemberToGuild } from './_lib/discord-bot.js';
-import { upsertDiscordLink, updateDiscordSyncStatus, findActiveMintByEmail, findMemberByEmail, isDiscordAuthNonceUsed, markDiscordAuthNonceUsed } from './_lib/airtable.js';
-import { resolveEntitlementFromNftType, getRoleId } from './_lib/entitlements.js';
+import { upsertDiscordLink, updateDiscordSyncStatus, findActiveMintsByEmail, findMemberByEmail, isDiscordAuthNonceUsed, markDiscordAuthNonceUsed } from './_lib/airtable.js';
+import { resolveEntitlementFromNftType, getRoleId, pickGrantableMint, UNKNOWN_BILLING_FIELDS } from './_lib/entitlements.js';
 import { onEntitlementActivated } from './_lib/engage.js';
 
 // ── Env ──────────────────────────────────────────────────────────────────────
@@ -207,13 +207,30 @@ async function handleCallback(req, res) {
   try { token = await exchangeCode(code); user = await getDiscordUser(token.access_token); }
   catch (e) { return res.status(502).json({ error: 'Discord auth failed', detail: e.message }); }
 
-  // Find this member's active NFT mint in Airtable
-  let mintRecord = null;
-  try { mintRecord = await findActiveMintByEmail(email); }
+  // Find this member's active NFT mints in Airtable
+  let mints = [];
+  try { mints = await findActiveMintsByEmail(email); }
   catch (e) { console.error(`[Discord] Airtable lookup failed: ${e.message}`); }
 
-  if (!mintRecord) {
+  if (!mints.length) {
     return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=no_nft`);
+  }
+
+  // Recurring monthly: the Genesis mint stays Minted/Sent after cancel, so an
+  // inbox-owned claim link would re-grant the role forever unless we re-check
+  // billing here — the same shouldRevokeAccess window the daily cron uses.
+  // Pick the first pass still grantable, so a lapsed Genesis never hides a
+  // permanent one. A failed member lookup fails closed for monthly only.
+  let memberFields;
+  try { memberFields = (await findMemberByEmail(email))?.fields; }
+  catch (e) {
+    console.error(`[Discord] billing lookup failed (fail-closed for revocable): ${e.message}`);
+    memberFields = UNKNOWN_BILLING_FIELDS;
+  }
+  const mintRecord = pickGrantableMint(mints, memberFields);
+  if (!mintRecord) {
+    console.warn(`[Discord] refusing role grant for cancelled/lapsed monthly email=${email}`);
+    return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=revoked`);
   }
 
   const nftType = mintRecord.fields['NFT Type'] ?? '';
@@ -291,12 +308,14 @@ async function handleSync(req, res) {
   const discordId = member.fields['Discord ID'];
   if (!discordId) return res.status(422).json({ error: 'Member has no linked Discord ID — they must complete OAuth first', link: `${DOMAIN}/member-claim.html` });
 
-  // Look up active mint
-  let mintRecord;
-  try { mintRecord = await findActiveMintByEmail(email); }
+  // Look up active mints; grant the first pass billing still allows
+  let mints;
+  try { mints = await findActiveMintsByEmail(email); }
   catch (e) { return res.status(502).json({ error: 'NFT lookup failed', detail: e.message }); }
 
-  if (!mintRecord) return res.status(404).json({ error: 'No active NFT mint found for this email' });
+  if (!mints.length) return res.status(404).json({ error: 'No active NFT mint found for this email' });
+  const mintRecord = pickGrantableMint(mints, member.fields);
+  if (!mintRecord) return res.status(403).json({ error: 'Membership is no longer active' });
 
   const nftType = mintRecord.fields['NFT Type'] ?? '';
   const entitlementKey = resolveEntitlementFromNftType(nftType);
@@ -357,7 +376,7 @@ async function handleCheckMembership(req, res) {
     return res.status(200).json({ ok: true, skipped: true, reason: 'Airtable not configured', synced: 0, errors: 0 });
   }
 
-  const { listPendingDiscordSync, findActiveMintByEmail: findMint, updateDiscordSyncStatus: updateSync } = await import('./_lib/airtable.js');
+  const { listPendingDiscordSync, findActiveMintsByEmail: findMints, updateDiscordSyncStatus: updateSync } = await import('./_lib/airtable.js');
   const synced = [];
   const errors = [];
 
@@ -368,8 +387,15 @@ async function handleCheckMembership(req, res) {
       const discordId = member.fields?.['Discord ID'];
       if (!email || !discordId) continue;
       try {
-        const mint = await findMint(email);
-        if (!mint) continue;
+        const mints = await findMints(email);
+        if (!mints.length) continue;
+        // Same billing gate as the OAuth callback: a cancelled / lapsed monthly
+        // member still has a Minted Genesis row, so the mint alone isn't proof.
+        const mint = pickGrantableMint(mints, member.fields);
+        if (!mint) {
+          await updateSync(email, 'revoked');
+          continue;
+        }
         const nftType        = mint.fields['NFT Type'] ?? '';
         const entitlementKey = resolveEntitlementFromNftType(nftType);
         const roleId         = entitlementKey ? getRoleId(entitlementKey) : null;

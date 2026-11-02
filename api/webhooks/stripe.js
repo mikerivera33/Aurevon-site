@@ -2,10 +2,13 @@
  * Stripe webhook handler — POST /api/webhooks/stripe
  *
  * Vercel serverless function (ESM, Node 20+).
- * Handles checkout.session.completed → mints NFT → updates Airtable → sends email.
+ * Handles settled Checkout Sessions (card: checkout.session.completed with
+ * payment_status paid; Afterpay/Cash App/ACH: checkout.session.async_payment_succeeded)
+ * → mints NFT → updates Airtable → sends email.
  */
 
 import crypto from 'node:crypto';
+import Stripe from 'stripe';
 import { waitUntil } from '@vercel/functions';
 import { TIER_NFT_MAP, inferTierFromAmount, getNextSerial, formatSerial } from '../_lib/tiers.js';
 import { mintToEmail } from '../_lib/crossmint.js';
@@ -14,6 +17,66 @@ import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
 import { resolveEntitlementFromSku, getRoleId, ENTITLEMENT_MAP } from '../_lib/entitlements.js';
 import { removeRoleFromMember } from '../_lib/discord-bot.js';
 import { sendAlert } from '../_lib/alert.js';
+
+const STRIPE_API_VERSION = '2023-10-16';
+
+function stripeClient() {
+  return new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: STRIPE_API_VERSION });
+}
+
+function subscriptionIdFrom(sessionOrSub) {
+  const value = sessionOrSub?.subscription ?? sessionOrSub?.id;
+  if (typeof value === 'string') return value;
+  return value?.id ?? null;
+}
+
+function customerIdFrom(subscription) {
+  const customer = subscription?.customer;
+  if (typeof customer === 'string') return customer;
+  return customer?.id ?? null;
+}
+
+/**
+ * Cancel/update events only carry metadata.email if checkout.session.completed
+ * managed to PATCH the subscription. That write is best-effort and is skipped
+ * entirely on idempotent retry (Payments row already exists). Fall back to the
+ * Stripe Customer — Checkout always creates one with the buyer's email.
+ */
+// The Stripe Customer is the payer Stripe settled the subscription for, so it
+// is authoritative. metadata.email is only a fallback (written by
+// persistSubscriptionIdentity from the settled checkout email) for when the
+// Customer can't be read — never from the unauthenticated checkout request.
+export async function resolveSubscriptionEmail(subscription) {
+  const fromMeta = subscription?.metadata?.email || null;
+  const expanded = subscription?.customer;
+  if (expanded && typeof expanded === 'object' && !expanded.deleted && expanded.email) {
+    return expanded.email;
+  }
+  const customerId = customerIdFrom(subscription);
+  if (!customerId || !process.env.STRIPE_SECRET_KEY) return fromMeta;
+  try {
+    const customer = await stripeClient().customers.retrieve(customerId);
+    if (customer && !customer.deleted && customer.email) return customer.email;
+    return fromMeta;
+  } catch (err) {
+    console.error(`[Stripe] Could not resolve customer email for ${customerId}: ${err.message}`);
+    return fromMeta;
+  }
+}
+
+async function persistSubscriptionIdentity(session, customerEmail, tier) {
+  if (session?.mode !== 'subscription' || !customerEmail) return;
+  const subId = subscriptionIdFrom(session);
+  if (!subId || !process.env.STRIPE_SECRET_KEY) return;
+  try {
+    const metadata = { email: customerEmail };
+    if (tier) metadata.tier = tier;
+    await stripeClient().subscriptions.update(subId, { metadata });
+    console.log(`[Stripe] Saved email to subscription ${subId} metadata`);
+  } catch (err) {
+    console.error(`[Stripe] Could not update subscription metadata: ${err.message}`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Stripe signature verification (no Stripe SDK dependency)
@@ -54,11 +117,33 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
 // Core pipeline
 // ---------------------------------------------------------------------------
 
+/** Stripe marks a session settled as "paid", or "no_payment_required" for $0 / 100% promo. */
+export function isSettledCheckout(session) {
+  return session?.payment_status === 'paid' || session?.payment_status === 'no_payment_required';
+}
+
 export async function handleCheckoutSessionCompleted(session) {
     const sessionId = session.id;
     const customerEmail = session.customer_details?.email ?? session.customer_email;
     const customerName = session.customer_details?.name ?? 'Aurevon Member';
     const amountTotal = session.amount_total ?? 0; // cents
+
+  // Delayed methods (Afterpay, Cash App Pay, ACH) send checkout.session.completed
+  // with payment_status:"unpaid" before funds settle. Fulfilling here would mint
+  // the NFT and write Payments status=Succeeded even if the charge later fails.
+  // Wait for payment_status paid (or the later async_payment_succeeded event).
+  if (!isSettledCheckout(session)) {
+        console.log(`[Stripe] Session ${sessionId} payment_status=${session?.payment_status ?? 'missing'} — not settled, skipping fulfillment`);
+        // Fulfilment now depends on checkout.session.async_payment_succeeded
+        // reaching this endpoint. Alert so a missing event subscription (or a
+        // payment that never settles) can't leave a buyer unfulfilled silently.
+        await sendAlert('stripe.checkout_awaiting_payment', {
+          sessionId,
+          paymentStatus: session?.payment_status ?? null,
+          tier: session?.metadata?.tier ?? null,
+        }).catch(() => {});
+        return;
+  }
 
   if (!customerEmail) {
         console.error(`[Stripe] No customer email on session ${sessionId} — aborting pipeline`);
@@ -75,6 +160,12 @@ export async function handleCheckoutSessionCompleted(session) {
         const prior = await findPaymentByTransactionId(sessionId);
         if (prior) {
                 console.log(`[Stripe] Session ${sessionId} already processed (Payments row exists) — skipping to avoid double-mint`);
+                // Still persist identity: a prior run may have written the Payments
+                // marker and then died before subscriptions.update, leaving cancel
+                // events with empty metadata.
+                await persistSubscriptionIdentity(session, customerEmail, session.metadata?.tier ?? null);
+                // …and the billing reset, which the first run may not have reached.
+                await activateMonthlyBilling(session, customerEmail, session.metadata?.tier ?? null, { redelivery: true });
                 return;
         }
   } catch (err) {
@@ -121,19 +212,11 @@ export async function handleCheckoutSessionCompleted(session) {
   }
 
   // If subscription mode, save customer email in subscription metadata
-  // so customer.subscription.deleted events can identify the customer
-  if (session.mode === 'subscription' && session.subscription && customerEmail) {
-    try {
-      const StripeSDK = (await import('stripe')).default;
-      const stripeClient = new StripeSDK(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
-      await stripeClient.subscriptions.update(session.subscription, {
-        metadata: { email: customerEmail, tier },
-      });
-      console.log(`[Stripe] Saved email to subscription ${session.subscription} metadata`);
-    } catch (err) {
-      console.error(`[Stripe] Could not update subscription metadata: ${err.message}`);
-    }
-  }
+  // so customer.subscription.deleted events can identify the customer.
+  // Best-effort: cancel handlers also resolve email from the Stripe Customer.
+  await persistSubscriptionIdentity(session, customerEmail, tier);
+
+  await activateMonthlyBilling(session, customerEmail, tier, { redelivery: false });
 
   // 3. Determine NFT mapping
   const tierConfig = TIER_NFT_MAP[tier] ?? null;
@@ -282,27 +365,158 @@ export async function handleCheckoutSessionCompleted(session) {
 // Subscription lifecycle handlers
 // ---------------------------------------------------------------------------
 
-async function handleSubscriptionDeleted(subscription) {
-  const customerEmail = subscription.metadata?.email ?? null;
+// A paid monthly checkout (first purchase or a re-subscribe after cancel)
+// resets Billing State to active: grant paths refuse 'cancelled', and
+// invoice.payment_succeeded may not reach this endpoint. Runs on redelivery
+// too (the first run may have died before it). The subscription's live
+// status decides, so a stale redelivered checkout can't re-activate a member
+// who has since cancelled; if Stripe can't be read, only a first-pass event
+// (just paid) is trusted.
+async function activateMonthlyBilling(session, customerEmail, tier, { redelivery }) {
+  if (resolveEntitlementFromSku(tier) !== 'monthly_membership' || !customerEmail) return;
+  const subId = subscriptionIdFrom(session);
+  let live = null;
+  if (subId && process.env.STRIPE_SECRET_KEY) {
+    try { live = (await stripeClient().subscriptions.retrieve(subId))?.status ?? null; }
+    catch (err) { console.error(`[Stripe] subscription status lookup failed for ${subId}: ${err.message}`); }
+  }
+  if (live ? !['active', 'trialing'].includes(live) : redelivery) {
+    console.log(`[Stripe] Not re-activating monthly billing (subscription status=${live ?? 'unknown'}, redelivery=${redelivery})`);
+    return;
+  }
+  await updateEntitlementState(customerEmail, {
+    entitlementType: 'monthly_membership',
+    status: 'active',
+    billingState: 'active',
+  }).catch(async (err) => {
+    console.error(`[Stripe] updateEntitlementState (checkout) failed: ${err.message}`);
+    await sendAlert('stripe.entitlement_write_failed', { source: 'checkout.session.completed', error: err.message });
+  });
+}
+
+// Before a monthly cancellation/lapse mutates a member, make sure the event
+// is about the subscription that actually entitles them. Checkout is
+// unauthenticated, so anyone can open (and cancel, or abandon) a $29.99
+// subscription under a member's email. Returns:
+//   'yes'     — the email still has ANOTHER active/trialing monthly sub: don't revoke
+//   'no'      — checked every customer/subscription for the email: safe to revoke
+//   'unknown' — Stripe errored, or more records than the scan cap (an
+//               attacker can create customers to bury the real one): don't revoke,
+//               alert for a manual check.
+const OTHER_SUB_SCAN_CAP = 1000;
+async function listAll(listFn, params) {
+  const out = [];
+  let starting_after;
+  for (;;) {
+    const page = await listFn({ ...params, limit: 100, ...(starting_after ? { starting_after } : {}) });
+    const data = page?.data ?? [];
+    out.push(...data);
+    if (out.length > OTHER_SUB_SCAN_CAP) throw new Error('scan cap exceeded');
+    if (!page?.has_more || !data.length) return out;
+    starting_after = data[data.length - 1].id;
+  }
+}
+async function otherActiveMonthlySubscription(email, excludeSubId) {
+  // No Stripe configured (local dev) — nothing to check against.
+  if (!email || !process.env.STRIPE_SECRET_KEY) return 'no';
+  try {
+    const stripe = stripeClient();
+    const customers = await listAll((p) => stripe.customers.list(p), { email });
+    let scanned = 0;
+    for (const c of customers) {
+      const subs = await listAll((p) => stripe.subscriptions.list(p), { customer: c.id, status: 'all' });
+      scanned += subs.length;
+      if (scanned > OTHER_SUB_SCAN_CAP) throw new Error('scan cap exceeded');
+      for (const sub of subs) {
+        if (sub.id === excludeSubId || !['active', 'trialing'].includes(sub.status)) continue;
+        const cents = sub.items?.data?.[0]?.price?.unit_amount;
+        const isMonthly = sub.metadata?.tier
+          ? resolveEntitlementFromSku(sub.metadata.tier) === 'monthly_membership'
+          : typeof cents === 'number' && inferTierFromAmount(cents) === 'comm_monthly';
+        if (isMonthly) return 'yes';
+      }
+    }
+    return 'no';
+  } catch (err) {
+    console.error(`[Stripe] other-subscription check failed: ${err.message}`);
+    return 'unknown';
+  }
+}
+
+// True when this monthly event must NOT revoke/downgrade the member.
+async function shouldHoldMonthlyChange(email, subscription, source) {
+  const other = await otherActiveMonthlySubscription(email, subscription?.id);
+  if (other === 'no') return false;
+  if (other === 'unknown') {
+    await sendAlert('stripe.monthly_change_held', { source, subscriptionId: subscription?.id ?? null }).catch(() => {});
+  }
+  console.warn(`[Stripe] ${source} for ${subscription?.id} held (other active monthly sub: ${other})`);
+  return true;
+}
+
+// A subscription with no metadata.tier (older checkouts) falls back to the
+// member's Entitlement Type — but not when the subscription's own price
+// identifies a different plan: cancelling an untagged Pro Retainer must not
+// touch the same email's monthly community membership.
+function untaggedSubscriptionIsMonthly(subscription, member) {
+  if (member?.fields?.['Entitlement Type'] !== 'monthly_membership') return false;
+  const cents = subscription?.items?.data?.[0]?.price?.unit_amount;
+  if (typeof cents !== 'number') return true;
+  return inferTierFromAmount(cents) === 'comm_monthly';
+}
+
+export async function handleSubscriptionDeleted(subscription) {
+  const customerEmail = await resolveSubscriptionEmail(subscription);
   const tier = subscription.metadata?.tier ?? null;
   if (!customerEmail) {
-    console.warn('[Stripe] subscription.deleted — no email in subscription metadata, skipping revocation');
+    console.warn('[Stripe] subscription.deleted — could not resolve customer email, skipping revocation');
+    await sendAlert('stripe.subscription_deleted_no_email', {
+      subscriptionId: subscription?.id ?? null,
+      customerId: customerIdFrom(subscription),
+    });
+    return;
+  }
+  // A subscription that never became active (abandoned / unpaid checkout)
+  // never entitled anyone, so its deletion must not revoke anything.
+  if (subscription?.status === 'incomplete_expired') {
+    console.log(`[Stripe] subscription.deleted for never-activated ${subscription?.id} — nothing to revoke`);
     return;
   }
   console.log(`[Stripe] Subscription cancelled for ${customerEmail} tier=${tier} — revoking access`);
 
-  // Mark revoked in Airtable
-  await updateDiscordSyncStatus(customerEmail, 'revoked').catch(e => {
-    console.error(`[Stripe] Failed to mark revocation in Airtable: ${e.message}`);
-  });
+  const member = await findMemberByEmail(customerEmail).catch(() => null);
+  let entitlementKey = tier ? resolveEntitlementFromSku(tier) : null;
+  // Historical subs whose checkout PATCH never ran have empty metadata.tier.
+  // invoice.payment_succeeded still stamped Members.Entitlement Type.
+  if (!entitlementKey && untaggedSubscriptionIsMonthly(subscription, member)) {
+    entitlementKey = 'monthly_membership';
+  }
+
+  if (entitlementKey === 'monthly_membership'
+      && await shouldHoldMonthlyChange(customerEmail, subscription, 'subscription.deleted')) {
+    return;
+  }
+
+  if (entitlementKey === 'monthly_membership') {
+    await updateEntitlementState(customerEmail, { billingState: 'cancelled' }).catch((e) => {
+      console.error(`[Stripe] Failed to stamp cancelled billing state: ${e.message}`);
+    });
+  }
 
   // Immediately remove Discord role — only for entitlements that allow revocation on cancellation
-  const entitlementKey = tier ? resolveEntitlementFromSku(tier) : null;
   const entitlementCfg = entitlementKey ? ENTITLEMENT_MAP[entitlementKey] : null;
+
+  // Mark revoked in Airtable only when this cancellation actually revokes
+  // something; cancelling a permanent-entitlement sub (retainer/enterprise)
+  // must not flag the member's other, still-valid Discord access.
+  if (entitlementCfg?.revokeOnCancel) {
+    await updateDiscordSyncStatus(customerEmail, 'revoked').catch(e => {
+      console.error(`[Stripe] Failed to mark revocation in Airtable: ${e.message}`);
+    });
+  }
   const roleId = entitlementCfg?.revokeOnCancel ? getRoleId(entitlementKey) : null;
   if (roleId) {
     try {
-      const member = await findMemberByEmail(customerEmail).catch(() => null);
       const discordId = member?.fields?.['Discord ID'];
       if (discordId) {
         await removeRoleFromMember(discordId, roleId);
@@ -362,12 +576,18 @@ export async function handleInvoicePaymentSucceeded(invoice) {
 // the billing state the revocation backstop reads, and refreshes the paid-through
 // date. Only monthly membership is tracked (metadata.tier set at checkout).
 export async function handleSubscriptionUpdated(subscription) {
-  const email = subscription.metadata?.email ?? null;
+  const email = await resolveSubscriptionEmail(subscription);
   const tier = subscription.metadata?.tier ?? null;
-  const entitlementKey = tier ? resolveEntitlementFromSku(tier) : null;
+  let entitlementKey = tier ? resolveEntitlementFromSku(tier) : null;
   if (!email) {
-    console.warn('[Stripe] subscription.updated — no email in subscription metadata, skipping billing-state write');
+    console.warn('[Stripe] subscription.updated — could not resolve customer email, skipping billing-state write');
     return;
+  }
+  if (!entitlementKey) {
+    const member = await findMemberByEmail(email).catch(() => null);
+    if (untaggedSubscriptionIsMonthly(subscription, member)) {
+      entitlementKey = 'monthly_membership';
+    }
   }
   if (entitlementKey !== 'monthly_membership') {
     console.log(`[Stripe] subscription.updated tier="${tier}" — not monthly membership, no billing-state write`);
@@ -381,6 +601,9 @@ export async function handleSubscriptionUpdated(subscription) {
   else billingState = status;
   const periodEndUnix = subscription.current_period_end ?? null;
   const expiresAt = periodEndUnix ? new Date(periodEndUnix * 1000).toISOString() : undefined;
+  if (billingState !== 'active' && await shouldHoldMonthlyChange(email, subscription, 'subscription.updated')) {
+    return;
+  }
   try {
     await updateEntitlementState(email, { billingState, expiresAt });
     console.log(`[Stripe] Billing state → ${billingState} (subscription status=${status})`);
@@ -443,12 +666,14 @@ export default async function handler(req, res) {
   // awaiting the full pipeline) keeps us inside Stripe's ~10s window and avoids
   // the timeout→redelivery loop that could disable the endpoint. The idempotency
   // guard above makes any redelivery that does occur a safe no-op.
-  if (event.type === 'checkout.session.completed') {
+  if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
         waitUntil(
                 handleCheckoutSessionCompleted(event.data.object).catch((err) => {
                         console.error(`[Stripe] Unhandled pipeline error: ${err.message}`, err.stack);
                 })
         );
+  } else if (event.type === 'checkout.session.async_payment_failed') {
+        console.log(`[Stripe] async payment failed for session ${event.data.object?.id} — not fulfilling`);
   } else if (event.type === 'customer.subscription.deleted') {
         waitUntil(
                 handleSubscriptionDeleted(event.data.object).catch((err) => {

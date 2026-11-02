@@ -24,9 +24,9 @@
 
 import crypto from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
-import { findMemberByEmail, findActiveMintByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listNftMints, listPaymentsSince, findLatestPaymentByEmailAndTier, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint } from '../_lib/airtable.js';
+import { findMemberByEmail, findActiveMintByEmail, findActiveMintsByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listNftMints, listPaymentsSince, findLatestPaymentByEmailAndTier, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint } from '../_lib/airtable.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
-import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess } from '../_lib/entitlements.js';
+import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess, pickGrantableMint } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
 import { sendDiscordAccessLink } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
@@ -293,8 +293,16 @@ async function handleReconcile() {
     if (!discordId || !email) continue;
 
     try {
-      const mintRecord = await findActiveMintByEmail(email);
-      if (!mintRecord) continue;
+      const mints = await findActiveMintsByEmail(email);
+      if (!mints.length) continue;
+      const mintRecord = pickGrantableMint(mints, member.fields);
+      if (!mintRecord) {
+        // Mark it so the row leaves the pending window (listPendingDiscordSync
+        // caps the batch) instead of crowding out members who can be granted.
+        console.log(`[Reconcile] Pending sync denied for lapsed monthly email=${email} — marking revoked`);
+        await updateDiscordSyncStatus(email, 'revoked').catch(() => {});
+        continue;
+      }
 
       const nftType        = mintRecord.fields['NFT Type'] ?? '';
       const entitlementKey = resolveEntitlementFromNftType(nftType);

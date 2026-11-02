@@ -17,6 +17,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   escapeFormulaValue,
   findActiveMintByEmail,
+  findActiveMintsByEmail,
   findActiveMintByEmailAndType,
   findAnyMintByEmailAndType,
   findMemberByEmail,
@@ -127,6 +128,7 @@ describe('formula-building call sites neutralize injected quotes', () => {
   }
 
   it('findActiveMintByEmail', async () => { await assertNoBreakout(findActiveMintByEmail); });
+  it('findActiveMintsByEmail', async () => { await assertNoBreakout(findActiveMintsByEmail); });
   it('findActiveMintByEmailAndType', async () => {
     await assertNoBreakout((v) => findActiveMintByEmailAndType(v, v));
   });
