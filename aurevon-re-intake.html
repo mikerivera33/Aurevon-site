@@ -130,6 +130,7 @@ footer a{color:var(--o2);text-decoration:none;}
       }
       if(res.status === 402) setGateMsg('That checkout is not paid yet. If you used Afterpay, Cash App, or a bank debit, wait for the payment to clear and refresh.');
       else if(res.status === 404) setGateMsg('No completed payment matches that id. Check the Stripe session or PayPal transaction ID from your receipt.');
+      else if(res.status === 403) setGateMsg('That payment is not for an underwriting package. The deal form opens after a Second Opinion, Full Package, BOGO, Pro Retainer or Enterprise purchase.');
       else setGateMsg('We could not confirm payment. Try again in a moment or email mike@aurevonvc.com.');
       return false;
     }).catch(function(){
@@ -141,7 +142,8 @@ footer a{color:var(--o2);text-decoration:none;}
     hideForm();
     var p = new URLSearchParams(window.location.search);
     var sessionId = p.get('session_id') || p.get('sessionId') || '';
-    var txnId = p.get('txn_id') || p.get('txn') || '';
+    // PayPal auto-return (PDT) appends ?tx=<txn id>.
+    var txnId = p.get('txn_id') || p.get('txn') || p.get('tx') || '';
     if(sessionId.indexOf('cs_') === 0){
       tryUnlock({ sessionId: sessionId });
     } else if(txnId){

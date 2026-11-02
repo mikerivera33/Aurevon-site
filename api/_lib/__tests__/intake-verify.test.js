@@ -55,6 +55,22 @@ describe('verifyIntakePayment', () => {
     expect(retrieve).not.toHaveBeenCalled();
   });
 
+  it('refuses a paid session that is not an underwriting package (community / add-on)', async () => {
+    retrieve.mockResolvedValueOnce({ payment_status: 'paid', metadata: { tier: 'comm_monthly' } });
+    expect(await verifyIntakePayment({ sessionId: 'cs_test_comm1' }))
+      .toEqual({ ok: false, status: 403, error: 'not_intake_purchase' });
+    retrieve.mockResolvedValueOnce({ payment_status: 'paid', metadata: { tier: 'addon_rush' } });
+    expect(await verifyIntakePayment({ sessionId: 'cs_test_addon1' }))
+      .toEqual({ ok: false, status: 403, error: 'not_intake_purchase' });
+  });
+
+  it('accepts every Capital package key, prefixed or bare', async () => {
+    for (const tier of ['re_bogo', 're_single', 're_full', 're_retainer', 're_enterprise', 'full', 'retainer', 'deal']) {
+      retrieve.mockResolvedValueOnce({ payment_status: 'paid', metadata: { tier } });
+      expect((await verifyIntakePayment({ sessionId: 'cs_test_t' + tier.replace(/_/g, '') })).ok).toBe(true);
+    }
+  });
+
   it('unlocks when Stripe says payment_status=paid', async () => {
     retrieve.mockResolvedValueOnce({
       payment_status: 'paid',

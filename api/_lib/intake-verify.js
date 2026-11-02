@@ -19,6 +19,14 @@
 import Stripe from 'stripe';
 import { findPaymentByTransactionId } from './airtable.js';
 
+// Only Aurevon Capital underwriting purchases unlock the deal-intake form —
+// not community memberships or stand-alone add-ons. Stripe metadata carries
+// the prefixed checkout key (re_full); PayPal rows carry the bare key (full).
+const INTAKE_TIERS = new Set(['single', 'full', 'bogo', 'retainer', 'enterprise', 'deal']);
+export function isIntakeTier(tier) {
+  return INTAKE_TIERS.has(String(tier ?? '').trim().toLowerCase().replace(/^re_/, ''));
+}
+
 export const STRIPE_SESSION_RE = /^cs_(test|live)_[A-Za-z0-9]+$/;
 export const PAYPAL_TXN_RE = /^[A-Za-z0-9]{8,32}$/;
 
@@ -50,6 +58,14 @@ async function lookupPayment(transactionId) {
  * @returns {Promise<{ ok: true, tier: string|null, method: string } | { ok: false, status: number, error: string }>}
  */
 export async function verifyIntakePayment(input = {}) {
+  const result = await verifyPaid(input);
+  if (result.ok && !isIntakeTier(result.tier)) {
+    return { ok: false, status: 403, error: 'not_intake_purchase' };
+  }
+  return result;
+}
+
+async function verifyPaid(input) {
   const sessionId = typeof input.sessionId === 'string' ? input.sessionId.trim() : '';
   const txnId = typeof input.txnId === 'string' ? input.txnId.trim() : '';
 
