@@ -20,10 +20,18 @@
    ========================================================= */
 import { initScene3D } from './scene3d.js';
 
-const REDUCED_MOTION =
+/* Read live, not snapshotted: scene3d.js freezes itself only when the
+   preference is already set at load, so a user who turns reduced motion
+   on mid-session is handled here by tearing the scenes down (and rebuilt
+   if they turn it off again). */
+const motionQuery =
   typeof window.matchMedia === 'function'
-    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    : false;
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : null;
+
+function reducedMotion() {
+  return motionQuery ? motionQuery.matches : false;
+}
 
 /* Mirrors motion-bg.js: hosts may narrow detection through
    window.AurevonMotionBGConfig = { heroSelectors: [...] }. */
@@ -63,7 +71,7 @@ function findHero() {
  * behind the content. Gate it on what the device actually reports.
  */
 function shouldRenderPageLayer() {
-  if (REDUCED_MOTION) return false;
+  if (reducedMotion()) return false;
 
   const nav = navigator;
 
@@ -182,6 +190,18 @@ function destroy() {
 }
 
 window.AurevonMotionBG3D = { refresh, destroy };
+
+if (motionQuery) {
+  const onMotionChange = () => {
+    if (reducedMotion()) destroy();
+    else refresh();
+  };
+  if (typeof motionQuery.addEventListener === 'function') {
+    motionQuery.addEventListener('change', onMotionChange);
+  } else if (typeof motionQuery.addListener === 'function') {
+    motionQuery.addListener(onMotionChange);
+  }
+}
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', refresh, { once: true });

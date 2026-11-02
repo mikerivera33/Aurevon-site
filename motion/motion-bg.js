@@ -231,10 +231,31 @@
     });
   }
 
+  /* Crackle fields belong to buttons that a client router may unmount.
+     Their canvases leave the document with the element, but the field,
+     its observers and its share of the bolt budget would otherwise be
+     retained for the whole session. Release the detached ones. */
+  function pruneDetached() {
+    for (let i = crackleFields.length - 1; i >= 0; i--) {
+      const f = crackleFields[i];
+      /* Connected but unrendered means a segment parked under
+         display:none by the router; release it too — the next hover
+         rebuilds the field if the segment comes back. */
+      if (f.canvas && f.canvas.isConnected && f.canvas.getClientRects().length > 0) continue;
+      try {
+        f.destroy();
+      } catch (err) {
+        /* already gone */
+      }
+      crackleFields.splice(i, 1);
+    }
+  }
+
   /* ---------------- Public API ---------------- */
   function refresh() {
     if (!L || isReducedMotion()) return;
     ensureFlash();
+    pruneDetached();
     wirePage();
     wireHero();
     wireCrackle();
