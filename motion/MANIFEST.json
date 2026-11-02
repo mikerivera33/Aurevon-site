@@ -1,0 +1,16 @@
+{
+  "name": "aurevon-motion-bg",
+  "version": "1.1.0",
+  "files": {
+    "README.md": "996096af1630e2af7bdaa06126d2dd3e9e498f6baa10f96c41a01a7e0f0501e5",
+    "lightning.js": "6c05db2d33247ae32371f7848ea5625065f359c28e8c08d8518a09d2834f3cdd",
+    "motion-bg-3d.js": "847af08db8672350d945591698d926342ae0201c435460dbc65d92df5f821ec1",
+    "motion-bg.css": "c9814b3b602da4dc8974abea9d656998b0f4170fe6e093fed492b3dec9f6eafd",
+    "motion-bg.js": "6e963c62307b8794d2989ecc304bad5def44459d1a721a7696da7e51b8c600a8",
+    "scene3d.js": "f04adec8e04adca17f73fed59fd71091f0170e6fd5fa8214d458e971b4ff5ef1",
+    "ticker.js": "8d46d5fb680b8d17220f31ee6023e3e6b511d126213de18ad71c6c580d375c30",
+    "vendor/README.md": "9120169a09e815163045399d0cb5d485e02c730b49909373d9bc6b42d6d6c12c",
+    "vendor/three.core.min.js": "c5f69a04c70de8c95152040c286a3c8a0489603b019dfd61b34c451e3371c4fd",
+    "vendor/three.module.min.js": "e3ec4d5d223c0119f754150a3d9deef16139074ea17b073e93bbce315ad16eda"
+  }
+}

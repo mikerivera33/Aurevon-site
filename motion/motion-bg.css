@@ -221,3 +221,62 @@ body::after {
     animation: none;
   }
 }
+
+/* ---------------- Pause control (WCAG 2.2.2) ----------------
+   Added by motion-bg.js. Bottom-left, small and quiet until hovered or
+   focused. Hosts can move it with --motion-toggle-left/-bottom or turn
+   it off with AurevonMotionBGConfig.pauseControl = false. */
+.motion-toggle {
+  position: fixed;
+  left: var(--motion-toggle-left, 12px);
+  bottom: calc(var(--motion-toggle-bottom, 12px) + var(--motion-toggle-lift, 0px) + env(safe-area-inset-bottom, 0px));
+  z-index: 999;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  background: rgba(5, 10, 20, 0.65);
+  color: #cfe0ff;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 160ms ease, border-color 160ms ease;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.motion-toggle:hover,
+.motion-toggle:focus-visible {
+  opacity: 1;
+  border-color: rgba(96, 165, 250, 0.8);
+}
+.motion-toggle:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+.motion-toggle[hidden] {
+  display: none;
+}
+
+/* Paused: every moving layer goes; the static grid and glows stay. */
+html.motion-paused .hero-canvas-layer,
+html.motion-paused .hero-scene3d-layer,
+html.motion-paused .page-scene3d-layer,
+html.motion-paused .page-lightning-layer,
+html.motion-paused .crackle-layer,
+html.motion-paused .screen-flash {
+  display: none;
+}
+
+@media print {
+  .motion-toggle,
+  .hero-canvas-layer,
+  .hero-scene3d-layer,
+  .page-scene3d-layer,
+  .page-lightning-layer,
+  .crackle-layer,
+  .screen-flash {
+    display: none !important;
+  }
+}

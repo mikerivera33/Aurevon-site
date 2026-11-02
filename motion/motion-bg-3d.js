@@ -15,6 +15,14 @@
    client-routed apps: refresh() re-targets the hero scene after a
    navigation; the page-wide layer is created once and kept.
 
+   One hero WebGL context per page, for the life of the page: on a
+   client navigation the existing hero canvas (and its context) is moved
+   into the new hero rather than rebuilt; a page without a hero parks it
+   off-DOM, paused. Browsers cap live WebGL contexts (~16 in Chrome) and
+   a disposed three.js renderer does not release its context, so
+   rebuilding per navigation would eventually evict the page layer.
+   destroy() releases contexts explicitly (WEBGL_lose_context).
+
    Hero detection mirrors motion-bg.js (same selector list, same first
    match) so both canvases land in the same element.
 
@@ -25,25 +33,51 @@
    low-memory devices skip the download entirely.
    ========================================================= */
 
+/* Load once (see motion-bg.js): a second copy of this module under
+   another URL would otherwise build a second set of scenes. */
+const ALREADY_LOADED = Boolean(window.AurevonMotionBG3D);
+
 let scenePromise = null;
 let engine = null; // initScene3D once the import has resolved
+let importFailures = 0;
 
-/* One shared, lazily started import. Resolves to initScene3D or null. */
+/* One shared, lazily started import. Resolves to initScene3D or null.
+   A failed import (flaky network) is retried on a later refresh, at
+   most twice, rather than cached as a permanent failure. */
 function loadEngine() {
   if (scenePromise) return scenePromise;
   scenePromise = import('./scene3d.js')
     .then((m) => (engine = m.initScene3D))
     .catch((err) => {
       console.warn('Aurevon 3D background unavailable:', err);
+      importFailures++;
+      if (importFailures < 3) scenePromise = null;
       return null;
     });
   return scenePromise;
 }
 
+/* A disposed three.js renderer keeps its WebGL context until garbage
+   collection; release it now so it does not count against the
+   browser's live-context cap. */
+function releaseContext(canvas) {
+  try {
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    const ext = gl && gl.getExtension('WEBGL_lose_context');
+    if (ext) ext.loseContext();
+  } catch (err) {
+    /* nothing to release */
+  }
+}
+
+function paused() {
+  return document.documentElement.classList.contains('motion-paused');
+}
+
 /* Skip the 3D layers (and the three.js download) where it is not worth
    the bytes: an explicit data-saving preference, a 2G-class connection,
    or a device reporting under 2 GB of memory. */
-function shouldLoadEngine() {
+function cheapGate() {
   const nav = navigator;
   const conn = nav.connection || nav.mozConnection || nav.webkitConnection;
   if (conn) {
@@ -53,9 +87,11 @@ function shouldLoadEngine() {
     }
   }
   if (typeof nav.deviceMemory === 'number' && nav.deviceMemory < 2) return false;
-  return hasAcceleratedWebGL();
+  return true;
 }
 
+/* The WebGL probe (hasAcceleratedWebGL) creates a context, so refresh()
+   runs it in the idle slot after load, never during parsing. */
 /* A software-rendered WebGL context (no GPU acceleration: VMs, remote
    desktops, blocklisted drivers) can run the scene, but every frame then
    costs main-thread time, and the three.js download buys a worse page.
@@ -171,7 +207,7 @@ function shouldRenderPageLayer() {
   return true;
 }
 
-let heroState = null; // { el, canvas, scene }
+let heroState = null; // { el, canvas, scene } — el is null while parked
 let pageState = null; // { canvas, scene }
 let webglUnavailable = false;
 let generation = 0; // bumped by destroy() so a late-arriving engine does not resurrect scenes
@@ -180,6 +216,15 @@ let generation = 0; // bumped by destroy() so a late-arriving engine does not re
    pops: the stylesheet transitions .is-ready to the layer's opacity. */
 function reveal(canvas) {
   requestAnimationFrame(() => canvas.classList.add('is-ready'));
+}
+
+/* See motion-bg.js: the shared .motion-hero class is dropped only once
+   neither bootstrap has a layer left in the element. */
+function releaseHeroClass(el) {
+  if (!el) return;
+  if (!el.querySelector(':scope > .hero-canvas-layer, :scope > .hero-scene3d-layer')) {
+    el.classList.remove('motion-hero');
+  }
 }
 
 /* Same late-hero handling as motion-bg.js: watch briefly for a hero that
@@ -200,7 +245,7 @@ function watchForLateHero(initScene3D) {
       stop();
       /* destroy() bumps generation: a watch started before a teardown must
          not resurrect the scene it tore down. */
-      if (gen === generation && !reducedMotion()) wireHero(initScene3D);
+      if (gen === generation && !reducedMotion() && !paused()) wireHero(initScene3D);
     }
   });
   observer.observe(document.documentElement, {
@@ -212,19 +257,52 @@ function watchForLateHero(initScene3D) {
   heroWatcher = { observer, timer: setTimeout(stop, 8000) };
 }
 
+/* Take the hero canvas out of the page but keep its scene and context
+   for the next hero. The scene observes its own canvas, so it pauses
+   when detached and resumes / resizes when re-inserted. */
+function parkHero() {
+  if (!heroState || !heroState.el) return;
+  const el = heroState.el;
+  try {
+    heroState.scene.stop();
+  } catch (err) {
+    /* already stopped */
+  }
+  if (heroState.canvas.parentNode) heroState.canvas.parentNode.removeChild(heroState.canvas);
+  heroState.el = null;
+  releaseHeroClass(el);
+}
+
 function wireHero(initScene3D) {
-  const hero = findHero();
-  if (heroState && heroState.el === hero && heroState.canvas.isConnected) return;
-  unwireHero();
   if (webglUnavailable) return;
+  const hero = findHero();
+  if (heroState && heroState.el === hero && heroState.canvas.parentNode === hero) return;
   if (!hero) {
+    parkHero();
     watchForLateHero(initScene3D);
     return;
   }
 
+  /* Reuse the live canvas and context: move it into the new hero. */
+  if (heroState) {
+    const prev = heroState.el;
+    hero.classList.add('motion-hero');
+    hero.insertBefore(heroState.canvas, hero.firstChild);
+    heroState.el = hero;
+    if (prev && prev !== hero) releaseHeroClass(prev);
+    try {
+      heroState.scene.resize();
+      heroState.scene.start();
+    } catch (err) {
+      /* the scene's own observers will catch up */
+    }
+    return;
+  }
+
+  let canvas = null;
   try {
     hero.classList.add('motion-hero');
-    const canvas = document.createElement('canvas');
+    canvas = document.createElement('canvas');
     canvas.setAttribute('aria-hidden', 'true');
     canvas.className = 'hero-scene3d-layer';
     hero.insertBefore(canvas, hero.firstChild);
@@ -234,6 +312,7 @@ function wireHero(initScene3D) {
        throwing — remove the dead canvas and stop trying. */
     if (!scene) {
       canvas.remove();
+      releaseHeroClass(hero);
       webglUnavailable = true;
       return;
     }
@@ -241,19 +320,24 @@ function wireHero(initScene3D) {
     reveal(canvas);
   } catch (err) {
     console.warn('Aurevon 3D background unavailable:', err);
+    if (canvas && canvas.parentNode) canvas.remove();
+    releaseHeroClass(hero);
     webglUnavailable = true;
   }
 }
 
 function unwireHero() {
   if (!heroState) return;
+  const { el, canvas, scene } = heroState;
   try {
-    heroState.scene.dispose();
-    heroState.canvas.remove();
+    scene.dispose();
+    releaseContext(canvas);
+    canvas.remove();
   } catch (err) {
     /* already gone */
   }
   heroState = null;
+  releaseHeroClass(el);
 }
 
 function wirePage(initScene3D) {
@@ -289,15 +373,16 @@ function wirePage(initScene3D) {
 }
 
 function refresh() {
-  /* Under reduced motion there are no scenes to keep: a scene built now
-     would animate, because scene3d.js reads the preference only when its
-     module first loads. This covers both the load-time case and a client
-     navigation after the preference was switched on mid-session. */
-  if (reducedMotion()) {
+  /* Under reduced motion (or the visitor's pause) there are no scenes to
+     keep: a scene built now would animate, because scene3d.js reads the
+     preference only when its module first loads. This covers both the
+     load-time case and a client navigation after the preference was
+     switched on mid-session. */
+  if (reducedMotion() || paused()) {
     destroy();
     return;
   }
-  if (!shouldLoadEngine() || webglUnavailable) return;
+  if (webglUnavailable || !cheapGate()) return;
 
   /* Engine already in memory (a client navigation after first load):
      re-attach now, so the new hero does not wait for an idle slot. */
@@ -309,10 +394,11 @@ function refresh() {
 
   const gen = generation;
   whenIdleAfterLoad(() => {
+    if (gen !== generation || !hasAcceleratedWebGL()) return;
     loadEngine().then((initScene3D) => {
       /* The preference may have flipped, or destroy() may have run,
          while three.js was downloading. */
-      if (!initScene3D || gen !== generation || reducedMotion()) return;
+      if (!initScene3D || gen !== generation || reducedMotion() || paused()) return;
       wireHero(initScene3D);
       wirePage(initScene3D);
     });
@@ -326,6 +412,7 @@ function destroy() {
   if (pageState) {
     try {
       pageState.scene.dispose();
+      releaseContext(pageState.canvas);
       pageState.canvas.remove();
     } catch (err) {
       /* already gone */
@@ -334,27 +421,31 @@ function destroy() {
   }
 }
 
-window.AurevonMotionBG3D = { refresh, destroy };
+if (!ALREADY_LOADED) init();
 
-if (motionQuery) {
-  const onMotionChange = () => {
-    if (reducedMotion()) destroy();
-    else refresh();
-  };
-  if (typeof motionQuery.addEventListener === 'function') {
-    motionQuery.addEventListener('change', onMotionChange);
-  } else if (typeof motionQuery.addListener === 'function') {
-    motionQuery.addListener(onMotionChange);
+function init() {
+  window.AurevonMotionBG3D = { refresh, destroy };
+
+  if (motionQuery) {
+    const onMotionChange = () => {
+      if (reducedMotion()) destroy();
+      else refresh();
+    };
+    if (typeof motionQuery.addEventListener === 'function') {
+      motionQuery.addEventListener('change', onMotionChange);
+    } else if (typeof motionQuery.addListener === 'function') {
+      motionQuery.addListener(onMotionChange);
+    }
   }
-}
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', refresh, { once: true });
-} else {
-  refresh();
-}
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', refresh, { once: true });
+  } else {
+    refresh();
+  }
 
-window.addEventListener('pagehide', (event) => {
-  if (event.persisted) return;
-  destroy();
-});
+  window.addEventListener('pagehide', (event) => {
+    if (event.persisted) return;
+    destroy();
+  });
+}

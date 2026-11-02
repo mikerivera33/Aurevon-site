@@ -42,14 +42,18 @@ curl -sO https://unpkg.com/three@0.183.0/build/three.module.min.js
 sha256sum three.core.min.js three.module.min.js   # compare with the table above
 ```
 
-On this Windows machine `curl` fails with `schannel: the revocation status is
-unknown` because of local TLS interception; add `--ssl-revoke-best-effort`.
+(On Windows behind TLS interception, `curl` may fail with `schannel: the
+revocation status is unknown`; add `--ssl-revoke-best-effort`.)
 
 ### Upgrading
 
 1. Download both files at the new version from the same `unpkg.com` path.
 2. Record the new version and both digests in this file.
 3. Check `scene3d.js` still imports by relative path (no import map, no CDN).
-4. Re-test the hero canvas and the full-page layer, including the
+4. Rename this folder to the new version (`vendor-<version>/`) and update
+   the import path in `scene3d.js`, so browsers holding the week-long cache
+   of the old files can never pair them with the new ones.
+5. Re-test the hero canvas and the full-page layer, including the
    WebGL-unavailable fallback — `initScene3D` returns `null` rather than
-   throwing, and `app3d.js` hides the dead canvas on that path.
+   throwing, and `motion-bg-3d.js` removes the dead canvas on that path.
+6. Regenerate `../MANIFEST.json` and copy the package to both hosts.
