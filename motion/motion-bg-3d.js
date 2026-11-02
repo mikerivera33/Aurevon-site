@@ -172,6 +172,14 @@ function wirePage() {
 }
 
 function refresh() {
+  /* Under reduced motion there are no scenes to keep: a scene built now
+     would animate, because scene3d.js reads the preference only when its
+     module first loads. This covers both the load-time case and a client
+     navigation after the preference was switched on mid-session. */
+  if (reducedMotion()) {
+    destroy();
+    return;
+  }
   wireHero();
   wirePage();
 }
