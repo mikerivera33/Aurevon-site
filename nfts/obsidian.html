@@ -23,7 +23,6 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            perspective: 1000px;
         }
 
         .nft-container {
@@ -35,8 +34,11 @@
         }
 
         @keyframes spin {
-            0% { transform: rotateY(0deg); }
-            100% { transform: rotateY(360deg); }
+            /* perspective() lives on the card itself: a perspective on <body>
+               makes body the containing block for position:fixed descendants
+               (the page-wide motion layers), which would then scroll away. */
+            0% { transform: perspective(1000px) rotateY(0deg); }
+            100% { transform: perspective(1000px) rotateY(360deg); }
         }
 
         .nft-card {

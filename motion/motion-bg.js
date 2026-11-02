@@ -54,6 +54,7 @@
     'section#top',
     'section.hero',
     'header.hero',
+    'main.hero',
     'main > section',
     'main section',
     'section',
@@ -109,11 +110,42 @@
   let pageWired = false;
 
   /* ---------------- Hero lightning ---------------- */
+  /* Some pages reveal their hero after a gate or an async check (a
+     display:none wrapper flipped by page script). If no rendered hero
+     exists at refresh time, watch the document briefly and wire the hero
+     the moment one appears. */
+  let heroWatcher = null;
+  function watchForLateHero() {
+    if (heroWatcher || typeof MutationObserver !== 'function') return;
+    const stop = () => {
+      if (!heroWatcher) return;
+      heroWatcher.observer.disconnect();
+      clearTimeout(heroWatcher.timer);
+      heroWatcher = null;
+    };
+    const observer = new MutationObserver(() => {
+      if (findHero()) {
+        stop();
+        wireHero();
+      }
+    });
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class', 'hidden'],
+    });
+    heroWatcher = { observer, timer: setTimeout(stop, 8000) };
+  }
+
   function wireHero() {
     const hero = findHero();
     if (heroState && heroState.el === hero && heroState.canvas.isConnected) return;
     unwireHero();
-    if (!hero) return;
+    if (!hero) {
+      watchForLateHero();
+      return;
+    }
 
     safely('hero lightning', function () {
       hero.classList.add('motion-hero');

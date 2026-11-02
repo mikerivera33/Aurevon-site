@@ -31,7 +31,7 @@ package only adds layers behind (and, for ambient bolts, across) it.
 ```
 
 Hero detection, first match wins: `[data-motion-hero]`, `section#top`,
-`section.hero`, `header.hero`, first `<section>` in `<main>`, first
+`section.hero`, `header.hero`, `main.hero`, first `<section>` in `<main>`, first
 `<section>`. Add `data-motion-hero` to be explicit. Crackle targets:
 `[data-crackle], .btn, .btn-g, .nav-link`.
 

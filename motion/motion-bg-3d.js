@@ -26,12 +26,13 @@
    ========================================================= */
 
 let scenePromise = null;
+let engine = null; // initScene3D once the import has resolved
 
 /* One shared, lazily started import. Resolves to initScene3D or null. */
 function loadEngine() {
   if (scenePromise) return scenePromise;
   scenePromise = import('./scene3d.js')
-    .then((m) => m.initScene3D)
+    .then((m) => (engine = m.initScene3D))
     .catch((err) => {
       console.warn('Aurevon 3D background unavailable:', err);
       return null;
@@ -112,6 +113,7 @@ const DEFAULT_HERO_SELECTORS = [
   'section#top',
   'section.hero',
   'header.hero',
+  'main.hero',
   'main > section',
   'main section',
   'section',
@@ -180,11 +182,41 @@ function reveal(canvas) {
   requestAnimationFrame(() => canvas.classList.add('is-ready'));
 }
 
+/* Same late-hero handling as motion-bg.js: watch briefly for a hero that
+   page script reveals after load, then wire it. */
+let heroWatcher = null;
+function watchForLateHero(initScene3D) {
+  if (heroWatcher || typeof MutationObserver !== 'function') return;
+  const stop = () => {
+    if (!heroWatcher) return;
+    heroWatcher.observer.disconnect();
+    clearTimeout(heroWatcher.timer);
+    heroWatcher = null;
+  };
+  const observer = new MutationObserver(() => {
+    if (findHero()) {
+      stop();
+      if (!reducedMotion()) wireHero(initScene3D);
+    }
+  });
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['style', 'class', 'hidden'],
+  });
+  heroWatcher = { observer, timer: setTimeout(stop, 8000) };
+}
+
 function wireHero(initScene3D) {
   const hero = findHero();
   if (heroState && heroState.el === hero && heroState.canvas.isConnected) return;
   unwireHero();
-  if (!hero || webglUnavailable) return;
+  if (webglUnavailable) return;
+  if (!hero) {
+    watchForLateHero(initScene3D);
+    return;
+  }
 
   try {
     hero.classList.add('motion-hero');
@@ -262,6 +294,14 @@ function refresh() {
     return;
   }
   if (!shouldLoadEngine() || webglUnavailable) return;
+
+  /* Engine already in memory (a client navigation after first load):
+     re-attach now, so the new hero does not wait for an idle slot. */
+  if (engine) {
+    wireHero(engine);
+    wirePage(engine);
+    return;
+  }
 
   const gen = generation;
   whenIdleAfterLoad(() => {
