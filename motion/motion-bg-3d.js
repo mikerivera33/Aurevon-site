@@ -1,0 +1,187 @@
+/* =========================================================
+   AUREVON — Shared motion background: 3D bootstrap
+
+   Generic port of app3d.js from labs.aurevonvc.com. Initialises the
+   hero WebGL particle scene (drifting particle field + faint wireframe
+   grid in Aurevon Electric Blue) and, on capable devices only, a faint
+   full-page continuation layer fixed behind all content.
+
+   Separate ES module so it can fail gracefully (no WebGL, old browser)
+   without touching the rest of the page. three.js is vendored under
+   ./vendor and imported by relative path so the host CSP can stay at
+   script-src 'self'.
+
+   Exposes window.AurevonMotionBG3D = { refresh, destroy } for
+   client-routed apps: refresh() re-targets the hero scene after a
+   navigation; the page-wide layer is created once and kept.
+
+   Hero detection mirrors motion-bg.js (same selector list, same first
+   match) so both canvases land in the same element.
+   ========================================================= */
+import { initScene3D } from './scene3d.js';
+
+const REDUCED_MOTION =
+  typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    : false;
+
+/* Mirrors motion-bg.js: hosts may narrow detection through
+   window.AurevonMotionBGConfig = { heroSelectors: [...] }. */
+const DEFAULT_HERO_SELECTORS = [
+  '[data-motion-hero]',
+  'section#top',
+  'section.hero',
+  'header.hero',
+  'main > section',
+  'main section',
+  'section',
+];
+const HERO_SELECTORS =
+  (window.AurevonMotionBGConfig && window.AurevonMotionBGConfig.heroSelectors) ||
+  DEFAULT_HERO_SELECTORS;
+
+function findHero() {
+  for (let i = 0; i < HERO_SELECTORS.length; i++) {
+    const el = document.querySelector(HERO_SELECTORS[i]);
+    if (el) return el;
+  }
+  return null;
+}
+
+/**
+ * The page-wide layer is a second live WebGL context covering the whole
+ * viewport. On a laptop it is a pleasant depth cue; on a mid-range phone
+ * it roughly doubles GPU cost for an effect that is barely visible
+ * behind the content. Gate it on what the device actually reports.
+ */
+function shouldRenderPageLayer() {
+  if (REDUCED_MOTION) return false;
+
+  const nav = navigator;
+
+  // Respect an explicit data-saving preference.
+  const conn = nav.connection || nav.mozConnection || nav.webkitConnection;
+  if (conn) {
+    if (conn.saveData) return false;
+    if (typeof conn.effectiveType === 'string' && /(^|\b)(slow-)?2g\b/.test(conn.effectiveType)) {
+      return false;
+    }
+  }
+
+  // Coarse hardware signals, where the browser exposes them.
+  if (typeof nav.deviceMemory === 'number' && nav.deviceMemory < 4) return false;
+  if (typeof nav.hardwareConcurrency === 'number' && nav.hardwareConcurrency < 4) return false;
+
+  // Small / touch-primary viewports: the hero scene alone is plenty.
+  if (typeof window.matchMedia === 'function') {
+    if (window.matchMedia('(max-width: 900px)').matches) return false;
+    if (window.matchMedia('(pointer: coarse)').matches) return false;
+  }
+
+  return true;
+}
+
+let heroState = null; // { el, canvas, scene }
+let pageState = null; // { canvas, scene }
+let webglUnavailable = false;
+
+function wireHero() {
+  const hero = findHero();
+  if (heroState && heroState.el === hero && heroState.canvas.isConnected) return;
+  unwireHero();
+  if (!hero || webglUnavailable) return;
+
+  try {
+    hero.classList.add('motion-hero');
+    const canvas = document.createElement('canvas');
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.className = 'hero-scene3d-layer';
+    hero.insertBefore(canvas, hero.firstChild);
+
+    const scene = initScene3D(canvas);
+    /* initScene3D returns null when WebGL is unavailable rather than
+       throwing — remove the dead canvas and stop trying. */
+    if (!scene) {
+      canvas.remove();
+      webglUnavailable = true;
+      return;
+    }
+    heroState = { el: hero, canvas, scene };
+  } catch (err) {
+    console.warn('Aurevon 3D background unavailable:', err);
+    webglUnavailable = true;
+  }
+}
+
+function unwireHero() {
+  if (!heroState) return;
+  try {
+    heroState.scene.dispose();
+    heroState.canvas.remove();
+  } catch (err) {
+    /* already gone */
+  }
+  heroState = null;
+}
+
+function wirePage() {
+  if (pageState || webglUnavailable) return;
+  try {
+    if (!shouldRenderPageLayer()) return;
+
+    /* Faint full-page continuation: a second, cheaper instance fixed
+       behind all content so the motion carries subtly past the hero.
+       Fewer particles and no antialiasing — it sits behind everything
+       and is heavily dimmed by CSS, so the detail is not perceivable. */
+    const canvas = document.createElement('canvas');
+    canvas.setAttribute('aria-hidden', 'true');
+    canvas.className = 'page-scene3d-layer';
+    document.body.insertBefore(canvas, document.body.firstChild);
+
+    const scene = initScene3D(canvas, {
+      particleCount: 180,
+      nodeCount: 8,
+      antialias: false,
+      dprCap: 1.5,
+    });
+
+    if (!scene) {
+      canvas.remove();
+      return;
+    }
+    pageState = { canvas, scene };
+  } catch (err) {
+    console.warn('Aurevon page-wide 3D layer unavailable:', err);
+  }
+}
+
+function refresh() {
+  wireHero();
+  wirePage();
+}
+
+function destroy() {
+  unwireHero();
+  if (pageState) {
+    try {
+      pageState.scene.dispose();
+      pageState.canvas.remove();
+    } catch (err) {
+      /* already gone */
+    }
+    pageState = null;
+  }
+}
+
+window.AurevonMotionBG3D = { refresh, destroy };
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', refresh, { once: true });
+} else {
+  refresh();
+}
+
+window.addEventListener('pagehide', (event) => {
+  if (event.persisted) return;
+  destroy();
+});
