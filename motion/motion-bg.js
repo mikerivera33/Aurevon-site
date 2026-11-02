@@ -147,12 +147,16 @@
       flashEl.setAttribute('aria-hidden', 'true');
       flashEl.className = 'screen-flash';
       document.body.appendChild(flashEl);
+      const el = flashEl;
+      /* Bound to this element: destroy() can drop flashEl while the fade
+         timeout is pending, and the callback must not touch a null. */
       flashScreen = function (intensity) {
-        flashEl.style.transition = 'opacity 120ms ease-out';
-        flashEl.style.opacity = String(intensity);
+        if (!el.isConnected) return;
+        el.style.transition = 'opacity 120ms ease-out';
+        el.style.opacity = String(intensity);
         setTimeout(() => {
-          flashEl.style.transition = 'opacity 260ms ease-in';
-          flashEl.style.opacity = '0';
+          el.style.transition = 'opacity 260ms ease-in';
+          el.style.opacity = '0';
         }, 40);
       };
     });
