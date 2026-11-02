@@ -47,6 +47,29 @@ The grid/glow layers are negative-z pseudo-elements of `<body>`, so the host
 must let the body background propagate to the canvas: `<html>` must not
 paint an opaque background of its own (this file resets it).
 
+## Loading and cost
+
+- The lightning path (`ticker.js` + `lightning.js` + `motion-bg.js`, ~30 KB)
+  loads deferred and wires up at DOMContentLoaded.
+- three.js (~740 KB) is **not** on the critical path: `motion-bg-3d.js` is a
+  tiny module that `import()`s `scene3d.js` only after the window `load`
+  event and an idle slot, then fades the scenes in (`.is-ready`). LCP and
+  DOMContentLoaded are unaffected by the download.
+- Data-saver, 2G-class connections, devices reporting < 2 GB, and browsers
+  whose WebGL would be software-rendered (probed once with
+  `failIfMajorPerformanceCaveat`) skip the 3D layers and the three.js
+  download entirely; the lightning still runs.
+  The page-wide 3D layer additionally needs ≥ 4 GB / ≥ 4 cores, a pointer
+  that is not coarse and a viewport wider than 900px, as on Labs.
+- Serve `/motion/*` with a long browser cache (`Cache-Control: public,
+  max-age=86400, stale-while-revalidate=604800` in both hosts' vercel.json).
+- Reduced motion: the engine refuses to draw bolts, the stylesheet hides the
+  lightning/flash layers, and the 3D scenes are torn down (or never built),
+  all live — flipping the OS setting mid-session is honoured both ways.
+- Per-frame: one shared rAF loop (ticker.js) for everything; bolt budget
+  capped at 6 page-wide / 3 per field; every layer pauses when its canvas is
+  off-screen or the tab is hidden; WebGL context loss is survived.
+
 ## ADR-001: vendor a copy per site rather than share a package or CDN
 
 **Status:** Accepted · **Date:** 2026-11-01

@@ -274,10 +274,25 @@
 
   global.AurevonMotionBG = { refresh, destroy };
 
+  if (!L) return;
+
+  /* The engine refuses to draw bolts while reduced motion is on, and the
+     stylesheet hides the layers; the only thing left to do on a change
+     is rebuild whatever a client navigation skipped while it was on. */
+  if (motionQuery) {
+    const onMotionChange = () => {
+      if (!isReducedMotion()) refresh();
+    };
+    if (typeof motionQuery.addEventListener === 'function') {
+      motionQuery.addEventListener('change', onMotionChange);
+    } else if (typeof motionQuery.addListener === 'function') {
+      motionQuery.addListener(onMotionChange);
+    }
+  }
+
   /* Init-time gate: with reduced motion on at load there is nothing to
-     wire up. Flipping the setting later does not retroactively build
-     the layers — the user asked not to see them. */
-  if (!L || isReducedMotion()) return;
+     wire up yet. */
+  if (isReducedMotion()) return;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', refresh, { once: true });

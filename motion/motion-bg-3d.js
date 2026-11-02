@@ -17,8 +17,80 @@
 
    Hero detection mirrors motion-bg.js (same selector list, same first
    match) so both canvases land in the same element.
+
+   Loading: three.js is ~740 KB and nothing above the fold depends on it,
+   so scene3d.js (which imports it) is pulled in with a dynamic import()
+   only after the window load event and an idle slot, keeping it out of
+   the DOMContentLoaded / load critical path. Data-saver and very
+   low-memory devices skip the download entirely.
    ========================================================= */
-import { initScene3D } from './scene3d.js';
+
+let scenePromise = null;
+
+/* One shared, lazily started import. Resolves to initScene3D or null. */
+function loadEngine() {
+  if (scenePromise) return scenePromise;
+  scenePromise = import('./scene3d.js')
+    .then((m) => m.initScene3D)
+    .catch((err) => {
+      console.warn('Aurevon 3D background unavailable:', err);
+      return null;
+    });
+  return scenePromise;
+}
+
+/* Skip the 3D layers (and the three.js download) where it is not worth
+   the bytes: an explicit data-saving preference, a 2G-class connection,
+   or a device reporting under 2 GB of memory. */
+function shouldLoadEngine() {
+  const nav = navigator;
+  const conn = nav.connection || nav.mozConnection || nav.webkitConnection;
+  if (conn) {
+    if (conn.saveData) return false;
+    if (typeof conn.effectiveType === 'string' && /(^|\b)(slow-)?2g\b/.test(conn.effectiveType)) {
+      return false;
+    }
+  }
+  if (typeof nav.deviceMemory === 'number' && nav.deviceMemory < 2) return false;
+  return hasAcceleratedWebGL();
+}
+
+/* A software-rendered WebGL context (no GPU acceleration: VMs, remote
+   desktops, blocklisted drivers) can run the scene, but every frame then
+   costs main-thread time, and the three.js download buys a worse page.
+   Probe once with failIfMajorPerformanceCaveat and skip when it refuses.
+   Hosts can override with AurevonMotionBGConfig.allowSoftwareGL (tests). */
+let acceleratedProbe = null;
+function hasAcceleratedWebGL() {
+  if (acceleratedProbe !== null) return acceleratedProbe;
+  const cfg = window.AurevonMotionBGConfig || {};
+  if (cfg.allowSoftwareGL) return (acceleratedProbe = true);
+  try {
+    const c = document.createElement('canvas');
+    const opts = { failIfMajorPerformanceCaveat: true };
+    const gl = c.getContext('webgl2', opts) || c.getContext('webgl', opts);
+    if (!gl) return (acceleratedProbe = false);
+    const lose = gl.getExtension('WEBGL_lose_context');
+    if (lose) lose.loseContext();
+    acceleratedProbe = true;
+  } catch (err) {
+    acceleratedProbe = false;
+  }
+  return acceleratedProbe;
+}
+
+/* Run fn once the page has loaded and the main thread has an idle slot. */
+function whenIdleAfterLoad(fn) {
+  const idle = () => {
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(fn, { timeout: 2000 });
+    } else {
+      setTimeout(fn, 300);
+    }
+  };
+  if (document.readyState === 'complete') idle();
+  else window.addEventListener('load', idle, { once: true });
+}
 
 /* Read live, not snapshotted: scene3d.js freezes itself only when the
    preference is already set at load, so a user who turns reduced motion
@@ -100,8 +172,15 @@ function shouldRenderPageLayer() {
 let heroState = null; // { el, canvas, scene }
 let pageState = null; // { canvas, scene }
 let webglUnavailable = false;
+let generation = 0; // bumped by destroy() so a late-arriving engine does not resurrect scenes
 
-function wireHero() {
+/* Fade the canvas in on the next frame so the field appears rather than
+   pops: the stylesheet transitions .is-ready to the layer's opacity. */
+function reveal(canvas) {
+  requestAnimationFrame(() => canvas.classList.add('is-ready'));
+}
+
+function wireHero(initScene3D) {
   const hero = findHero();
   if (heroState && heroState.el === hero && heroState.canvas.isConnected) return;
   unwireHero();
@@ -123,6 +202,7 @@ function wireHero() {
       return;
     }
     heroState = { el: hero, canvas, scene };
+    reveal(canvas);
   } catch (err) {
     console.warn('Aurevon 3D background unavailable:', err);
     webglUnavailable = true;
@@ -140,7 +220,7 @@ function unwireHero() {
   heroState = null;
 }
 
-function wirePage() {
+function wirePage(initScene3D) {
   if (pageState || webglUnavailable) return;
   try {
     if (!shouldRenderPageLayer()) return;
@@ -166,6 +246,7 @@ function wirePage() {
       return;
     }
     pageState = { canvas, scene };
+    reveal(canvas);
   } catch (err) {
     console.warn('Aurevon page-wide 3D layer unavailable:', err);
   }
@@ -180,11 +261,22 @@ function refresh() {
     destroy();
     return;
   }
-  wireHero();
-  wirePage();
+  if (!shouldLoadEngine() || webglUnavailable) return;
+
+  const gen = generation;
+  whenIdleAfterLoad(() => {
+    loadEngine().then((initScene3D) => {
+      /* The preference may have flipped, or destroy() may have run,
+         while three.js was downloading. */
+      if (!initScene3D || gen !== generation || reducedMotion()) return;
+      wireHero(initScene3D);
+      wirePage(initScene3D);
+    });
+  });
 }
 
 function destroy() {
+  generation++;
   unwireHero();
   if (pageState) {
     try {

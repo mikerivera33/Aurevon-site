@@ -80,8 +80,16 @@ body::after {
   pointer-events: none;
 }
 
+/* The 3D layers are created after load (three.js is lazy-loaded), so they
+   fade in rather than pop: the bootstrap adds .is-ready one frame after
+   the scene starts rendering. */
 .motion-hero > .hero-scene3d-layer {
   z-index: -2;
+  opacity: 0;
+  transition: opacity 900ms ease-out;
+}
+
+.motion-hero > .hero-scene3d-layer.is-ready {
   opacity: 0.9;
 }
 
@@ -104,8 +112,13 @@ body::after {
   height: 100dvh;
   z-index: -1;
   pointer-events: none;
-  opacity: 0.16;
+  opacity: 0;
+  transition: opacity 1200ms ease-out;
   mix-blend-mode: screen;
+}
+
+.page-scene3d-layer.is-ready {
+  opacity: 0.16;
 }
 
 /* Full-viewport ambient lightning overlay. Sits above in-flow content
@@ -200,7 +213,7 @@ body::after {
     display: none;
   }
 
-  .page-scene3d-layer {
+  .page-scene3d-layer.is-ready {
     opacity: 0.08;
   }
 
