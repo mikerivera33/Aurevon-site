@@ -83,6 +83,20 @@ describe('JSON-LD pricing ↔ tiers.js', () => {
   }
 });
 
+describe('deal-intake payment gate', () => {
+  it('does not treat a client-minted paid_ query token as payment proof', () => {
+    const html = read('aurevon-re-intake.html');
+    expect(html).not.toMatch(/indexOf\(\s*['"]paid_['"]\s*\)/);
+    expect(html).toMatch(/\/api\/intake\/verify/);
+  });
+
+  it('post-checkout forward on aurevon-re.html requires a Stripe session_id', () => {
+    const html = read('aurevon-re.html');
+    expect(html).toMatch(/aurevon-re-intake\.html\?session_id=/);
+    expect(html).not.toMatch(/bkt_pending_intake[\s\S]{0,80}window\.location\.replace\(dest\)/);
+  });
+});
+
 describe('portal auth ↔ CustomerAuth field names', () => {
   // The CustomerAuth table (Airtable base appI9X8vcRcK1QZ1l, tbl bCS7TL65FcOiWn)
   // has these columns; Airtable rejects a write to any name not in this set with
@@ -157,4 +171,33 @@ describe('hero preload ↔ rendered image (img src or picture > source srcset)',
       expect(offenders, `${page} srcset URL(s) contain literal whitespace (must use %20): ${JSON.stringify(offenders)}`).toEqual([]);
     });
   }
+});
+
+describe('portal.html matches /api/portal contract', () => {
+  const html = read('portal.html');
+
+  it('treats magic-link verify success as data.ok + sessionToken (API never sends valid)', () => {
+    expect(html).toMatch(/data\.ok && data\.sessionToken/);
+    expect(html).not.toMatch(/data\.valid/);
+  });
+
+  it('treats auth success as data.ok (API never sends sent)', () => {
+    expect(html).toMatch(/res\.ok && data\.ok/);
+    expect(html).not.toMatch(/data\.sent/);
+  });
+
+  it('reads the API profile field names (customerName / memberTier / joinDate)', () => {
+    expect(html).toMatch(/customerName/);
+    expect(html).toMatch(/memberTier/);
+    expect(html).toMatch(/joinDate/);
+  });
+
+  it('does not assume /data always returns a leads array', () => {
+    expect(html).toMatch(/Array\.isArray\(raw\.leads\)/);
+  });
+
+  it('does not start Discord OAuth with a bare ?email= (H2 hole; use /member-claim)', () => {
+    expect(html).not.toMatch(/\/api\/discord\/auth\?email=/);
+    expect(html).toMatch(/discordUrl = '\/member-claim'/);
+  });
 });

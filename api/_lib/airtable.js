@@ -311,6 +311,24 @@ export async function findPaymentByTransactionId(transactionId) {
 }
 
 /**
+ * Latest Payments row for an email + pass type (Stripe session id / PayPal txn_id).
+ * Used by retry-mints so a Failed NFT_Mints row whose Reference is a serial
+ * still reuses the webhook's Crossmint idempotency key (the payment id).
+ */
+export async function findLatestPaymentByEmailAndTier(email, tier) {
+  const safeEmail = escapeFormulaValue(String(email).toLowerCase());
+  const safeTier = escapeFormulaValue(tier);
+  const formula = `AND(LOWER({Customer Email})="${safeEmail}",{Pass Type}="${safeTier}")`;
+  const recs = await listRecords(TABLE.Payments, { filterFormula: formula, maxRecords: 20 });
+  if (recs.length === 0) return null;
+  return recs.slice().sort((a, b) => {
+    const da = Date.parse(a.fields?.['Payment Date'] ?? '') || 0;
+    const db = Date.parse(b.fields?.['Payment Date'] ?? '') || 0;
+    return db - da;
+  })[0];
+}
+
+/**
  * List Payments rows created within the last `days` days. Used by the
  * orphan-payment recovery sweep to find paid customers whose mint may have
  * been dropped by a mid-pipeline webhook failure.

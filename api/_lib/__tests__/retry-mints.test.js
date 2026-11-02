@@ -11,6 +11,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 vi.mock('../airtable.js', () => ({
   listFailedMints: vi.fn(),
   findActiveMintByEmailAndType: vi.fn(),
+  findLatestPaymentByEmailAndTier: vi.fn().mockResolvedValue(null),
   updateNftMint: vi.fn().mockResolvedValue({}),
   // unused-by-this-path exports referenced at module load:
   upsertMemberByEmail: vi.fn(), findMemberByEmail: vi.fn(), findActiveMintByEmail: vi.fn(),
@@ -77,17 +78,77 @@ describe('handleRetryMints idempotency', () => {
     );
   });
 
-  it('falls back to a stable per-row key when the Reference is a plain serial', async () => {
+  it('reuses the Payments transaction id when the Failed row Reference is a serial', async () => {
+    // Webhook minted with sessionId, then recorded Failed (timeout after Crossmint
+    // accepted the PUT) and stored the serial as Reference. Retrying with EMB_0007
+    // would mint a second on-chain asset. The Payments marker holds the real key.
     airtable.listFailedMints.mockResolvedValueOnce([
       { id: 'recPlain', fields: { Email: 'x@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', Reference: 'EMB_0007' } },
+    ]);
+    airtable.findActiveMintByEmailAndType.mockResolvedValueOnce(null);
+    airtable.findLatestPaymentByEmailAndTier.mockResolvedValueOnce({
+      id: 'pay1',
+      fields: { 'Transaction ID': 'cs_live_ABC123', 'Pass Type': 'retainer' },
+    });
+
+    await handleRetryMints();
+
+    expect(crossmint.mintToEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'cs_live_ABC123' })
+    );
+  });
+
+  it('falls back to the serial only when no matching payment exists', async () => {
+    airtable.listFailedMints.mockResolvedValueOnce([
+      { id: 'recPlain2', fields: { Email: 'y@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', Reference: 'EMB_0008' } },
+    ]);
+    airtable.findActiveMintByEmailAndType.mockResolvedValueOnce(null);
+    airtable.findLatestPaymentByEmailAndTier.mockResolvedValueOnce(null);
+
+    await handleRetryMints();
+
+    expect(crossmint.mintToEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'EMB_0008' })
+    );
+  });
+
+  it('skips the row (no mint) when the Payments lookup errors, instead of falling back to the serial', async () => {
+    airtable.listFailedMints.mockResolvedValueOnce([
+      { id: 'recOutage', fields: { Email: 'z@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', Reference: 'EMB_0009' } },
+    ]);
+    airtable.findActiveMintByEmailAndType.mockResolvedValueOnce(null);
+    airtable.findLatestPaymentByEmailAndTier.mockRejectedValueOnce(new Error('Airtable 503'));
+
+    const out = await handleRetryMints();
+
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(out.skippedLookupErrors).toBe(1);
+  });
+
+  it('skips the row (no mint) when the active-mint lookup errors', async () => {
+    airtable.listFailedMints.mockResolvedValueOnce([
+      { id: 'recOutage2', fields: { Email: 'w@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', Reference: 'EMB_0010' } },
+    ]);
+    airtable.findActiveMintByEmailAndType.mockRejectedValueOnce(new Error('Airtable 503'));
+
+    const out = await handleRetryMints();
+
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(out.skippedLookupErrors).toBe(1);
+  });
+
+  it('strips a PAY_ prefix so Failed webhook rows reuse the payment id', async () => {
+    airtable.listFailedMints.mockResolvedValueOnce([
+      { id: 'recPay', fields: { Email: 'z@example.com', 'NFT Type': 'Aurevon Insider', 'Tier Source': 'full', Reference: 'PAY_cs_live_PAY1' } },
     ]);
     airtable.findActiveMintByEmailAndType.mockResolvedValueOnce(null);
 
     await handleRetryMints();
 
     expect(crossmint.mintToEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ idempotencyKey: 'EMB_0007' })
+      expect.objectContaining({ idempotencyKey: 'cs_live_PAY1' })
     );
+    expect(airtable.findLatestPaymentByEmailAndTier).not.toHaveBeenCalled();
   });
 
   it('does NOT stamp a row Sent when the retry mint returns ok:false', async () => {

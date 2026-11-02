@@ -24,7 +24,7 @@
 
 import crypto from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
-import { findMemberByEmail, findActiveMintByEmail, findActiveMintsByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listNftMints, listPaymentsSince, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint } from '../_lib/airtable.js';
+import { findMemberByEmail, findActiveMintByEmail, findActiveMintsByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listNftMints, listPaymentsSince, findLatestPaymentByEmailAndTier, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint } from '../_lib/airtable.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
 import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess, pickGrantableMint } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
@@ -436,6 +436,26 @@ async function handleStatus(email, res) {
 
 // ── Cron: retry failed mints ─────────────────────────────────────────────────
 
+/**
+ * Crossmint PUT key for a Failed-row retry. Prefixes (`RECOVER_`, `PAY_`) and
+ * Stripe session ids carry the payment id already. A serial Reference must be
+ * resolved through Payments — that is the key the webhook used on the first try.
+ */
+export async function resolveRetryIdempotencyKey({ reference, email, tier, recordId }) {
+  const ref = String(reference ?? '');
+  if (ref.startsWith('RECOVER_')) return ref.slice('RECOVER_'.length);
+  if (ref.startsWith('PAY_')) return ref.slice('PAY_'.length);
+  if (/^cs_(live|test)_/.test(ref)) return ref;
+  if (email && tier) {
+    // No .catch: an Airtable error must not fall through to the serial key
+    // (that reopens the double-mint). The caller skips the row this run.
+    const payment = await findLatestPaymentByEmailAndTier(email, tier);
+    const txnId = payment?.fields?.['Transaction ID'];
+    if (txnId) return String(txnId);
+  }
+  return ref || `retry_${recordId}`;
+}
+
 export async function handleRetryMints() {
   if (!process.env.AIRTABLE_PAT || !process.env.AIRTABLE_BASE_ID) {
     return { skipped: true, reason: 'Airtable not configured', retried: 0, errors: 0 };
@@ -446,6 +466,7 @@ export async function handleRetryMints() {
   const retried = [];
   const errors = [];
   const skippedDup = [];
+  const skippedLookup = [];
   const failedMints = await listFailedMints({ maxRecords: 50 });
 
   for (const record of failedMints) {
@@ -458,7 +479,16 @@ export async function handleRetryMints() {
     // this "Failed" row is a stale artifact (the original mint actually went
     // through) — re-minting would create a SECOND on-chain asset. Resolve it
     // against the canonical record instead of re-minting.
-    const existingActive = await findActiveMintByEmailAndType(email, nftType).catch(() => null);
+    // A failed lookup is not "no active mint": skip the row and retry on the
+    // next cron run rather than risk minting a second asset.
+    let existingActive;
+    try {
+      existingActive = await findActiveMintByEmailAndType(email, nftType);
+    } catch (err) {
+      console.error(`[retry-mints] active-mint lookup failed for record ${record.id}: ${err.message} — skipping this run`);
+      skippedLookup.push({ recordId: record.id });
+      continue;
+    }
     if (existingActive) {
       await updateNftMint(record.id, {
         'Mint Status': existingActive.fields?.['Mint Status'] ?? 'Sent',
@@ -474,17 +504,26 @@ export async function handleRetryMints() {
     const serialPrefix  = tierConfig?.serialPrefix ?? null;
     const collectionName = tierConfig?.collectionName ?? null;
 
-    // Idempotency key for the retry mint. A recovered orphan row carries the
-    // original payment id as `RECOVER_<txnId>` (see recoverOrphanPayments), and the
-    // webhook minted with THAT SAME txnId as its key — so reusing it makes this retry
-    // a Crossmint no-op (returns the existing NFT) if the webhook actually minted but
-    // its Airtable row write failed. For a genuinely-failed webhook mint (Reference is
-    // a serial, no prior on-chain asset) the Reference is still a stable per-row key,
-    // so repeated retries of the same row can't double-mint either.
+    // Idempotency key for the retry mint. The webhook minted with the payment
+    // transaction id (Stripe session / PayPal txn_id). A recovered orphan stores
+    // that as `RECOVER_<txnId>`; a Failed webhook row stores a *serial* as
+    // Reference. Reusing the serial as the Crossmint key would mint a SECOND
+    // on-chain asset if Crossmint accepted the first PUT and the webhook then
+    // recorded Failed (timeout / non-JSON). Always prefer the payment id.
     const reference = record.fields?.['Reference'] ?? '';
-    const idempotencyKey = reference.startsWith('RECOVER_')
-      ? reference.slice('RECOVER_'.length)
-      : (reference || `retry_${record.id}`);
+    let idempotencyKey;
+    try {
+      idempotencyKey = await resolveRetryIdempotencyKey({
+        reference,
+        email,
+        tier,
+        recordId: record.id,
+      });
+    } catch (err) {
+      console.error(`[retry-mints] payment lookup failed for record ${record.id}: ${err.message} — skipping this run`);
+      skippedLookup.push({ recordId: record.id });
+      continue;
+    }
 
     let serial = null;
     if (serialPrefix) {
@@ -513,7 +552,8 @@ export async function handleRetryMints() {
     retried: retried.length,
     errors: errors.length,
     skippedDuplicates: skippedDup.length,
-    details: { retried, errors, skippedDuplicates: skippedDup },
+    skippedLookupErrors: skippedLookup.length,
+    details: { retried, errors, skippedDuplicates: skippedDup, skippedLookupErrors: skippedLookup },
   };
 }
 

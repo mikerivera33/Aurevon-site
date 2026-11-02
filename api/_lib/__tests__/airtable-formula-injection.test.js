@@ -23,6 +23,7 @@ import {
   findMemberByEmail,
   upsertMemberByEmail,
   findPaymentByTransactionId,
+  findLatestPaymentByEmailAndTier,
 } from '../airtable.js';
 
 // Capture the filterByFormula sent to Airtable so we can prove no breakout.
@@ -137,6 +138,22 @@ describe('formula-building call sites neutralize injected quotes', () => {
   it('findMemberByEmail', async () => { await assertNoBreakout(findMemberByEmail); });
   it('upsertMemberByEmail', async () => { await assertNoBreakout((v) => upsertMemberByEmail(v, {})); });
   it('findPaymentByTransactionId', async () => { await assertNoBreakout(findPaymentByTransactionId); });
+  it('findLatestPaymentByEmailAndTier', async () => {
+    await assertNoBreakout((v) => findLatestPaymentByEmailAndTier(v, v));
+  });
+
+  it('findLatestPaymentByEmailAndTier returns the newest Payment Date', async () => {
+    const capture = mockFetchCapture([
+      { id: 'old', fields: { 'Transaction ID': 'cs_old', 'Payment Date': '2026-01-01T00:00:00.000Z' } },
+      { id: 'new', fields: { 'Transaction ID': 'cs_new', 'Payment Date': '2026-10-01T00:00:00.000Z' } },
+    ]);
+    vi.stubGlobal('fetch', capture);
+    const rec = await findLatestPaymentByEmailAndTier('buyer@example.com', 'full');
+    expect(rec.id).toBe('new');
+    expect(formulaFrom(capture.calls[0])).toBe(
+      'AND(LOWER({Customer Email})="buyer@example.com",{Pass Type}="full")',
+    );
+  });
 
   it('normal email produces the exact expected, unmodified filter', async () => {
     const capture = mockFetchCapture([]);
