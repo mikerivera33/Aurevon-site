@@ -8,6 +8,16 @@
   "trailingSlash": false,
   "redirects": [
     {
+      "source": "/__CHECKOUT__comm_:tier",
+      "destination": "/aurevon-web3#community-nft",
+      "permanent": false
+    },
+    {
+      "source": "/__CHECKOUT__:tier",
+      "destination": "/aurevon-re#pricing",
+      "permanent": false
+    },
+    {
       "source": "/AUREVON_NFT_Collection",
       "destination": "/aurevon-web3",
       "permanent": true
