@@ -83,6 +83,20 @@ describe('JSON-LD pricing ↔ tiers.js', () => {
   }
 });
 
+describe('deal-intake payment gate', () => {
+  it('does not treat a client-minted paid_ query token as payment proof', () => {
+    const html = read('aurevon-re-intake.html');
+    expect(html).not.toMatch(/indexOf\(\s*['"]paid_['"]\s*\)/);
+    expect(html).toMatch(/\/api\/intake\/verify/);
+  });
+
+  it('post-checkout forward on aurevon-re.html requires a Stripe session_id', () => {
+    const html = read('aurevon-re.html');
+    expect(html).toMatch(/aurevon-re-intake\.html\?session_id=/);
+    expect(html).not.toMatch(/bkt_pending_intake[\s\S]{0,80}window\.location\.replace\(dest\)/);
+  });
+});
+
 describe('portal auth ↔ CustomerAuth field names', () => {
   // The CustomerAuth table (Airtable base appI9X8vcRcK1QZ1l, tbl bCS7TL65FcOiWn)
   // has these columns; Airtable rejects a write to any name not in this set with
