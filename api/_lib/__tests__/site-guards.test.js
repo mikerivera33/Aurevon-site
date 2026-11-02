@@ -158,3 +158,32 @@ describe('hero preload ↔ rendered image (img src or picture > source srcset)',
     });
   }
 });
+
+describe('portal.html matches /api/portal contract', () => {
+  const html = read('portal.html');
+
+  it('treats magic-link verify success as data.ok + sessionToken (API never sends valid)', () => {
+    expect(html).toMatch(/data\.ok && data\.sessionToken/);
+    expect(html).not.toMatch(/data\.valid/);
+  });
+
+  it('treats auth success as data.ok (API never sends sent)', () => {
+    expect(html).toMatch(/res\.ok && data\.ok/);
+    expect(html).not.toMatch(/data\.sent/);
+  });
+
+  it('reads the API profile field names (customerName / memberTier / joinDate)', () => {
+    expect(html).toMatch(/customerName/);
+    expect(html).toMatch(/memberTier/);
+    expect(html).toMatch(/joinDate/);
+  });
+
+  it('does not assume /data always returns a leads array', () => {
+    expect(html).toMatch(/Array\.isArray\(raw\.leads\)/);
+  });
+
+  it('does not start Discord OAuth with a bare ?email= (H2 hole; use /member-claim)', () => {
+    expect(html).not.toMatch(/\/api\/discord\/auth\?email=/);
+    expect(html).toMatch(/discordUrl = '\/member-claim'/);
+  });
+});
