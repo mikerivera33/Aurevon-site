@@ -11,11 +11,17 @@
 //      (motion-bg-3d.js → scene3d.js → vendor/three.module.min.js →
 //      three.core.min.js) is intact — a missing sibling 404s at runtime and
 //      the scene silently never initialises.
-//   3. /motion gets the long-lived Cache-Control header in vercel.json.
+//   3. /motion caching: bootstraps revalidate on every load (an update can
+//      never mix old and new files), vendor/ keeps a long cache.
 //   4. Every canvas layer the bootstrap creates is aria-hidden, and the
 //      stylesheet carries a prefers-reduced-motion block.
+//   5. Every file matches motion/MANIFEST.json (sha256) and the manifest
+//      version matches the bootstrap's VERSION, so a half-applied package
+//      change (one file edited, manifest not regenerated, or a copy synced
+//      from Forge-ai only partly) fails here.
 
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -103,7 +109,7 @@ describe('motion package integrity', () => {
   });
 
   it('bootstraps expose the client-router API and honour reduced motion', () => {
-    expect(read('motion/motion-bg.js')).toContain('global.AurevonMotionBG = { refresh, destroy }');
+    expect(read('motion/motion-bg.js')).toContain('global.AurevonMotionBG = { refresh, destroy, pause, play, isPaused, version: VERSION }');
     expect(read('motion/motion-bg-3d.js')).toContain('window.AurevonMotionBG3D = { refresh, destroy }');
     expect(read('motion/motion-bg-3d.js')).toContain('prefers-reduced-motion');
     expect(read('motion/motion-bg.css')).toContain('@media (prefers-reduced-motion: reduce)');
@@ -122,12 +128,47 @@ describe('motion package integrity', () => {
   });
 });
 
+describe('motion package manifest', () => {
+  const manifest = JSON.parse(read('motion/MANIFEST.json'));
+  const walk = (d) =>
+    readdirSync(join(ROOT, d)).flatMap((n) => {
+      const rel = `${d}/${n}`;
+      return statSync(join(ROOT, rel)).isDirectory() ? walk(rel) : [rel];
+    });
+  const onDisk = walk('motion').map((f) => f.slice('motion/'.length)).filter((f) => f !== 'MANIFEST.json').sort();
+
+  it('lists exactly the files on disk', () => {
+    expect(Object.keys(manifest.files).sort()).toEqual(onDisk);
+  });
+
+  it.each(onDisk)('%s matches its manifest digest', (f) => {
+    const digest = createHash('sha256').update(readFileSync(join(ROOT, 'motion', f))).digest('hex');
+    expect(digest, `motion/${f} changed without regenerating motion/MANIFEST.json`).toBe(manifest.files[f]);
+  });
+
+  it('manifest version matches the bootstrap VERSION', () => {
+    const v = /const VERSION = '([^']+)'/.exec(read('motion/motion-bg.js'));
+    expect(v && v[1]).toBe(manifest.version);
+  });
+});
+
 describe('vercel.json caching for /motion', () => {
-  it('serves /motion with a long-lived Cache-Control', () => {
-    const vercel = JSON.parse(read('vercel.json'));
-    const rule = (vercel.headers || []).find((h) => h.source === '/motion/(.*)');
-    expect(rule, 'missing /motion/(.*) headers rule').toBeTruthy();
-    const cc = rule.headers.find((h) => h.key === 'Cache-Control');
-    expect(cc && cc.value).toMatch(/max-age=\d+/);
+  const vercel = JSON.parse(read('vercel.json'));
+  const cacheFor = (source) => {
+    const rule = (vercel.headers || []).find((h) => h.source === source);
+    const cc = rule && rule.headers.find((h) => h.key === 'Cache-Control');
+    return cc && cc.value;
+  };
+
+  it('bootstraps, engine and CSS revalidate on every load', () => {
+    expect(cacheFor('/motion/:file((?!vendor/).*)')).toBe('public, max-age=0, must-revalidate');
+  });
+
+  it('vendored three.js keeps a long cache', () => {
+    expect(cacheFor('/motion/vendor/(.*)')).toMatch(/max-age=\d{6,}/);
+  });
+
+  it('no catch-all /motion rule overrides the split', () => {
+    expect(cacheFor('/motion/(.*)')).toBeUndefined();
   });
 });

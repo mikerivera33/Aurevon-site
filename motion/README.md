@@ -16,8 +16,9 @@ package only adds layers behind (and, for ambient bolts, across) it.
 | `scene3d.js` | labs `scene3d.js` (verbatim) | three.js particle field + wireframe grid; survives GL context loss. |
 | `vendor/three.*.min.js` | three 0.183.0 (MIT, vendored) | Imported by relative path so CSP stays `script-src 'self'`. |
 | `motion-bg.css` | labs `style.css` (layer rules + crackle pulse) | Body grid/glow layers, hero/page/crackle/flash layer geometry, reduced-motion. |
-| `motion-bg.js` | labs `app.js` lightning wiring, generalised | Finds the hero, injects canvases, wires strike/ambient/crackle. |
-| `motion-bg-3d.js` | labs `app3d.js`, generalised | Hero 3D scene + gated faint page-wide 3D layer. |
+| `motion-bg.js` | labs `app.js` lightning wiring, generalised | Finds the hero, injects canvases, wires strike/ambient/crackle; pause control. |
+| `motion-bg-3d.js` | labs `app3d.js`, generalised | Hero 3D scene (one context per page, moved between heroes) + gated faint page-wide 3D layer. |
+| `MANIFEST.json` | generated | Package version and the sha256 of every file. Both hosts' tests check their copy against it. |
 
 ## Drop-in
 
@@ -36,12 +37,45 @@ Hero detection, first match wins: `[data-motion-hero]`, `section#top`,
 `[data-crackle], .btn, .btn-g, .nav-link`.
 
 Client-routed apps call `window.AurevonMotionBG.refresh()` and
-`window.AurevonMotionBG3D.refresh()` after each navigation, and can narrow
-hero detection to explicit opt-ins by defining, before the scripts load:
+`window.AurevonMotionBG3D.refresh()` after each navigation.
+
+### Configuration
+
+Define before the scripts load (merge, don't overwrite, if the host sets
+other keys):
 
 ```js
-window.AurevonMotionBGConfig = { heroSelectors: ['[data-motion-hero]'] };
+window.AurevonMotionBGConfig = {
+  heroSelectors: ['[data-motion-hero]'],   // narrow hero detection (default: list above)
+  crackleSelector: '[data-crackle], .btn', // crackle targets (default above)
+  pauseControl: false,                     // hide the built-in pause button (default: shown)
+  allowSoftwareGL: true,                   // tests only: run 3D on software WebGL
+};
 ```
+
+### API
+
+| Call | Effect |
+|---|---|
+| `AurevonMotionBG.refresh()` | (Re)wire hero, page layer and crackle targets; no-op while paused or under reduced motion. |
+| `AurevonMotionBG.destroy()` | Remove every 2D layer, timer and the flash element; `refresh()` rebuilds. |
+| `AurevonMotionBG.pause()` / `.play()` / `.isPaused()` | Pause control used by the built-in button; remembered in `localStorage` (`aurevon-motion-paused`). Pausing also tears down the 3D scenes. |
+| `AurevonMotionBG.version` | Package version (matches `MANIFEST.json`). |
+| `AurevonMotionBG3D.refresh()` / `.destroy()` | Re-target the hero scene / dispose both scenes and release their WebGL contexts. |
+
+Loading either bootstrap twice is a no-op (load-once guard).
+
+### Pause control
+
+WCAG 2.2.2 asks for a way to pause motion that starts automatically and
+runs alongside content. `motion-bg.js` adds a 32 px round button,
+bottom-left, low-opacity until hovered or focused. It lifts itself above
+any fixed or sticky bottom bar (a mobile buy bar, a cookie banner) and,
+once scrolling settles, above any small link or button under it, so it
+never covers a host control. Hidden under reduced motion. Hosts can move
+it with the CSS variables `--motion-toggle-left` / `--motion-toggle-bottom`
+or hide it with `pauseControl: false` and call `pause()` / `play()` from
+their own control.
 
 The grid/glow layers are negative-z pseudo-elements of `<body>`, so the host
 must let the body background propagate to the canvas: `<html>` must not
@@ -49,20 +83,35 @@ paint an opaque background of its own (this file resets it).
 
 ## Loading and cost
 
-- The lightning path (`ticker.js` + `lightning.js` + `motion-bg.js`, ~30 KB)
-  loads deferred and wires up at DOMContentLoaded.
+- The lightning path (`ticker.js` + `lightning.js` + `motion-bg.js`, ~40 KB
+  uncompressed) loads deferred and wires up after the window `load` event
+  and an idle slot — nothing it draws is visible before the hero strike,
+  which fires after load anyway — so it adds no work to DOMContentLoaded
+  or load.
 - three.js (~740 KB) is **not** on the critical path: `motion-bg-3d.js` is a
   tiny module that `import()`s `scene3d.js` only after the window `load`
   event and an idle slot, then fades the scenes in (`.is-ready`). LCP and
   DOMContentLoaded are unaffected by the download.
 - Data-saver, 2G-class connections, devices reporting < 2 GB, and browsers
   whose WebGL would be software-rendered (probed once with
-  `failIfMajorPerformanceCaveat`) skip the 3D layers and the three.js
-  download entirely; the lightning still runs.
+  `failIfMajorPerformanceCaveat`, in the idle slot after load) skip the 3D
+  layers and the three.js download entirely; the lightning still runs.
+- The viewport-sized page lightning layer is skipped on data saver, 2G,
+  < 2 GB or ≤ 2 cores, and drawn at 1x on touch-first screens; the hero
+  storm runs everywhere.
+- One hero WebGL context per page for its whole life: a client navigation
+  moves the existing hero canvas into the new hero instead of building a
+  new renderer (browsers cap live contexts at ~16). `destroy()` releases
+  contexts explicitly with `WEBGL_lose_context`.
   The page-wide 3D layer additionally needs ≥ 4 GB / ≥ 4 cores, a pointer
   that is not coarse and a viewport wider than 900px, as on Labs.
-- Serve `/motion/*` with a long browser cache (`Cache-Control: public,
-  max-age=86400, stale-while-revalidate=604800` in both hosts' vercel.json).
+- Caching (both hosts' `vercel.json`): the bootstraps, engine and CSS are
+  served `max-age=0, must-revalidate` — an ETag revalidation per load,
+  so a package update can never leave a browser running new CSS with old
+  JS; `vendor/` is cached for a week (+30 days stale-while-revalidate).
+  **When upgrading three.js, rename the folder** (e.g. `vendor-0.184/`) and
+  update the import in `scene3d.js`, so a cached old file can never pair
+  with a new one.
 - Reduced motion: the engine refuses to draw bolts, the stylesheet hides the
   lightning/flash layers, and the 3D scenes are torn down (or never built),
   all live — flipping the OS setting mid-session is honoured both ways.
@@ -91,9 +140,20 @@ wanted across them.
 | Drift risk | copies can diverge | low | none |
 
 **Decision.** A. Identical bytes in each repo, with this README as the
-provenance record. Drift is managed by re-copying from Labs; the engine
-files are unmodified so a diff against Labs is a one-liner.
+provenance record. The engine files (`ticker.js`, `lightning.js`,
+`scene3d.js`, `vendor/`) are unmodified from Labs, so a diff against Labs
+is a one-liner.
 
-**Consequences.** +~1.1 MB per site (740 KB of it three.js, loaded as a
-deferred module that never blocks render; the page-wide 3D layer is gated
-to capable desktops). Upgrades are a copy, not a release.
+**Source of truth and drift.** The canonical copy is `motion/` in the
+Aurevon-site repo. To change the package: edit there, bump `VERSION` in
+`motion-bg.js`, regenerate `MANIFEST.json` (sha256 of every other file),
+then copy the folder byte-for-byte to `storefront/public/motion/` in
+Forge-ai. Each host's tests fail if any file no longer matches its
+manifest, and the Forge smoke test compares its deployed `MANIFEST.json`
+with aurevonvc.com's, so a half-applied change is caught in CI or on the
+first smoke run.
+
+**Consequences.** +~820 KB per site uncompressed (about 740 KB of it
+three.js, loaded as a deferred module that never blocks render; the
+page-wide 3D layer is gated to capable desktops). Upgrades are a copy,
+not a release.
