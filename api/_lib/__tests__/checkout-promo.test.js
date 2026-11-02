@@ -79,3 +79,35 @@ describe('stripe checkout promo + cancelPath', () => {
     expect(created[0].cancel_url).toBe('https://www.aurevonvc.com/aurevon-re');
   });
 });
+
+describe('stripe checkout payment-method tabs', () => {
+  beforeEach(() => {
+    created.length = 0;
+    listMock.mockReset();
+    listMock.mockResolvedValue({ data: [] });
+    process.env.STRIPE_SECRET_KEY = 'sk_test_x';
+  });
+
+  it('a tier carrying ?payment_method= (Cash App / Afterpay links) resolves to the tier', async () => {
+    const res = mockRes();
+    await handler({ method: 'POST', body: { tier: 're_full?payment_method=cashapp' } }, res);
+    expect(res.statusCode).toBe(200);
+    expect(created[0].metadata.tier).toBe('re_full');
+  });
+
+  it('Cash App on a subscription opens the normal checkout', async () => {
+    const res = mockRes();
+    await handler({ method: 'POST', body: { tier: 're_retainer', paymentMethod: 'cashapp' } }, res);
+    expect(res.statusCode).toBe(200);
+    expect(created[0].mode).toBe('subscription');
+  });
+
+  it('Afterpay on a subscription is refused with a clear message', async () => {
+    const res = mockRes();
+    await handler({ method: 'POST', body: { tier: 're_retainer', paymentMethod: 'afterpay_clearpay' } }, res);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/Afterpay/);
+    expect(created.length).toBe(0);
+  });
+});
+
