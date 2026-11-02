@@ -90,6 +90,10 @@ Each of these has been flagged by a code-review or audit subagent and is **not**
 16. **`__CHECKOUT__…` redirects in `vercel.json`** — the buy buttons carry `href="__CHECKOUT__<tier>"` placeholders that a click handler turns into a Stripe session. The redirects only catch a raw navigation (crawler, open-in-new-tab): `comm_*` → `/aurevon-web3#community-nft`, everything else → `/aurevon-re#pricing`.
 17. **Pay-modal Cash App / Afterpay tabs open the same Stripe Checkout** (dynamic payment methods). The link carries `?payment_method=…` after the tier; the handler strips it and sends it as `paymentMethod`. Afterpay is hidden for subscriptions (`retainer`, `enterprise`, `comm_monthly`) because Stripe can't charge a subscription with it, and the API refuses that combination.
 
+18. **Deal-intake gate is server-verified** — `aurevon-re-intake.html` unlocks only via `POST /api/intake/verify` with a Stripe `session_id` (retrieved live, must be `paid`) or a PayPal `txn_id`/`tx` (Payments row `Succeeded`), and only for underwriting tiers (`bogo|single|full|retainer|enterprise|deal`, `re_` optional). Client-minted `paid_…` tokens are not proof. The form itself still posts to Formspree from the browser (follow-up: server submit proxy).
+19. **Stripe subscription identity** — checkout stamps only `tier` into `subscription_data.metadata` (never the unauthenticated request email). Lifecycle handlers resolve the member from the **Stripe Customer** first, ignore `incomplete_expired` subs, and hold a monthly cancel/past-due (alert `stripe.monthly_change_held`) when the email has another active monthly sub or the scan can't complete.
+20. **Discord grants pick a grantable pass** — `findActiveMintsByEmail` + `pickGrantableMint`: a lapsed monthly Genesis row never hides a permanent pass; a cancelled monthly member isn't re-granted. A paid monthly checkout resets `Billing State` to active (gated on the live subscription status).
+
 ## CI guards (`.github/workflows/deploy.yml`) — what they actually enforce
 
 Whole-tree scoped (`**/*.html`, `find . -type f --not -path './docs/*'`):
@@ -99,6 +103,11 @@ Whole-tree scoped (`**/*.html`, `find . -type f --not -path './docs/*'`):
 3. **Analytics coverage**: every HTML must include both Speed Insights + Web Analytics scripts before `</head>`, AND must NOT include the legacy `cdn.vercel-insights.com/v1/script.js` (causes double-counted pageviews).
 
 If you're touching analytics or assets, run the guards locally before pushing — they fail in CI otherwise.
+
+## Production configuration that the code depends on (verified 2026-11-02)
+
+- **Stripe webhook events** — the live endpoint `https://www.aurevonvc.com/api/webhooks/stripe` must be subscribed to: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`. On 2026-11-02 only `checkout.session.completed`, `customer.subscription.deleted` and `invoice.payment_failed` were enabled.
+- **Airtable table IDs** — `api/_lib/airtable.js` defaults (`TABLE.*`) come from a different base ("Aurevon Operations"). Production sets `AIRTABLE_TABLE_MEMBERS` and `AIRTABLE_TABLE_NFT_MINTS`; **`AIRTABLE_TABLE_PAYMENTS`, `AIRTABLE_TABLE_CUSTOMER_AUTH` and `AIRTABLE_TABLE_LEADS` were unset**, and the Payments default answered `403 INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND`. Every webhook's idempotency check reads Payments first, so purchases abort before fulfilment until this is set. The production Payments table must have the fields the code writes (`Transaction ID`, `Status`, `Customer Email`, `Pass Type`, `Tier Source`, `Payment Provider`, `Payment Date`, …).
 
 ## Env vars assumed present in production (not in dev)
 
@@ -118,7 +127,7 @@ Production also needs: `STRIPE_WEBHOOK_SECRET`, `PAYPAL_*`, `CROSSMINT_*` (API k
 
 ## Known limitations (don't fix unless asked)
 
-1. **Function count: `api/health.js` hardcodes `function_count: 11`** (`:99`) — was 12/12 at the Hobby cap (PR #19 added `/api/csp-report`); dropped to 11 when the dead `api/paypal/index.js` capture route was removed (PR #27). Project is on **Pro**, so the 12-function cap no longer binds; this is now just a reporting value — update the literal if the function count changes.
+1. **Function count is computed** — `api/health.js` counts `api/**` functions at load (no hardcoded literal any more). Project is on **Pro**, so the 12-function Hobby cap doesn't bind.
 2. **`/merch` Snipcart placeholder key** — `SNIPCART_KEY_PENDING_SETUP`. Real key needs to be set in Vercel env; until then `/merch` checkout is broken by design.
 3. **`/merch` product images return 401** from `hyperagent.com` — need real images self-hosted at `/assets/merch/*`. Until then the cards show broken images.
 4. **CSP is ENFORCING** (`Content-Security-Policy` in `vercel.json:197`, not Report-Only) with `'unsafe-inline'` allowed for scripts/styles and `report-uri /api/csp-report` — violations log to Vercel runtime logs. For a production rollout, point the report-uri at an aggregator (Sentry / Report URI).
