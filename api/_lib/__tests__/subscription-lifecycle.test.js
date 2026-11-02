@@ -43,7 +43,11 @@ const PERIOD_END = 1893456000; // unix seconds (future)
 const PERIOD_END_ISO = new Date(PERIOD_END * 1000).toISOString();
 
 describe('handleInvoicePaymentSucceeded', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    customersList.mockReset().mockResolvedValue({ data: [] });
+    subscriptionsList.mockReset().mockResolvedValue({ data: [] });
+  });
 
   it('renews monthly entitlement (active + expiry) on a $29.99 invoice', async () => {
     await handleInvoicePaymentSucceeded({
@@ -75,7 +79,11 @@ describe('handleInvoicePaymentSucceeded', () => {
 });
 
 describe('handleSubscriptionUpdated', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    customersList.mockReset().mockResolvedValue({ data: [] });
+    subscriptionsList.mockReset().mockResolvedValue({ data: [] });
+  });
 
   it('maps past_due status → Billing State past_due for a monthly member', async () => {
     await handleSubscriptionUpdated({
@@ -152,6 +160,9 @@ describe('handleSubscriptionDeleted', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Drop leftover mock*Once queues: a scan that returns early leaves them unused.
+    customersList.mockReset().mockResolvedValue({ data: [] });
+    subscriptionsList.mockReset().mockResolvedValue({ data: [] });
     process.env.STRIPE_SECRET_KEY = 'sk_test_x';
     process.env.DISCORD_ROLE_MONTHLY = 'role_monthly';
   });
@@ -239,6 +250,30 @@ describe('handleSubscriptionDeleted', () => {
     expect(discordBot.removeRoleFromMember).not.toHaveBeenCalled();
   });
 
+  it('holds the revoke (and alerts) when the other-subscription scan cannot complete', async () => {
+    customersRetrieve.mockResolvedValue({ email: 'member@example.com' });
+    airtable.findMemberByEmail.mockResolvedValue({ fields: { 'Discord ID': 'disc_m', 'Entitlement Type': 'monthly_membership' } });
+    customersList.mockRejectedValueOnce(new Error('stripe down'));
+    await handleSubscriptionDeleted({ id: 'sub_x', customer: 'cus_x', metadata: { tier: 'comm_monthly' } });
+    expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
+    expect(discordBot.removeRoleFromMember).not.toHaveBeenCalled();
+    expect(alert.sendAlert).toHaveBeenCalledWith('stripe.monthly_change_held', expect.objectContaining({ subscriptionId: 'sub_x' }));
+  });
+
+  it('pages through every customer for the email (real member beyond the first page)', async () => {
+    customersRetrieve.mockResolvedValue({ email: 'member@example.com' });
+    airtable.findMemberByEmail.mockResolvedValue({ fields: { 'Discord ID': 'disc_m', 'Entitlement Type': 'monthly_membership' } });
+    customersList
+      .mockResolvedValueOnce({ data: [{ id: 'cus_junk1' }], has_more: true })
+      .mockResolvedValueOnce({ data: [{ id: 'cus_real' }], has_more: false });
+    subscriptionsList
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: [{ id: 'sub_real', status: 'active', metadata: { tier: 'comm_monthly' } }] });
+    await handleSubscriptionDeleted({ id: 'sub_junk', customer: 'cus_junk1', metadata: { tier: 'comm_monthly' } });
+    expect(customersList).toHaveBeenLastCalledWith(expect.objectContaining({ starting_after: 'cus_junk1' }));
+    expect(discordBot.removeRoleFromMember).not.toHaveBeenCalled();
+  });
+
   it('ignores deletion of a subscription that never activated (incomplete_expired)', async () => {
     customersRetrieve.mockResolvedValue({ email: 'member@example.com' });
     await handleSubscriptionDeleted({ id: 'sub_abandoned', customer: 'cus_x', status: 'incomplete_expired', metadata: { tier: 'comm_monthly' } });
@@ -255,7 +290,11 @@ describe('handleSubscriptionDeleted', () => {
 });
 
 describe('handleSubscriptionDeleted', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    customersList.mockReset().mockResolvedValue({ data: [] });
+    subscriptionsList.mockReset().mockResolvedValue({ data: [] });
+  });
 
   it('stamps Billing State cancelled for a monthly member so grant paths cannot re-OAuth', async () => {
     await handleSubscriptionDeleted({

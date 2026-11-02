@@ -297,7 +297,10 @@ async function handleReconcile() {
       if (!mints.length) continue;
       const mintRecord = pickGrantableMint(mints, member.fields);
       if (!mintRecord) {
-        console.log(`[Reconcile] Skipping pending sync for lapsed monthly email=${email}`);
+        // Mark it so the row leaves the pending window (listPendingDiscordSync
+        // caps the batch) instead of crowding out members who can be granted.
+        console.log(`[Reconcile] Pending sync denied for lapsed monthly email=${email} — marking revoked`);
+        await updateDiscordSyncStatus(email, 'revoked').catch(() => {});
         continue;
       }
 

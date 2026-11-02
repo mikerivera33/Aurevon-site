@@ -397,30 +397,61 @@ async function activateMonthlyBilling(session, customerEmail, tier, { redelivery
 // Before a monthly cancellation/lapse mutates a member, make sure the event
 // is about the subscription that actually entitles them. Checkout is
 // unauthenticated, so anyone can open (and cancel, or abandon) a $29.99
-// subscription under a member's email. Returns true when the email still has
-// ANOTHER active/trialing monthly subscription in Stripe — then this event
-// must not revoke. Lookup failure returns false (prior behaviour; the nightly
-// reconcile is the backstop) and logs.
-async function hasOtherActiveMonthlySubscription(email, excludeSubId) {
-  if (!email || !process.env.STRIPE_SECRET_KEY) return false;
+// subscription under a member's email. Returns:
+//   'yes'     — the email still has ANOTHER active/trialing monthly sub: don't revoke
+//   'no'      — checked every customer/subscription for the email: safe to revoke
+//   'unknown' — Stripe errored, or more records than the scan cap (an
+//               attacker can create customers to bury the real one): don't revoke,
+//               alert for a manual check.
+const OTHER_SUB_SCAN_CAP = 1000;
+async function listAll(listFn, params) {
+  const out = [];
+  let starting_after;
+  for (;;) {
+    const page = await listFn({ ...params, limit: 100, ...(starting_after ? { starting_after } : {}) });
+    const data = page?.data ?? [];
+    out.push(...data);
+    if (out.length > OTHER_SUB_SCAN_CAP) throw new Error('scan cap exceeded');
+    if (!page?.has_more || !data.length) return out;
+    starting_after = data[data.length - 1].id;
+  }
+}
+async function otherActiveMonthlySubscription(email, excludeSubId) {
+  // No Stripe configured (local dev) — nothing to check against.
+  if (!email || !process.env.STRIPE_SECRET_KEY) return 'no';
   try {
     const stripe = stripeClient();
-    const customers = await stripe.customers.list({ email, limit: 10 });
-    for (const c of customers?.data ?? []) {
-      const subs = await stripe.subscriptions.list({ customer: c.id, status: 'all', limit: 20 });
-      for (const sub of subs?.data ?? []) {
+    const customers = await listAll((p) => stripe.customers.list(p), { email });
+    let scanned = 0;
+    for (const c of customers) {
+      const subs = await listAll((p) => stripe.subscriptions.list(p), { customer: c.id, status: 'all' });
+      scanned += subs.length;
+      if (scanned > OTHER_SUB_SCAN_CAP) throw new Error('scan cap exceeded');
+      for (const sub of subs) {
         if (sub.id === excludeSubId || !['active', 'trialing'].includes(sub.status)) continue;
         const cents = sub.items?.data?.[0]?.price?.unit_amount;
         const isMonthly = sub.metadata?.tier
           ? resolveEntitlementFromSku(sub.metadata.tier) === 'monthly_membership'
           : typeof cents === 'number' && inferTierFromAmount(cents) === 'comm_monthly';
-        if (isMonthly) return true;
+        if (isMonthly) return 'yes';
       }
     }
+    return 'no';
   } catch (err) {
     console.error(`[Stripe] other-subscription check failed: ${err.message}`);
+    return 'unknown';
   }
-  return false;
+}
+
+// True when this monthly event must NOT revoke/downgrade the member.
+async function shouldHoldMonthlyChange(email, subscription, source) {
+  const other = await otherActiveMonthlySubscription(email, subscription?.id);
+  if (other === 'no') return false;
+  if (other === 'unknown') {
+    await sendAlert('stripe.monthly_change_held', { source, subscriptionId: subscription?.id ?? null }).catch(() => {});
+  }
+  console.warn(`[Stripe] ${source} for ${subscription?.id} held (other active monthly sub: ${other})`);
+  return true;
 }
 
 // A subscription with no metadata.tier (older checkouts) falls back to the
@@ -462,8 +493,7 @@ export async function handleSubscriptionDeleted(subscription) {
   }
 
   if (entitlementKey === 'monthly_membership'
-      && await hasOtherActiveMonthlySubscription(customerEmail, subscription?.id)) {
-    console.warn(`[Stripe] ${subscription?.id} cancelled but ${customerEmail} has another active monthly subscription — not revoking`);
+      && await shouldHoldMonthlyChange(customerEmail, subscription, 'subscription.deleted')) {
     return;
   }
 
@@ -571,8 +601,7 @@ export async function handleSubscriptionUpdated(subscription) {
   else billingState = status;
   const periodEndUnix = subscription.current_period_end ?? null;
   const expiresAt = periodEndUnix ? new Date(periodEndUnix * 1000).toISOString() : undefined;
-  if (billingState !== 'active' && await hasOtherActiveMonthlySubscription(email, subscription?.id)) {
-    console.warn(`[Stripe] ${subscription?.id} → ${billingState} but ${email} has another active monthly subscription — not downgrading`);
+  if (billingState !== 'active' && await shouldHoldMonthlyChange(email, subscription, 'subscription.updated')) {
     return;
   }
   try {
