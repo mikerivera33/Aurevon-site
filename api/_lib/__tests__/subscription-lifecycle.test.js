@@ -23,11 +23,13 @@ vi.mock('../alert.js', () => ({ sendAlert: vi.fn().mockResolvedValue({}) }));
 vi.mock('@vercel/functions', () => ({ waitUntil: (p) => p }));
 
 const customersRetrieve = vi.fn();
+const customersList = vi.fn().mockResolvedValue({ data: [] });
+const subscriptionsList = vi.fn().mockResolvedValue({ data: [] });
 vi.mock('stripe', () => ({
   default: class StripeMock {
     constructor() {
-      this.customers = { retrieve: customersRetrieve };
-      this.subscriptions = { update: vi.fn().mockResolvedValue({}) };
+      this.customers = { retrieve: customersRetrieve, list: customersList };
+      this.subscriptions = { update: vi.fn().mockResolvedValue({}), list: subscriptionsList };
     }
   },
 }));
@@ -105,6 +107,15 @@ describe('handleSubscriptionUpdated', () => {
     await handleSubscriptionUpdated({ status: 'canceled', metadata: { tier: 'comm_monthly' } });
     expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
     expect(customersRetrieve).not.toHaveBeenCalled();
+  });
+
+  it('does not downgrade billing when another monthly subscription for the email is active', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_x';
+    customersRetrieve.mockResolvedValue({ email: 'member@example.com' });
+    customersList.mockResolvedValueOnce({ data: [{ id: 'cus_real' }] });
+    subscriptionsList.mockResolvedValueOnce({ data: [{ id: 'sub_real', status: 'active', items: { data: [{ price: { unit_amount: 2999 } }] } }] });
+    await handleSubscriptionUpdated({ id: 'sub_other', status: 'past_due', customer: 'cus_other', metadata: { tier: 'comm_monthly' } });
+    expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
   });
 
   it('resolves email from Stripe Customer when metadata.email is missing', async () => {
@@ -212,6 +223,26 @@ describe('handleSubscriptionDeleted', () => {
     airtable.findMemberByEmail.mockResolvedValue({ fields: { 'Discord ID': 'disc_r' } });
     await handleSubscriptionDeleted({ id: 'sub_ret', customer: 'cus_r', metadata: { tier: 're_retainer' } });
     expect(airtable.updateDiscordSyncStatus).not.toHaveBeenCalled();
+    expect(discordBot.removeRoleFromMember).not.toHaveBeenCalled();
+  });
+
+  it('does not revoke when the cancelled sub is not the one entitling the member (another monthly sub is active)', async () => {
+    customersRetrieve.mockResolvedValue({ email: 'member@example.com' });
+    airtable.findMemberByEmail.mockResolvedValue({ fields: { 'Discord ID': 'disc_m', 'Entitlement Type': 'monthly_membership' } });
+    customersList.mockResolvedValueOnce({ data: [{ id: 'cus_real' }, { id: 'cus_attacker' }] });
+    subscriptionsList
+      .mockResolvedValueOnce({ data: [{ id: 'sub_real', status: 'active', metadata: { tier: 'comm_monthly' } }] })
+      .mockResolvedValueOnce({ data: [{ id: 'sub_throwaway', status: 'canceled', metadata: { tier: 'comm_monthly' } }] });
+    await handleSubscriptionDeleted({ id: 'sub_throwaway', customer: 'cus_attacker', metadata: { tier: 'comm_monthly' } });
+    expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
+    expect(airtable.updateDiscordSyncStatus).not.toHaveBeenCalled();
+    expect(discordBot.removeRoleFromMember).not.toHaveBeenCalled();
+  });
+
+  it('ignores deletion of a subscription that never activated (incomplete_expired)', async () => {
+    customersRetrieve.mockResolvedValue({ email: 'member@example.com' });
+    await handleSubscriptionDeleted({ id: 'sub_abandoned', customer: 'cus_x', status: 'incomplete_expired', metadata: { tier: 'comm_monthly' } });
+    expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
     expect(discordBot.removeRoleFromMember).not.toHaveBeenCalled();
   });
 

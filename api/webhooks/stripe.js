@@ -164,6 +164,8 @@ export async function handleCheckoutSessionCompleted(session) {
                 // marker and then died before subscriptions.update, leaving cancel
                 // events with empty metadata.
                 await persistSubscriptionIdentity(session, customerEmail, session.metadata?.tier ?? null);
+                // …and the billing reset, which the first run may not have reached.
+                await activateMonthlyBilling(session, customerEmail, session.metadata?.tier ?? null, { redelivery: true });
                 return;
         }
   } catch (err) {
@@ -214,19 +216,7 @@ export async function handleCheckoutSessionCompleted(session) {
   // Best-effort: cancel handlers also resolve email from the Stripe Customer.
   await persistSubscriptionIdentity(session, customerEmail, tier);
 
-  // A paid monthly checkout (first purchase or a re-subscribe after cancel)
-  // resets billing to active. Grant paths refuse a 'cancelled' Billing State,
-  // and invoice.payment_succeeded may not reach this endpoint.
-  if (resolveEntitlementFromSku(tier) === 'monthly_membership') {
-    await updateEntitlementState(customerEmail, {
-      entitlementType: 'monthly_membership',
-      status: 'active',
-      billingState: 'active',
-    }).catch(async (err) => {
-      console.error(`[Stripe] updateEntitlementState (checkout) failed: ${err.message}`);
-      await sendAlert('stripe.entitlement_write_failed', { source: 'checkout.session.completed', error: err.message });
-    });
-  }
+  await activateMonthlyBilling(session, customerEmail, tier, { redelivery: false });
 
   // 3. Determine NFT mapping
   const tierConfig = TIER_NFT_MAP[tier] ?? null;
@@ -375,6 +365,64 @@ export async function handleCheckoutSessionCompleted(session) {
 // Subscription lifecycle handlers
 // ---------------------------------------------------------------------------
 
+// A paid monthly checkout (first purchase or a re-subscribe after cancel)
+// resets Billing State to active: grant paths refuse 'cancelled', and
+// invoice.payment_succeeded may not reach this endpoint. Runs on redelivery
+// too (the first run may have died before it). The subscription's live
+// status decides, so a stale redelivered checkout can't re-activate a member
+// who has since cancelled; if Stripe can't be read, only a first-pass event
+// (just paid) is trusted.
+async function activateMonthlyBilling(session, customerEmail, tier, { redelivery }) {
+  if (resolveEntitlementFromSku(tier) !== 'monthly_membership' || !customerEmail) return;
+  const subId = subscriptionIdFrom(session);
+  let live = null;
+  if (subId && process.env.STRIPE_SECRET_KEY) {
+    try { live = (await stripeClient().subscriptions.retrieve(subId))?.status ?? null; }
+    catch (err) { console.error(`[Stripe] subscription status lookup failed for ${subId}: ${err.message}`); }
+  }
+  if (live ? !['active', 'trialing'].includes(live) : redelivery) {
+    console.log(`[Stripe] Not re-activating monthly billing (subscription status=${live ?? 'unknown'}, redelivery=${redelivery})`);
+    return;
+  }
+  await updateEntitlementState(customerEmail, {
+    entitlementType: 'monthly_membership',
+    status: 'active',
+    billingState: 'active',
+  }).catch(async (err) => {
+    console.error(`[Stripe] updateEntitlementState (checkout) failed: ${err.message}`);
+    await sendAlert('stripe.entitlement_write_failed', { source: 'checkout.session.completed', error: err.message });
+  });
+}
+
+// Before a monthly cancellation/lapse mutates a member, make sure the event
+// is about the subscription that actually entitles them. Checkout is
+// unauthenticated, so anyone can open (and cancel, or abandon) a $29.99
+// subscription under a member's email. Returns true when the email still has
+// ANOTHER active/trialing monthly subscription in Stripe — then this event
+// must not revoke. Lookup failure returns false (prior behaviour; the nightly
+// reconcile is the backstop) and logs.
+async function hasOtherActiveMonthlySubscription(email, excludeSubId) {
+  if (!email || !process.env.STRIPE_SECRET_KEY) return false;
+  try {
+    const stripe = stripeClient();
+    const customers = await stripe.customers.list({ email, limit: 10 });
+    for (const c of customers?.data ?? []) {
+      const subs = await stripe.subscriptions.list({ customer: c.id, status: 'all', limit: 20 });
+      for (const sub of subs?.data ?? []) {
+        if (sub.id === excludeSubId || !['active', 'trialing'].includes(sub.status)) continue;
+        const cents = sub.items?.data?.[0]?.price?.unit_amount;
+        const isMonthly = sub.metadata?.tier
+          ? resolveEntitlementFromSku(sub.metadata.tier) === 'monthly_membership'
+          : typeof cents === 'number' && inferTierFromAmount(cents) === 'comm_monthly';
+        if (isMonthly) return true;
+      }
+    }
+  } catch (err) {
+    console.error(`[Stripe] other-subscription check failed: ${err.message}`);
+  }
+  return false;
+}
+
 // A subscription with no metadata.tier (older checkouts) falls back to the
 // member's Entitlement Type — but not when the subscription's own price
 // identifies a different plan: cancelling an untagged Pro Retainer must not
@@ -397,6 +445,12 @@ export async function handleSubscriptionDeleted(subscription) {
     });
     return;
   }
+  // A subscription that never became active (abandoned / unpaid checkout)
+  // never entitled anyone, so its deletion must not revoke anything.
+  if (subscription?.status === 'incomplete_expired') {
+    console.log(`[Stripe] subscription.deleted for never-activated ${subscription?.id} — nothing to revoke`);
+    return;
+  }
   console.log(`[Stripe] Subscription cancelled for ${customerEmail} tier=${tier} — revoking access`);
 
   const member = await findMemberByEmail(customerEmail).catch(() => null);
@@ -405,6 +459,12 @@ export async function handleSubscriptionDeleted(subscription) {
   // invoice.payment_succeeded still stamped Members.Entitlement Type.
   if (!entitlementKey && untaggedSubscriptionIsMonthly(subscription, member)) {
     entitlementKey = 'monthly_membership';
+  }
+
+  if (entitlementKey === 'monthly_membership'
+      && await hasOtherActiveMonthlySubscription(customerEmail, subscription?.id)) {
+    console.warn(`[Stripe] ${subscription?.id} cancelled but ${customerEmail} has another active monthly subscription — not revoking`);
+    return;
   }
 
   if (entitlementKey === 'monthly_membership') {
@@ -511,6 +571,10 @@ export async function handleSubscriptionUpdated(subscription) {
   else billingState = status;
   const periodEndUnix = subscription.current_period_end ?? null;
   const expiresAt = periodEndUnix ? new Date(periodEndUnix * 1000).toISOString() : undefined;
+  if (billingState !== 'active' && await hasOtherActiveMonthlySubscription(email, subscription?.id)) {
+    console.warn(`[Stripe] ${subscription?.id} → ${billingState} but ${email} has another active monthly subscription — not downgrading`);
+    return;
+  }
   try {
     await updateEntitlementState(email, { billingState, expiresAt });
     console.log(`[Stripe] Billing state → ${billingState} (subscription status=${status})`);

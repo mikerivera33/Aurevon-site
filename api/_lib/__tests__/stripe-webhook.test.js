@@ -33,10 +33,11 @@ vi.mock('../alert.js', () => ({ sendAlert: vi.fn().mockResolvedValue({}) }));
 vi.mock('../discord-bot.js', () => ({ removeRoleFromMember: vi.fn() }));
 
 const subscriptionsUpdate = vi.fn().mockResolvedValue({});
+const subscriptionsRetrieve = vi.fn();
 vi.mock('stripe', () => ({
   default: class StripeMock {
     constructor() {
-      this.subscriptions = { update: subscriptionsUpdate };
+      this.subscriptions = { update: subscriptionsUpdate, retrieve: subscriptionsRetrieve };
       this.customers = { retrieve: vi.fn() };
     }
   },
@@ -171,6 +172,22 @@ describe('Stripe webhook settlement gate (async payment methods)', () => {
     expect(airtable.updateEntitlementState).toHaveBeenCalledWith('buyer@example.com', {
       entitlementType: 'monthly_membership', status: 'active', billingState: 'active',
     });
+  });
+
+  it('a redelivered monthly checkout re-activates only if the subscription is still active', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_x';
+    const paid = session('cs_test_redeliver', {
+      payment_status: 'paid', mode: 'subscription', subscription: 'sub_r', amount_total: 2999, metadata: { tier: 'comm_monthly' },
+    });
+    airtable.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
+    subscriptionsRetrieve.mockResolvedValueOnce({ status: 'canceled' });
+    await handleCheckoutSessionCompleted(paid);
+    expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
+
+    airtable.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
+    subscriptionsRetrieve.mockResolvedValueOnce({ status: 'active' });
+    await handleCheckoutSessionCompleted(paid);
+    expect(airtable.updateEntitlementState).toHaveBeenCalledWith('buyer@example.com', expect.objectContaining({ billingState: 'active' }));
   });
 
   it('a one-time purchase does not touch monthly billing state', async () => {
