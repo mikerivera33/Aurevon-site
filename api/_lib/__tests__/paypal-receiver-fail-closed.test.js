@@ -81,6 +81,7 @@ describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
     }));
     expect(airtable.createPayment).not.toHaveBeenCalled();
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('paypal.non_usd_rejected', expect.objectContaining({ currency: 'JPY', gross: '2499.00' }));
   });
 
   it('refuses a spoofed custom.tier that does not match USD paid', async () => {

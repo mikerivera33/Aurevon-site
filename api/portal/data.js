@@ -236,7 +236,7 @@ async function handleData(req, res) {
 
       const payments = paymentRecords.map(r => ({
               id: r.id,
-              serviceProduct: r.fields['Service Product'] ?? '',
+              serviceProduct: r.fields['Service Product'] ?? r.fields['Pass Type'] ?? '', // webhooks write Pass Type
               amount: r.fields['Amount'] ?? r.fields['amount'] ?? 0,
               status: r.fields['Status'] ?? r.fields['status'] ?? '',
               deliverableStatus: r.fields['Deliverable Status'] ?? 'Not Started',

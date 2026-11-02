@@ -442,7 +442,9 @@ export async function resolveRetryIdempotencyKey({ reference, email, tier, recor
   if (ref.startsWith('PAY_')) return ref.slice('PAY_'.length);
   if (/^cs_(live|test)_/.test(ref)) return ref;
   if (email && tier) {
-    const payment = await findLatestPaymentByEmailAndTier(email, tier).catch(() => null);
+    // No .catch: an Airtable error must not fall through to the serial key
+    // (that reopens the double-mint). The caller skips the row this run.
+    const payment = await findLatestPaymentByEmailAndTier(email, tier);
     const txnId = payment?.fields?.['Transaction ID'];
     if (txnId) return String(txnId);
   }
@@ -459,6 +461,7 @@ export async function handleRetryMints() {
   const retried = [];
   const errors = [];
   const skippedDup = [];
+  const skippedLookup = [];
   const failedMints = await listFailedMints({ maxRecords: 50 });
 
   for (const record of failedMints) {
@@ -471,7 +474,16 @@ export async function handleRetryMints() {
     // this "Failed" row is a stale artifact (the original mint actually went
     // through) — re-minting would create a SECOND on-chain asset. Resolve it
     // against the canonical record instead of re-minting.
-    const existingActive = await findActiveMintByEmailAndType(email, nftType).catch(() => null);
+    // A failed lookup is not "no active mint": skip the row and retry on the
+    // next cron run rather than risk minting a second asset.
+    let existingActive;
+    try {
+      existingActive = await findActiveMintByEmailAndType(email, nftType);
+    } catch (err) {
+      console.error(`[retry-mints] active-mint lookup failed for record ${record.id}: ${err.message} — skipping this run`);
+      skippedLookup.push({ recordId: record.id });
+      continue;
+    }
     if (existingActive) {
       await updateNftMint(record.id, {
         'Mint Status': existingActive.fields?.['Mint Status'] ?? 'Sent',
@@ -494,12 +506,19 @@ export async function handleRetryMints() {
     // on-chain asset if Crossmint accepted the first PUT and the webhook then
     // recorded Failed (timeout / non-JSON). Always prefer the payment id.
     const reference = record.fields?.['Reference'] ?? '';
-    const idempotencyKey = await resolveRetryIdempotencyKey({
-      reference,
-      email,
-      tier,
-      recordId: record.id,
-    });
+    let idempotencyKey;
+    try {
+      idempotencyKey = await resolveRetryIdempotencyKey({
+        reference,
+        email,
+        tier,
+        recordId: record.id,
+      });
+    } catch (err) {
+      console.error(`[retry-mints] payment lookup failed for record ${record.id}: ${err.message} — skipping this run`);
+      skippedLookup.push({ recordId: record.id });
+      continue;
+    }
 
     let serial = null;
     if (serialPrefix) {
@@ -528,7 +547,8 @@ export async function handleRetryMints() {
     retried: retried.length,
     errors: errors.length,
     skippedDuplicates: skippedDup.length,
-    details: { retried, errors, skippedDuplicates: skippedDup },
+    skippedLookupErrors: skippedLookup.length,
+    details: { retried, errors, skippedDuplicates: skippedDup, skippedLookupErrors: skippedLookup },
   };
 }
 

@@ -112,6 +112,31 @@ describe('handleRetryMints idempotency', () => {
     );
   });
 
+  it('skips the row (no mint) when the Payments lookup errors, instead of falling back to the serial', async () => {
+    airtable.listFailedMints.mockResolvedValueOnce([
+      { id: 'recOutage', fields: { Email: 'z@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', Reference: 'EMB_0009' } },
+    ]);
+    airtable.findActiveMintByEmailAndType.mockResolvedValueOnce(null);
+    airtable.findLatestPaymentByEmailAndTier.mockRejectedValueOnce(new Error('Airtable 503'));
+
+    const out = await handleRetryMints();
+
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(out.skippedLookupErrors).toBe(1);
+  });
+
+  it('skips the row (no mint) when the active-mint lookup errors', async () => {
+    airtable.listFailedMints.mockResolvedValueOnce([
+      { id: 'recOutage2', fields: { Email: 'w@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', Reference: 'EMB_0010' } },
+    ]);
+    airtable.findActiveMintByEmailAndType.mockRejectedValueOnce(new Error('Airtable 503'));
+
+    const out = await handleRetryMints();
+
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(out.skippedLookupErrors).toBe(1);
+  });
+
   it('strips a PAY_ prefix so Failed webhook rows reuse the payment id', async () => {
     airtable.listFailedMints.mockResolvedValueOnce([
       { id: 'recPay', fields: { Email: 'z@example.com', 'NFT Type': 'Aurevon Insider', 'Tier Source': 'full', Reference: 'PAY_cs_live_PAY1' } },

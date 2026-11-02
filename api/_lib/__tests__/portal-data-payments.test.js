@@ -81,7 +81,7 @@ describe('portal data Payments field', () => {
         id: 'p1',
         fields: {
           'Customer Email': 'addon@example.com',
-          'Service Product': '12-Hour Rush',
+          'Pass Type': '12-Hour Rush',
           Amount: 99,
           Status: 'paid',
           'Deliverable Status': 'In Progress',

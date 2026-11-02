@@ -128,6 +128,13 @@ export async function handleVerifiedIPN(ipn) {
   }
   if (!ipnCurrencyIsUsd(ipn)) {
     console.warn(`[PayPal IPN] Rejecting non-USD payment (mc_currency=${ipn.mc_currency}) txnId=${ipn.txn_id}`);
+    // Money may still have arrived: no Payments row is written, so alert for a
+    // manual review / refund instead of dropping it silently.
+    await sendAlert('paypal.non_usd_rejected', {
+      txnId: ipn.txn_id,
+      currency: ipn.mc_currency ?? null,
+      gross: ipn.mc_gross ?? null,
+    }).catch(() => {});
     return;
   }
 
@@ -385,8 +392,9 @@ export async function processIPN(rawBody) {
   // Idempotency check — skip if this txn_id has already been processed. Uses the
   // shared airtable helper instead of a bespoke raw fetch: it resolves the base/table
   // via the same (now fail-loud, no stale hardcoded fallback) config path and runs the
-  // Transaction ID through escapeFormulaValue. Lookup failure is fail-closed (same
-  // as Stripe): PayPal will redeliver once Airtable is healthy.
+  // Transaction ID through escapeFormulaValue. Lookup failure is fail-closed: the
+  // handler has already answered 200, so PayPal will NOT redeliver — the alert
+  // below is what surfaces the payment for manual recovery.
   const txnId = ipn.txn_id;
   if (!txnId) {
     console.error('[PayPal IPN] Verified IPN missing txn_id — refusing to process (fail-closed)');
