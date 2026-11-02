@@ -33,12 +33,13 @@
             animation: spin 10s linear infinite;
         }
 
+        /* No perspective on <body>: it would make body the containing block
+           for position:fixed descendants (the page-wide motion layers), which
+           would then scroll away. The old body perspective never reached the
+           card anyway (a wrapper sits between), so the flat spin is unchanged. */
         @keyframes spin {
-            /* perspective() lives on the card itself: a perspective on <body>
-               makes body the containing block for position:fixed descendants
-               (the page-wide motion layers), which would then scroll away. */
-            0% { transform: perspective(1000px) rotateY(0deg); }
-            100% { transform: perspective(1000px) rotateY(360deg); }
+            0% { transform: rotateY(0deg); }
+            100% { transform: rotateY(360deg); }
         }
 
         .nft-card {
