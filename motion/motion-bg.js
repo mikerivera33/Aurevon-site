@@ -126,7 +126,9 @@
     const observer = new MutationObserver(() => {
       if (findHero()) {
         stop();
-        wireHero();
+        /* The preference may have been switched on while we waited; the
+           engine would refuse the bolts, but no layer should be built. */
+        if (!isReducedMotion()) wireHero();
       }
     });
     observer.observe(document.documentElement, {
