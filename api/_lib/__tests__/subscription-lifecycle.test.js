@@ -195,6 +195,26 @@ describe('handleSubscriptionDeleted', () => {
     expect(discordBot.removeRoleFromMember).toHaveBeenCalledWith('disc_3', 'role_monthly');
   });
 
+  it('prefers the Stripe Customer email over subscription metadata.email', async () => {
+    customersRetrieve.mockResolvedValue({ email: 'payer@example.com' });
+    airtable.findMemberByEmail.mockResolvedValue({ fields: { 'Discord ID': 'disc_p', 'Entitlement Type': 'monthly_membership' } });
+    await handleSubscriptionDeleted({
+      id: 'sub_meta_victim',
+      customer: 'cus_payer',
+      metadata: { tier: 'comm_monthly', email: 'victim@example.com' },
+    });
+    expect(airtable.updateEntitlementState).toHaveBeenCalledWith('payer@example.com', { billingState: 'cancelled' });
+    expect(airtable.updateEntitlementState).not.toHaveBeenCalledWith('victim@example.com', expect.anything());
+  });
+
+  it('does not mark Discord sync revoked when a permanent retainer sub is cancelled', async () => {
+    customersRetrieve.mockResolvedValue({ email: 'retainer@example.com' });
+    airtable.findMemberByEmail.mockResolvedValue({ fields: { 'Discord ID': 'disc_r' } });
+    await handleSubscriptionDeleted({ id: 'sub_ret', customer: 'cus_r', metadata: { tier: 're_retainer' } });
+    expect(airtable.updateDiscordSyncStatus).not.toHaveBeenCalled();
+    expect(discordBot.removeRoleFromMember).not.toHaveBeenCalled();
+  });
+
   it('alerts and does not revoke when email cannot be resolved', async () => {
     await handleSubscriptionDeleted({ id: 'sub_unknown', metadata: {} });
     expect(airtable.updateDiscordSyncStatus).not.toHaveBeenCalled();

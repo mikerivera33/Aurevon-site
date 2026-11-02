@@ -24,9 +24,9 @@
 
 import crypto from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
-import { findMemberByEmail, findActiveMintByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listNftMints, listPaymentsSince, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint } from '../_lib/airtable.js';
+import { findMemberByEmail, findActiveMintByEmail, findActiveMintsByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listNftMints, listPaymentsSince, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint } from '../_lib/airtable.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
-import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess, mayGrantPaidAccessFromMember } from '../_lib/entitlements.js';
+import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess, pickGrantableMint } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
 import { sendDiscordAccessLink } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
@@ -293,17 +293,18 @@ async function handleReconcile() {
     if (!discordId || !email) continue;
 
     try {
-      const mintRecord = await findActiveMintByEmail(email);
-      if (!mintRecord) continue;
+      const mints = await findActiveMintsByEmail(email);
+      if (!mints.length) continue;
+      const mintRecord = pickGrantableMint(mints, member.fields);
+      if (!mintRecord) {
+        console.log(`[Reconcile] Skipping pending sync for lapsed monthly email=${email}`);
+        continue;
+      }
 
       const nftType        = mintRecord.fields['NFT Type'] ?? '';
       const entitlementKey = resolveEntitlementFromNftType(nftType);
       const roleId         = entitlementKey ? getRoleId(entitlementKey) : null;
       if (!roleId) continue;
-      if (!mayGrantPaidAccessFromMember(entitlementKey, member.fields)) {
-        console.log(`[Reconcile] Skipping pending sync for lapsed monthly email=${email}`);
-        continue;
-      }
 
       await addRoleToMember(discordId, roleId);
       await updateDiscordSyncStatus(email, 'synced');

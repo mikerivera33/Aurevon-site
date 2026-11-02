@@ -7,6 +7,8 @@ import {
   mayGrantPaidAccess,
   mayGrantPaidAccessFromMember,
   buildMintRecipient,
+  pickGrantableMint,
+  UNKNOWN_BILLING_FIELDS,
 } from '../entitlements.js';
 
 describe('ENTITLEMENT_MAP', () => {
@@ -249,5 +251,25 @@ describe('buildMintRecipient', () => {
     const result = buildMintRecipient({ email: 'user@example.com' });
     expect(result.chain).toBe('polygon');
     delete process.env.CROSSMINT_CHAIN;
+  });
+});
+
+describe('pickGrantableMint', () => {
+  const genesis = { id: 'g', fields: { 'NFT Type': '001 Genesis' } };
+  const insider = { id: 'i', fields: { 'NFT Type': 'Aurevon Insider' } };
+  const lapsed = { 'Billing State': 'cancelled', 'Entitlement Expires At': '2020-01-01T00:00:00Z' };
+
+  it('a lapsed Genesis row does not hide a permanent pass', () => {
+    expect(pickGrantableMint([genesis, insider], lapsed)).toBe(insider);
+  });
+  it('returns null when the only pass is a lapsed monthly one', () => {
+    expect(pickGrantableMint([genesis], lapsed)).toBeNull();
+  });
+  it('grants an active monthly membership', () => {
+    expect(pickGrantableMint([genesis], { 'Billing State': 'active' })).toBe(genesis);
+  });
+  it('fails closed for monthly but not permanent when billing is unknown', () => {
+    expect(pickGrantableMint([genesis], UNKNOWN_BILLING_FIELDS)).toBeNull();
+    expect(pickGrantableMint([genesis, insider], UNKNOWN_BILLING_FIELDS)).toBe(insider);
   });
 });

@@ -164,6 +164,20 @@ describe('Stripe webhook settlement gate (async payment methods)', () => {
     expect(airtable.createPayment).toHaveBeenCalledTimes(1);
   });
 
+  it('a paid monthly checkout (incl. re-subscribe after cancel) resets Billing State to active', async () => {
+    await handleCheckoutSessionCompleted(session('cs_test_resub', {
+      payment_status: 'paid', mode: 'subscription', amount_total: 2999, metadata: { tier: 'comm_monthly' },
+    }));
+    expect(airtable.updateEntitlementState).toHaveBeenCalledWith('buyer@example.com', {
+      entitlementType: 'monthly_membership', status: 'active', billingState: 'active',
+    });
+  });
+
+  it('a one-time purchase does not touch monthly billing state', async () => {
+    await handleCheckoutSessionCompleted(session('cs_test_full_once', { payment_status: 'paid' }));
+    expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
+  });
+
   it('fulfills a $0 / 100% promo checkout (no_payment_required)', async () => {
     await handleCheckoutSessionCompleted(
       session('cs_test_promo_zero', { payment_status: 'no_payment_required', amount_total: 0 })

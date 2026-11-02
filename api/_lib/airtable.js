@@ -220,6 +220,17 @@ export async function findActiveMintByEmail(email) {
  * mint went through) and must NOT be re-minted into a second on-chain asset.
  * Returns the record, or null.
  */
+/**
+ * Every active (Minted/Sent/Queued) mint for an email. A member can hold more
+ * than one pass (e.g. a lapsed Genesis plus a permanent Insider); grant paths
+ * pick the one they may still grant via pickGrantableMint().
+ */
+export async function findActiveMintsByEmail(email, maxRecords = 10) {
+  const safeEmail = escapeFormulaValue(String(email).toLowerCase());
+  const formula = `AND(LOWER({Email})="${safeEmail}",OR({Mint Status}="Minted",{Mint Status}="Sent",{Mint Status}="Queued"))`;
+  return listRecords(TABLE.NFT_Mints, { filterFormula: formula, maxRecords });
+}
+
 export async function findActiveMintByEmailAndType(email, nftType) {
   const safeEmail = escapeFormulaValue(String(email).toLowerCase());
   const safeType = escapeFormulaValue(nftType);

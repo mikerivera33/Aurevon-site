@@ -233,3 +233,26 @@ export function buildMintRecipient({ email, walletAddress = null, chain = null }
   if (walletAddress) return { walletAddress, chain: c };
   return { email, chain: c };
 }
+
+/**
+ * Billing fields to use when the member lookup itself failed: treated as
+ * non-active, so revocable (monthly) passes are refused — fail closed — while
+ * permanent / lifetime passes still grant.
+ */
+export const UNKNOWN_BILLING_FIELDS = Object.freeze({ 'Billing State': 'unknown' });
+
+/**
+ * From a member's active mints, the first whose entitlement may still be
+ * granted given their billing fields — so a lapsed monthly
+ * Genesis row never hides a still-valid permanent pass. Null when none.
+ * @param {Array<{fields?: Record<string, unknown>}>} mints
+ * @param {Record<string, unknown>|null|undefined} memberFields
+ */
+export function pickGrantableMint(mints, memberFields) {
+  for (const mint of mints ?? []) {
+    const key = resolveEntitlementFromNftType(mint?.fields?.['NFT Type'] ?? '');
+    if (!key) continue;
+    if (mayGrantPaidAccessFromMember(key, memberFields)) return mint;
+  }
+  return null;
+}

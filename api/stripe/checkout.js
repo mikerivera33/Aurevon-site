@@ -233,9 +233,10 @@ export default async function handler(req, res) {
         // later checkout.session.completed PATCH failure cannot leave the
         // subscription unidentifiable.
         if (product.mode === 'subscription') {
-          const subMeta = { tier: product.tier };
-          if (req.body?.email) subMeta.email = req.body.email;
-          sessionParams.subscription_data = { metadata: subMeta };
+          // Tier only: req.body.email is unauthenticated and the payer can change
+          // it in Checkout. The settled email is written by the webhook, and
+          // lifecycle events resolve the member from the Stripe Customer.
+          sessionParams.subscription_data = { metadata: { tier: product.tier } };
         }
 
         // Promotion codes. `discounts` and `allow_promotion_codes` are mutually

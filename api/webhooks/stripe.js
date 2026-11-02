@@ -42,22 +42,25 @@ function customerIdFrom(subscription) {
  * entirely on idempotent retry (Payments row already exists). Fall back to the
  * Stripe Customer — Checkout always creates one with the buyer's email.
  */
+// The Stripe Customer is the payer Stripe settled the subscription for, so it
+// is authoritative. metadata.email is only a fallback (written by
+// persistSubscriptionIdentity from the settled checkout email) for when the
+// Customer can't be read — never from the unauthenticated checkout request.
 export async function resolveSubscriptionEmail(subscription) {
-  const fromMeta = subscription?.metadata?.email;
-  if (fromMeta) return fromMeta;
+  const fromMeta = subscription?.metadata?.email || null;
   const expanded = subscription?.customer;
   if (expanded && typeof expanded === 'object' && !expanded.deleted && expanded.email) {
     return expanded.email;
   }
   const customerId = customerIdFrom(subscription);
-  if (!customerId || !process.env.STRIPE_SECRET_KEY) return null;
+  if (!customerId || !process.env.STRIPE_SECRET_KEY) return fromMeta;
   try {
     const customer = await stripeClient().customers.retrieve(customerId);
-    if (!customer || customer.deleted) return null;
-    return customer.email ?? null;
+    if (customer && !customer.deleted && customer.email) return customer.email;
+    return fromMeta;
   } catch (err) {
     console.error(`[Stripe] Could not resolve customer email for ${customerId}: ${err.message}`);
-    return null;
+    return fromMeta;
   }
 }
 
@@ -210,6 +213,20 @@ export async function handleCheckoutSessionCompleted(session) {
   // so customer.subscription.deleted events can identify the customer.
   // Best-effort: cancel handlers also resolve email from the Stripe Customer.
   await persistSubscriptionIdentity(session, customerEmail, tier);
+
+  // A paid monthly checkout (first purchase or a re-subscribe after cancel)
+  // resets billing to active. Grant paths refuse a 'cancelled' Billing State,
+  // and invoice.payment_succeeded may not reach this endpoint.
+  if (resolveEntitlementFromSku(tier) === 'monthly_membership') {
+    await updateEntitlementState(customerEmail, {
+      entitlementType: 'monthly_membership',
+      status: 'active',
+      billingState: 'active',
+    }).catch(async (err) => {
+      console.error(`[Stripe] updateEntitlementState (checkout) failed: ${err.message}`);
+      await sendAlert('stripe.entitlement_write_failed', { source: 'checkout.session.completed', error: err.message });
+    });
+  }
 
   // 3. Determine NFT mapping
   const tierConfig = TIER_NFT_MAP[tier] ?? null;
@@ -396,13 +413,17 @@ export async function handleSubscriptionDeleted(subscription) {
     });
   }
 
-  // Mark revoked in Airtable
-  await updateDiscordSyncStatus(customerEmail, 'revoked').catch(e => {
-    console.error(`[Stripe] Failed to mark revocation in Airtable: ${e.message}`);
-  });
-
   // Immediately remove Discord role — only for entitlements that allow revocation on cancellation
   const entitlementCfg = entitlementKey ? ENTITLEMENT_MAP[entitlementKey] : null;
+
+  // Mark revoked in Airtable only when this cancellation actually revokes
+  // something; cancelling a permanent-entitlement sub (retainer/enterprise)
+  // must not flag the member's other, still-valid Discord access.
+  if (entitlementCfg?.revokeOnCancel) {
+    await updateDiscordSyncStatus(customerEmail, 'revoked').catch(e => {
+      console.error(`[Stripe] Failed to mark revocation in Airtable: ${e.message}`);
+    });
+  }
   const roleId = entitlementCfg?.revokeOnCancel ? getRoleId(entitlementKey) : null;
   if (roleId) {
     try {
