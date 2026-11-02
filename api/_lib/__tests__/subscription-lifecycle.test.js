@@ -13,15 +13,15 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 vi.mock('../airtable.js', () => ({
   updateEntitlementState: vi.fn().mockResolvedValue({}),
   // referenced at stripe.js module load:
-  createPayment: vi.fn(), createNftMint: vi.fn(), updateDiscordSyncStatus: vi.fn(),
-  findMemberByEmail: vi.fn(), findPaymentByTransactionId: vi.fn(),
+  createPayment: vi.fn(), createNftMint: vi.fn(), updateDiscordSyncStatus: vi.fn().mockResolvedValue({}),
+  findMemberByEmail: vi.fn().mockResolvedValue(null), findPaymentByTransactionId: vi.fn(),
 }));
 vi.mock('../crossmint.js', () => ({ mintToEmail: vi.fn() }));
 vi.mock('../email.js', () => ({ sendNftDelivery: vi.fn(), sendPurchaseConfirmation: vi.fn() }));
 vi.mock('../discord-bot.js', () => ({ removeRoleFromMember: vi.fn() }));
 vi.mock('@vercel/functions', () => ({ waitUntil: (p) => p }));
 
-import { handleInvoicePaymentSucceeded, handleSubscriptionUpdated } from '../../webhooks/stripe.js';
+import { handleInvoicePaymentSucceeded, handleSubscriptionUpdated, handleSubscriptionDeleted } from '../../webhooks/stripe.js';
 import * as airtable from '../airtable.js';
 
 const PERIOD_END = 1893456000; // unix seconds (future)
@@ -90,6 +90,27 @@ describe('handleSubscriptionUpdated', () => {
 
   it('skips when subscription metadata has no email', async () => {
     await handleSubscriptionUpdated({ status: 'canceled', metadata: { tier: 'comm_monthly' } });
+    expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleSubscriptionDeleted', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('stamps Billing State cancelled for a monthly member so grant paths cannot re-OAuth', async () => {
+    await handleSubscriptionDeleted({
+      metadata: { email: 'monthly@example.com', tier: 'comm_monthly' },
+    });
+    expect(airtable.updateEntitlementState).toHaveBeenCalledWith('monthly@example.com', {
+      billingState: 'cancelled',
+    });
+    expect(airtable.updateDiscordSyncStatus).toHaveBeenCalledWith('monthly@example.com', 'revoked');
+  });
+
+  it('does not stamp billing cancelled for a permanent retainer sub', async () => {
+    await handleSubscriptionDeleted({
+      metadata: { email: 'retainer@example.com', tier: 're_retainer' },
+    });
     expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
   });
 });

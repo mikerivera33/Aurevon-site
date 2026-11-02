@@ -4,6 +4,8 @@ import {
   resolveEntitlementFromSku,
   resolveEntitlementFromNftType,
   shouldRevokeAccess,
+  mayGrantPaidAccess,
+  mayGrantPaidAccessFromMember,
   buildMintRecipient,
 } from '../entitlements.js';
 
@@ -146,6 +148,79 @@ describe('shouldRevokeAccess', () => {
       billingState: 'cancelled',
       endsAt: past,
       gracePeriodDays: 7,
+    })).toBe(true);
+  });
+});
+
+describe('mayGrantPaidAccess', () => {
+  it('always grants permanent product NFTs even if billing looks cancelled', () => {
+    expect(mayGrantPaidAccess({
+      entitlementKey: 'product_a_reward',
+      billingState: 'cancelled',
+      endsAt: null,
+    })).toBe(true);
+  });
+
+  it('always grants lifetime membership', () => {
+    expect(mayGrantPaidAccess({
+      entitlementKey: 'lifetime_membership',
+      billingState: 'cancelled',
+      endsAt: null,
+    })).toBe(true);
+  });
+
+  it('grants monthly when billing fields are missing (fresh purchase race)', () => {
+    expect(mayGrantPaidAccess({
+      entitlementKey: 'monthly_membership',
+      billingState: null,
+      endsAt: null,
+    })).toBe(true);
+  });
+
+  it('grants monthly while billing is active', () => {
+    expect(mayGrantPaidAccess({
+      entitlementKey: 'monthly_membership',
+      billingState: 'active',
+      endsAt: new Date(Date.now() - 10 * 86_400_000).toISOString(),
+    })).toBe(true);
+  });
+
+  it('grants monthly during the post-cancel grace window', () => {
+    const recentEnd = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    expect(mayGrantPaidAccess({
+      entitlementKey: 'monthly_membership',
+      billingState: 'cancelled',
+      endsAt: recentEnd,
+      gracePeriodDays: 7,
+    })).toBe(true);
+  });
+
+  it('refuses monthly after cancel + grace — the claim+OAuth re-grant hole', () => {
+    const past = new Date(Date.now() - 10 * 86_400_000).toISOString();
+    expect(mayGrantPaidAccess({
+      entitlementKey: 'monthly_membership',
+      billingState: 'cancelled',
+      endsAt: past,
+      gracePeriodDays: 7,
+    })).toBe(false);
+  });
+
+  it('refuses monthly cancelled with no endsAt (immediate revoke)', () => {
+    expect(mayGrantPaidAccess({
+      entitlementKey: 'monthly_membership',
+      billingState: 'cancelled',
+      endsAt: null,
+    })).toBe(false);
+  });
+
+  it('mayGrantPaidAccessFromMember reads Airtable field names', () => {
+    const past = new Date(Date.now() - 10 * 86_400_000).toISOString();
+    expect(mayGrantPaidAccessFromMember('monthly_membership', {
+      'Billing State': 'cancelled',
+      'Entitlement Expires At': past,
+    })).toBe(false);
+    expect(mayGrantPaidAccessFromMember('product_a_reward', {
+      'Billing State': 'cancelled',
     })).toBe(true);
   });
 });
