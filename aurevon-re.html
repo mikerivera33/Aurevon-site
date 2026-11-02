@@ -1510,8 +1510,9 @@ targets.forEach(t => spy.observe(t));
 .aurevon-pay-tier{font-size:0.7rem;color:#3B82F6;text-transform:uppercase;letter-spacing:0.14em;font-weight:700;margin-bottom:0.35rem;}
 .aurevon-pay-amount{font-family:'Archivo Black',sans-serif;font-size:1.8rem;color:#f0ede8;line-height:1;margin-bottom:0.35rem;}
 .aurevon-pay-desc{font-size:0.78rem;color:#b8b3ab;line-height:1.5;}
-.aurevon-pay-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:5px;margin-bottom:1.1rem;}
-.aurevon-pay-tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0.6rem 0.4rem;background:transparent;border:none;border-radius:7px;color:#b8b3ab;font-size:0.72rem;font-weight:600;cursor:pointer;transition:background .2s,color .2s;font-family:inherit;}
+.aurevon-pay-tabs{display:flex;flex-wrap:wrap;gap:6px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:5px;margin-bottom:1.1rem;}
+.aurevon-pay-tab[hidden]{display:none;}
+.aurevon-pay-tab{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0.6rem 0.4rem;background:transparent;border:none;border-radius:7px;color:#b8b3ab;font-size:0.72rem;font-weight:600;cursor:pointer;transition:background .2s,color .2s;font-family:inherit;}
 .aurevon-pay-tab:hover{background:rgba(255,255,255,0.04);color:#f0ede8;}
 .aurevon-pay-tab.active{background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#0A0A0A;font-weight:700;box-shadow:0 4px 14px rgba(30,58,138,0.35);}
 .aurevon-pay-tab.active svg rect:first-child{filter:brightness(0.9);}
@@ -1522,7 +1523,7 @@ targets.forEach(t => spy.observe(t));
 .aurevon-pay-info strong{color:#f0ede8;}
 .aurevon-pay-info .pmlogo{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,rgba(30,58,138,0.1),rgba(59,130,246,0.05));padding:3px 9px;border-radius:6px;margin-bottom:0.55rem;font-weight:700;color:#3B82F6;font-size:0.7rem;letter-spacing:0.06em;text-transform:uppercase;}
 .aurevon-pay-trust{margin-top:1rem;display:flex;justify-content:center;align-items:center;gap:0.55rem;flex-wrap:wrap;font-size:0.68rem;color:#6b6760;}
-@media(max-width:520px){.aurevon-pay-tabs{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:520px){.aurevon-pay-tab{flex-basis:calc(50% - 3px);}}
 </style>
 
 <script>
@@ -1605,14 +1606,18 @@ targets.forEach(t => spy.observe(t));
                     // Aurevon API Checkout — intercept __CHECKOUT__ tier keys
             if(href && href.startsWith('__CHECKOUT__')){
               e.preventDefault();
-              var tier = href.replace('__CHECKOUT__', '');
+              // The Cash App / Afterpay links carry "?payment_method=…" after the
+              // tier key; the tier is only the part before it.
+              var rest = href.slice('__CHECKOUT__'.length).split('?');
+              var tier = rest[0];
+              var pmMatch = /(?:^|&)payment_method=([a-z_]+)/.exec(rest[1] || '');
               var promoParam = activePromo ? activePromo : null;
               var cancelPath = window.location.pathname;
               var btn = cta; btn.disabled = true; btn.textContent = 'Redirecting...';
               fetch('/api/stripe/checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tier: tier, promoCode: promoParam, cancelPath: cancelPath })
+                body: JSON.stringify({ tier: tier, promoCode: promoParam, cancelPath: cancelPath, paymentMethod: pmMatch ? pmMatch[1] : undefined })
               }).then(function(r){ return r.json(); }).then(function(data){
                 if(data.url){ sessionStorage.setItem('bkt_pending_intake', cta.getAttribute('data-success')); window.location.href = data.url; }
                 else { btn.disabled = false; btn.textContent = btn.getAttribute('data-orig-text') || 'Buy'; showPaymentError(data.error || 'Checkout failed. Please try again or contact mike@aurevonvc.com.'); }
@@ -1654,6 +1659,10 @@ targets.forEach(t => spy.observe(t));
     descEl.textContent = opts.desc || '';
     tabs.forEach(function(x){ x.classList.remove('active'); });
     tabs[0].classList.add('active');
+    // Afterpay can't pay a subscription (Stripe only offers it for one-time
+    // payments), so the tab is shown for one-time purchases only.
+    var recurring = /^(retainer|enterprise|comm_monthly)$/.test(String(currentTier));
+    tabs.forEach(function(x){ if (x.getAttribute('data-method') === 'afterpay') x.hidden = recurring; });
     currentMethod = 'stripe';
     renderMethod(currentMethod);
     modal.classList.add('open');

@@ -76,7 +76,7 @@ Each of these has been flagged by a code-review or audit subagent and is **not**
 2. **Inline `<style>` attributes** — same reason. No build step to extract.
 3. **`<img src="assets/MAIN AUREVON HEADER.png">` with literal spaces** — browsers auto-encode for `<img src>` (lenient). For `<source srcset>` and `<link rel=preload>` use `%20` (strict). The `site-guards.test.js` test enforces this.
 4. **`framework: null` + `buildCommand: null` in `vercel.json`** — static site, deliberate.
-5. **`installCommand: null`** — `package.json` has `engines.node: 20.x`; Vercel auto-runs `npm install` for `/api/*` deps.
+5. **`installCommand: null`** — `package.json` has `engines.node: 24.x` (Vercel discontinued Node 20 builds); Vercel auto-runs `npm install` for `/api/*` deps.
 6. **`images:` block in `vercel.json` but no `/_vercel/image` references** — forward-looking config, not dead. Allows the optimizer if we ever wire it up.
 7. **Single global enforcing CSP without per-page customization** — one policy in `vercel.json` is fine for a static site.
 8. **`NFT_TIERS = new Set()` (empty) in `checkout.js`** — pre-existing, the branch is unreachable; not from any recent PR; not in scope to clean up unless you're doing a checkout.js refactor.
@@ -84,6 +84,11 @@ Each of these has been flagged by a code-review or audit subagent and is **not**
 10. **`vercel.json` `"/cancel"` rewrite is GONE** as of PR #21. Stripe checkout builds per-session cancel URLs (`checkout.js:196`).
 11. **`docs/` is `.vercelignore`d** — design briefs, brand masters, this file's neighbors. None of it ships.
 12. **`apple-touch-icon.png` is 194 KB at root** — under the 500 KB CI budget; iOS retina home-screen icon needs the resolution. Don't shrink.
+13. **`/motion/` is a vendored package, not site code** — the shared motion-lightning background (same as labs.aurevonvc.com and forge.aurevonvc.com). This repo's `motion/` is the **canonical copy**; Forge-ai's `storefront/public/motion/` must be byte-identical. Change it only as described in `motion/README.md` (bump `VERSION`, regenerate `MANIFEST.json`, copy to Forge). `ticker.js`, `lightning.js`, `scene3d.js` and `vendor/` are verbatim from Labs — don't "clean them up". The vendored three.js is ~800 KB but lazy-loaded after `load`. Every public page carries one stylesheet link + four script tags; admin consoles don't (guarded by `motion-background.test.js`).
+14. **NFT pass pages (`nfts/*.html`) have no `perspective` on `<body>`** — deliberately removed: it made `<body>` the containing block for the fixed motion layers. The card's spin was flat before and still is.
+15. **`/motion/*` caching is split** — bootstraps/CSS `max-age=0, must-revalidate` (an update can never mix versions), `motion/vendor/*` one week. Don't collapse into one long-cache rule.
+16. **`__CHECKOUT__…` redirects in `vercel.json`** — the buy buttons carry `href="__CHECKOUT__<tier>"` placeholders that a click handler turns into a Stripe session. The redirects only catch a raw navigation (crawler, open-in-new-tab): `comm_*` → `/aurevon-web3#community-nft`, everything else → `/aurevon-re#pricing`.
+17. **Pay-modal Cash App / Afterpay tabs open the same Stripe Checkout** (dynamic payment methods). The link carries `?payment_method=…` after the tier; the handler strips it and sends it as `paymentMethod`. Afterpay is hidden for subscriptions (`retainer`, `enterprise`, `comm_monthly`) because Stripe can't charge a subscription with it, and the API refuses that combination.
 
 ## CI guards (`.github/workflows/deploy.yml`) — what they actually enforce
 
@@ -107,7 +112,7 @@ Production also needs: `STRIPE_WEBHOOK_SECRET`, `PAYPAL_*`, `CROSSMINT_*` (API k
 
 1. **Branch:** `claude/<short-description>-Sz1pk` from `main`
 2. **Commits:** descriptive; multi-line body when the change has multiple concerns
-3. **Tests:** `npm test` (43–45 tests, depends on which PRs landed) + `npm run lint` (must be clean)
+3. **Tests:** `npm test` (200+ tests across 27 files) + `npm run lint` (must be clean)
 4. **PR:** squash-merge to `main`; Vercel auto-deploys to production on merge
 5. **Verify:** after merge, hit `https://www.aurevonvc.com` with `curl` to confirm new behavior, not the preview URL (preview is deployment-protected → HTTP 401)
 

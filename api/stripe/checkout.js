@@ -147,16 +147,27 @@ export default async function handler(req, res) {
               return res.status(405).json({ error: 'Method not allowed' });
       }
 
-  const { tier, promoCode, cancelPath } = req.body ?? {};
+  const { tier: rawTier, promoCode, cancelPath, paymentMethod } = req.body ?? {};
 
-  if (!tier) {
+  if (!rawTier) {
           return res.status(400).json({ error: 'Missing tier parameter' });
   }
+
+  // Pages cached before the payment-tab fix sent "re_full?payment_method=cashapp"
+  // as the tier; the key is the part before any query.
+  const tier = String(rawTier).split('?')[0];
 
   const product = PRODUCT_CATALOG[tier];
       if (!product) {
               return res.status(400).json({ error: `Unknown tier: ${tier}` });
       }
+
+  // The page's Cash App / Afterpay tabs open the same Stripe Checkout, which
+  // offers every method enabled on the account; the hint only guards the one
+  // combination Stripe cannot serve.
+  if (paymentMethod === 'afterpay_clearpay' && product.mode === 'subscription') {
+          return res.status(400).json({ error: "Afterpay isn't available for monthly plans. Pay by card or Cash App instead." });
+  }
 
   if (product.priceId === '') {
           return res.status(503).json({ error: 'This product is not yet configured — contact support.' });
