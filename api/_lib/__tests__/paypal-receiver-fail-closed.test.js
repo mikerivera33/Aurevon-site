@@ -84,6 +84,13 @@ describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
     expect(sendAlert).toHaveBeenCalledWith('paypal.non_usd_rejected', expect.objectContaining({ currency: 'JPY', gross: '2499.00' }));
   });
 
+  it('does not alert on a non-USD IPN that is Pending or for another receiver', async () => {
+    process.env.PAYPAL_BUSINESS_EMAIL = 'mike@aurevonvc.com';
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com', { mc_currency: 'JPY', payment_status: 'Pending' }));
+    await handleVerifiedIPN(completedIpn('someone-else@example.com', { mc_currency: 'JPY' }));
+    expect(sendAlert).not.toHaveBeenCalledWith('paypal.non_usd_rejected', expect.anything());
+  });
+
   it('refuses a spoofed custom.tier that does not match USD paid', async () => {
     process.env.PAYPAL_BUSINESS_EMAIL = 'mike@aurevonvc.com';
     await handleVerifiedIPN(completedIpn('mike@aurevonvc.com', {

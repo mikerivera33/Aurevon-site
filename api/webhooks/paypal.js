@@ -126,17 +126,6 @@ export async function handleVerifiedIPN(ipn) {
     console.error('[PayPal IPN] Verified IPN missing txn_id — refusing to process (fail-closed)');
     return;
   }
-  if (!ipnCurrencyIsUsd(ipn)) {
-    console.warn(`[PayPal IPN] Rejecting non-USD payment (mc_currency=${ipn.mc_currency}) txnId=${ipn.txn_id}`);
-    // Money may still have arrived: no Payments row is written, so alert for a
-    // manual review / refund instead of dropping it silently.
-    await sendAlert('paypal.non_usd_rejected', {
-      txnId: ipn.txn_id,
-      currency: ipn.mc_currency ?? null,
-      gross: ipn.mc_gross ?? null,
-    }).catch(() => {});
-    return;
-  }
 
   const txnId = ipn.txn_id;
   const customerEmail = ipn.payer_email;
@@ -170,6 +159,19 @@ export async function handleVerifiedIPN(ipn) {
   }
   if ((ipn.receiver_email ?? '').toLowerCase() !== businessEmail.toLowerCase()) {
     console.warn(`[PayPal IPN] Receiver mismatch: got ${ipn.receiver_email}, expected ${businessEmail}`);
+    return;
+  }
+  // Currency is checked only for a Completed payment to our own receiver, so
+  // the alert below means real money arrived in a currency we don't price in.
+  if (!ipnCurrencyIsUsd(ipn)) {
+    console.warn(`[PayPal IPN] Rejecting non-USD payment (mc_currency=${ipn.mc_currency}) txnId=${ipn.txn_id}`);
+    // Money may still have arrived: no Payments row is written, so alert for a
+    // manual review / refund instead of dropping it silently.
+    await sendAlert('paypal.non_usd_rejected', {
+      txnId: ipn.txn_id,
+      currency: ipn.mc_currency ?? null,
+      gross: ipn.mc_gross ?? null,
+    }).catch(() => {});
     return;
   }
 
