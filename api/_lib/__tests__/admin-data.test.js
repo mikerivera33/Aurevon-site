@@ -15,6 +15,8 @@ vi.mock('../db.js', () => ({
 }));
 
 import handler from '../../admin/data.js';
+
+const ID = '00000000-0000-4000-8000-000000000001';
 import * as db from '../db.js';
 
 const SECRET = 'admin_console_secret_0123456789';
@@ -79,7 +81,7 @@ describe('/api/admin/data auth', () => {
   });
 
   it('rejects a bad PATCH before touching the database', async () => {
-    const res = await call({ method: 'PATCH', query: { table: 'leads', id: 'l1' }, body: { fields: { Status: 'Won' } }, auth: 'Bearer nope' });
+    const res = await call({ method: 'PATCH', query: { table: 'leads', id: ID }, body: { fields: { Status: 'Won' } }, auth: 'Bearer nope' });
     expect(res.statusCode).toBe(401);
     expect(db.updateRecord).not.toHaveBeenCalled();
   });
@@ -101,8 +103,8 @@ describe('/api/admin/data tables', () => {
   it.each(['leads', 'payments', 'nft_mints', 'members'])('GET %s returns records', async (table) => {
     const res = await call({ query: { table } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ records: [{ id: 'l1', fields: { Name: 'Lead', Status: 'New' } }] });
-    expect(db.listRecent).toHaveBeenCalledWith(table, { limit: 200 });
+    expect(res.body).toEqual({ records: [{ id: 'l1', fields: { Name: 'Lead', Status: 'New' } }], nextOffset: null });
+    expect(db.listRecent).toHaveBeenCalledWith(table, { limit: 200, offset: 0 });
   });
 
   it('clamps ?limit to 1..1000', async () => {
@@ -120,7 +122,7 @@ describe('/api/admin/data tables', () => {
   });
 
   it('rejects other methods with 405', async () => {
-    const res = await call({ method: 'DELETE', query: { table: 'leads', id: 'l1' } });
+    const res = await call({ method: 'DELETE', query: { table: 'leads', id: ID } });
     expect(res.statusCode).toBe(405);
   });
 });
@@ -128,15 +130,15 @@ describe('/api/admin/data tables', () => {
 describe('/api/admin/data PATCH', () => {
   it('updates lead Status / Notes / Analyst', async () => {
     const fields = { Status: 'Qualified', Notes: 'Called back', Analyst: 'Mike' };
-    const res = await call({ method: 'PATCH', query: { table: 'leads', id: 'l1' }, body: { fields } });
+    const res = await call({ method: 'PATCH', query: { table: 'leads', id: ID }, body: { fields } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ record: { id: 'l1', fields } });
-    expect(db.updateRecord).toHaveBeenCalledWith('leads', 'l1', fields);
+    expect(res.body).toEqual({ record: { id: ID, fields } });
+    expect(db.updateRecord).toHaveBeenCalledWith('leads', ID, fields);
   });
 
   it('refuses any other lead field (and names it), writing nothing', async () => {
     const res = await call({
-      method: 'PATCH', query: { table: 'leads', id: 'l1' },
+      method: 'PATCH', query: { table: 'leads', id: ID },
       body: { fields: { Status: 'Won', Email: 'attacker@example.com', 'Payment Token': 'x' } },
     });
     expect(res.statusCode).toBe(400);
@@ -156,5 +158,30 @@ describe('/api/admin/data PATCH', () => {
     const res = await call({ method: 'PATCH', query: { table: 'leads' }, body: { fields: { Status: 'Won' } } });
     expect(res.statusCode).toBe(400);
     expect(db.updateRecord).not.toHaveBeenCalled();
+  });
+});
+
+describe('/api/admin/data paging and ids', () => {
+  beforeEach(() => { process.env.ADMIN_SECRET = 'admin_secret_for_tests_0123456789'; });
+  const auth = { authorization: 'Bearer admin_secret_for_tests_0123456789' };
+  const run = async (req) => { const res = mockRes(); await handler({ headers: auth, method: 'GET', query: {}, ...req }, res); return res; };
+
+  it('returns nextOffset when a full page comes back', async () => {
+    db.listRecent.mockResolvedValueOnce([{ id: 'a', fields: {} }, { id: 'b', fields: {} }]);
+    const res = await run({ query: { table: 'leads', limit: '2', offset: '4' } });
+    expect(db.listRecent).toHaveBeenCalledWith('leads', { limit: 2, offset: 4 });
+    expect(res.body.nextOffset).toBe(6);
+  });
+
+  it('rejects a PATCH id that is not a UUID', async () => {
+    const res = await run({ method: 'PATCH', query: { table: 'leads', id: 'l1' }, body: { fields: { Status: 'New' } } });
+    expect(res.statusCode).toBe(400);
+    expect(db.updateRecord).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 when the row does not exist', async () => {
+    db.updateRecord.mockRejectedValueOnce(Object.assign(new Error('no rows'), { code: 'PGRST116' }));
+    const res = await run({ method: 'PATCH', query: { table: 'leads', id: ID }, body: { fields: { Status: 'New' } } });
+    expect(res.statusCode).toBe(404);
   });
 });

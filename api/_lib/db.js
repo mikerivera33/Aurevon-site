@@ -456,9 +456,11 @@ export async function listLeadsByPaymentToken(token, sinceIso, { maxRecords = 50
 }
 
 /** Newest-first rows of a table, for the owner consoles (api/admin/data.js). */
-export async function listRecent(table, { limit = 200 } = {}) {
+export async function listRecent(table, { limit = 200, offset = 0 } = {}) {
   if (!FIELDS[table]) throw new Error(`Unknown table ${table}`);
-  return many(table, from(table).order('created_at', { ascending: false }).limit(limit), `listRecent ${table}`);
+  return many(table,
+    from(table).order('created_at', { ascending: false }).order('id').range(offset, offset + limit - 1),
+    `listRecent ${table}`);
 }
 
 /** Patch a row by id, for the owner consoles. */

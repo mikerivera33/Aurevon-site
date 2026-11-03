@@ -19,7 +19,7 @@ vi.mock('../db.js', () => ({
   updateNftMint: vi.fn(),
   findActiveMintsByEmail: vi.fn(), findLatestPaymentByEmailAndTier: vi.fn(), dbConfigured: vi.fn(() => true),
 }));
-vi.mock('../airtable-import.js', () => ({ airtableImportEnabled: vi.fn(() => false), importFromAirtable: vi.fn() }));
+vi.mock('../airtable-import.js', () => ({ importHasProblems: vi.fn(() => false), airtableImportEnabled: vi.fn(() => false), importFromAirtable: vi.fn() }));
 vi.mock('../crossmint.js', () => ({ mintToEmail: vi.fn() }));
 vi.mock('../discord-bot.js', () => ({ addRoleToMember: vi.fn(), removeRoleFromMember: vi.fn() }));
 vi.mock('../engage.js', () => ({ onDiscordLinkReminder: vi.fn(), onSubscriptionCancelled: vi.fn() }));

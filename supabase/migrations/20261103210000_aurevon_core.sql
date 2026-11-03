@@ -92,7 +92,8 @@ create table public.nft_mints (
 create index nft_mints_email_idx on public.nft_mints (email, nft_type);
 create index nft_mints_status_idx on public.nft_mints (mint_status, discord_synced);
 create index nft_mints_token_id_idx on public.nft_mints (token_id) where token_id is not null and token_id <> '';
-create index nft_mints_reference_idx on public.nft_mints (reference text_pattern_ops);
+-- Serial references never repeat; a collision makes the webhook pick the next serial.
+create unique index nft_mints_reference_key on public.nft_mints (reference text_pattern_ops);
 
 create table public.customer_auth (
   id             uuid primary key default gen_random_uuid(),

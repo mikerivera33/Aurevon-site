@@ -30,7 +30,7 @@ import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess, pickGrant
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
 import { sendDiscordAccessLink } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
-import { airtableImportEnabled, importFromAirtable } from '../_lib/airtable-import.js';
+import { airtableImportEnabled, importFromAirtable, importHasProblems } from '../_lib/airtable-import.js';
 
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 
@@ -280,8 +280,11 @@ async function handleReconcile() {
 
   // 0. Bridge: copy rows still in Airtable into Supabase (stops once AIRTABLE_* env is removed).
   if (airtableImportEnabled()) {
-    report.airtableImport = await importFromAirtable().catch((err) => ({ error: err.message }));
+    report.airtableImport = await importFromAirtable().catch((err) => ({ all: { error: err.message } }));
     console.log(`[Reconcile] Airtable import: ${JSON.stringify(report.airtableImport)}`);
+    if (importHasProblems(report.airtableImport)) {
+      await sendAlert('reconcile.airtable_import_problems', report.airtableImport).catch(() => {});
+    }
   }
 
   // 1. Find members with Discord linked but pending sync

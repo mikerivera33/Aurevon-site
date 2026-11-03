@@ -71,7 +71,14 @@ export function formatSerial(prefix, number) {
  */
 export async function getNextSerial(prefix) {
   const { countNftMintsByPrefix } = await import('./db.js');
-  const count = await countNftMintsByPrefix(prefix);
+  let count = await countNftMintsByPrefix(prefix);
+  // Until the Airtable bridge has copied old mints, count them too so serials never repeat.
+  const { airtableImportEnabled, countAirtableMintsByPrefix } = await import('./airtable-import.js');
+  if (airtableImportEnabled()) {
+    try { count = Math.max(count, await countAirtableMintsByPrefix(prefix)); } catch (err) {
+      console.error(`[tiers] Airtable serial count failed for ${prefix}: ${err.message}`);
+    }
+  }
   return formatSerial(prefix, count + 1);
 }
 

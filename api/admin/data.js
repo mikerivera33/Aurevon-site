@@ -1,7 +1,7 @@
 /**
  * Owner console data — /api/admin/data
  *
- *   GET   ?table=leads|payments|nft_mints|members[&limit=200]  → { records: [{ id, fields }] }
+ *   GET   ?table=leads|payments|nft_mints|members[&limit=200&offset=0]  → { records, nextOffset }
  *   PATCH ?table=leads&id=<uuid>  body { fields: { Status, Notes, Analyst } } → { record }
  *
  * Used by aurevon-crm.html and operator.html. Auth: `Authorization: Bearer
@@ -36,7 +36,10 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const limit = Math.min(Math.max(parseInt(req.query?.limit, 10) || 200, 1), 1000);
-      return res.status(200).json({ records: await listRecent(table, { limit }) });
+      const offset = Math.max(parseInt(req.query?.offset, 10) || 0, 0);
+      const records = await listRecent(table, { limit, offset });
+      // nextOffset is null on the last page.
+      return res.status(200).json({ records, nextOffset: records.length === limit ? offset + limit : null });
     }
 
     if (req.method === 'PATCH') {
@@ -47,7 +50,13 @@ export default async function handler(req, res) {
       if (Object.keys(fields).length === 0) return res.status(400).json({ error: 'no_fields' });
       const bad = Object.keys(fields).filter((k) => !allowed.has(k));
       if (bad.length) return res.status(400).json({ error: 'field_not_writable', fields: bad });
-      return res.status(200).json({ record: await updateRecord(table, id, fields) });
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'bad_id' });
+      const record = await updateRecord(table, id, fields).catch((err) => {
+        if (err.code === 'PGRST116') return null; // no row with that id
+        throw err;
+      });
+      if (!record) return res.status(404).json({ error: 'not_found' });
+      return res.status(200).json({ record });
     }
 
     return res.status(405).json({ error: 'method_not_allowed' });

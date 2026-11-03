@@ -306,13 +306,19 @@ function apiError(r) {
 
 async function fetchTable(table, limit = 1000) {
   if (!state.token) throw new Error('No admin token. Go to Settings.');
-  const r = await fetch(`${API}?table=${encodeURIComponent(table)}&limit=${limit}`, {
-    headers: { Authorization: `Bearer ${state.token}` },
-    cache: 'no-store',
-  });
-  if (!r.ok) throw apiError(r);
-  const d = await r.json();
-  return d.records || [];
+  const all = [];
+  let offset = 0;
+  while (offset !== null) {
+    const r = await fetch(`${API}?table=${encodeURIComponent(table)}&limit=${limit}&offset=${offset}`, {
+      headers: { Authorization: `Bearer ${state.token}` },
+      cache: 'no-store',
+    });
+    if (!r.ok) throw apiError(r);
+    const d = await r.json();
+    all.push(...(d.records || []));
+    offset = typeof d.nextOffset === 'number' ? d.nextOffset : null;
+  }
+  return all;
 }
 
 async function patchRecord(table, recordId, fields) {
