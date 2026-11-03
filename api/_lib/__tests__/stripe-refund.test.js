@@ -29,10 +29,16 @@ vi.mock('../alert.js', () => ({ sendAlert: vi.fn().mockResolvedValue({}) }));
 vi.mock('@vercel/functions', () => ({ waitUntil: (p) => p }));
 
 const sessionsList = vi.fn();
+const paymentIntentsRetrieve = vi.fn();
+const invoicesRetrieve = vi.fn();
+const chargesRetrieve = vi.fn();
 vi.mock('stripe', () => ({
   default: class StripeMock {
     constructor() {
       this.checkout = { sessions: { list: sessionsList } };
+      this.paymentIntents = { retrieve: paymentIntentsRetrieve };
+      this.invoices = { retrieve: invoicesRetrieve };
+      this.charges = { retrieve: chargesRetrieve };
       this.customers = { retrieve: vi.fn(), list: vi.fn().mockResolvedValue({ data: [] }) };
       this.subscriptions = { update: vi.fn(), retrieve: vi.fn(), list: vi.fn().mockResolvedValue({ data: [] }) };
     }
@@ -66,6 +72,9 @@ beforeEach(() => {
   process.env.DISCORD_ROLE_LIFETIME = 'role_lifetime';
   process.env.DISCORD_ROLE_MONTHLY = 'role_monthly';
   sessionsList.mockReset().mockResolvedValue({ data: [{ id: 'cs_chrome' }] });
+  paymentIntentsRetrieve.mockReset().mockResolvedValue({});
+  invoicesRetrieve.mockReset();
+  chargesRetrieve.mockReset();
   db.updatePaymentStatus.mockResolvedValue({ id: 'pay_1', fields: { 'Transaction ID': 'cs_chrome' } });
   db.findMintByPaymentId.mockResolvedValue(chromeMint());
   db.findActiveMintsByEmail.mockResolvedValue([chromeMint()]);
@@ -206,5 +215,120 @@ describe('handleDisputeCreated', () => {
   it('accepts an expanded payment_intent object', async () => {
     await handleDisputeCreated({ id: 'dp_2', payment_intent: { id: 'pi_chrome' } });
     expect(sessionsList).toHaveBeenCalledWith({ payment_intent: 'pi_chrome', limit: 1 });
+  });
+});
+
+// ── Subscription-mode sessions: payment_intent is null on the session ────────
+
+describe('subscription refunds and disputes (invoice → subscription → session)', () => {
+  const genesis = { id: 'mint_gen', fields: { 'Email': 'm@example.com', 'NFT Type': '001 Genesis', 'Mint Status': 'Sent' } };
+  const ember = { id: 'mint_ember', fields: { 'Email': 'r@example.com', 'NFT Type': 'Aurevon Ember', 'Mint Status': 'Sent' } };
+
+  // No session matches the PaymentIntent; the subscription lookup finds one.
+  function subscriptionSession(session) {
+    sessionsList.mockImplementation(async (params) => (params.subscription === session.subscription ? { data: [session] } : { data: [] }));
+  }
+
+  it('Genesis first-invoice refund → Payments Refunded, mint Revoked, monthly role removed, billing cancelled', async () => {
+    subscriptionSession({ id: 'cs_gen', subscription: 'sub_gen', invoice: 'in_first', metadata: { tier: 'comm_monthly' } });
+    invoicesRetrieve.mockResolvedValue({ id: 'in_first', subscription: 'sub_gen', billing_reason: 'subscription_create' });
+    db.findMintByPaymentId.mockResolvedValue(genesis);
+    db.findActiveMintsByEmail.mockResolvedValue([genesis]);
+
+    await handleChargeRefunded(fullCharge({ payment_intent: 'pi_gen', invoice: 'in_first', amount: 2999, amount_refunded: 2999 }));
+
+    expect(sessionsList).toHaveBeenNthCalledWith(1, { payment_intent: 'pi_gen', limit: 1 });
+    expect(invoicesRetrieve).toHaveBeenCalledWith('in_first');
+    expect(sessionsList).toHaveBeenNthCalledWith(2, { subscription: 'sub_gen', limit: 1 });
+    expect(paymentIntentsRetrieve).not.toHaveBeenCalled();
+    expect(db.updatePaymentStatus).toHaveBeenCalledWith('cs_gen', 'Refunded');
+    expect(db.updateNftMint).toHaveBeenCalledWith('mint_gen', expect.objectContaining({ 'Mint Status': 'Revoked' }));
+    expect(discordBot.removeRoleFromMember).toHaveBeenCalledWith('disc_1', 'role_monthly');
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('m@example.com', {
+      entitlementType: 'monthly_membership', billingState: 'cancelled',
+    });
+  });
+
+  it('matches the first invoice by session.invoice when billing_reason is not subscription_create', async () => {
+    subscriptionSession({ id: 'cs_gen', subscription: 'sub_gen', invoice: 'in_first', metadata: { tier: 'comm_monthly' } });
+    invoicesRetrieve.mockResolvedValue({ id: 'in_first', subscription: 'sub_gen', billing_reason: 'manual' });
+    db.findMintByPaymentId.mockResolvedValue(genesis);
+    db.findActiveMintsByEmail.mockResolvedValue([genesis]);
+    await handleChargeRefunded(fullCharge({ payment_intent: 'pi_gen', invoice: 'in_first' }));
+    expect(db.updatePaymentStatus).toHaveBeenCalledWith('cs_gen', 'Refunded');
+  });
+
+  it('Ember renewal-invoice refund → no writes, no role removal, renewal_refund_ignored alert', async () => {
+    subscriptionSession({ id: 'cs_ember', subscription: 'sub_ember', invoice: 'in_first_e', metadata: { tier: 're_retainer' } });
+    invoicesRetrieve.mockResolvedValue({ id: 'in_month3', subscription: 'sub_ember', billing_reason: 'subscription_cycle' });
+    db.findMintByPaymentId.mockResolvedValue(ember);
+
+    await handleChargeRefunded(fullCharge({ payment_intent: 'pi_m3', invoice: 'in_month3', amount: 149900, amount_refunded: 149900 }));
+
+    expect(db.updatePaymentStatus).not.toHaveBeenCalled();
+    expect(db.updateNftMint).not.toHaveBeenCalled();
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+    expect(discordBot.removeRoleFromMember).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('stripe.renewal_refund_ignored',
+      { sessionId: 'cs_ember', invoiceId: 'in_month3', tier: 're_retainer' },
+      { severity: 'info', dedupeKey: 'in_month3' });
+    expect(sendAlert).not.toHaveBeenCalledWith('stripe.refund_unmatched', expect.anything(), expect.anything());
+  });
+
+  it('falls back to paymentIntents.retrieve for the invoice when charge.invoice is absent', async () => {
+    subscriptionSession({ id: 'cs_gen', subscription: 'sub_gen', invoice: 'in_first', metadata: { tier: 'comm_monthly' } });
+    paymentIntentsRetrieve.mockResolvedValue({ id: 'pi_gen', invoice: 'in_first' });
+    invoicesRetrieve.mockResolvedValue({ id: 'in_first', subscription: 'sub_gen', billing_reason: 'subscription_create' });
+    db.findMintByPaymentId.mockResolvedValue(genesis);
+    db.findActiveMintsByEmail.mockResolvedValue([genesis]);
+
+    const charge = fullCharge({ payment_intent: 'pi_gen' });
+    delete charge.invoice;
+    await handleChargeRefunded(charge);
+
+    expect(paymentIntentsRetrieve).toHaveBeenCalledWith('pi_gen');
+    expect(invoicesRetrieve).toHaveBeenCalledWith('in_first');
+    expect(db.updatePaymentStatus).toHaveBeenCalledWith('cs_gen', 'Refunded');
+  });
+
+  it('reads the subscription from invoice.parent on newer API versions', async () => {
+    subscriptionSession({ id: 'cs_gen', subscription: 'sub_gen', invoice: 'in_first', metadata: { tier: 'comm_monthly' } });
+    invoicesRetrieve.mockResolvedValue({
+      id: 'in_first', billing_reason: 'subscription_create',
+      parent: { subscription_details: { subscription: 'sub_gen' } },
+    });
+    db.findMintByPaymentId.mockResolvedValue(genesis);
+    db.findActiveMintsByEmail.mockResolvedValue([genesis]);
+    await handleChargeRefunded(fullCharge({ payment_intent: 'pi_gen', invoice: 'in_first' }));
+    expect(db.updatePaymentStatus).toHaveBeenCalledWith('cs_gen', 'Refunded');
+  });
+
+  it('dispute on a subscription first charge resolves via the charge → invoice → subscription', async () => {
+    subscriptionSession({ id: 'cs_obs', subscription: 'sub_obs', invoice: 'in_first_o', metadata: { tier: 're_enterprise' } });
+    chargesRetrieve.mockResolvedValue({ id: 'ch_obs', invoice: 'in_first_o' });
+    invoicesRetrieve.mockResolvedValue({ id: 'in_first_o', subscription: 'sub_obs', billing_reason: 'subscription_create' });
+    process.env.DISCORD_ROLE_PRODUCT_C = 'role_obsidian';
+    const obsidian = { id: 'mint_obs', fields: { 'Email': 'e@example.com', 'NFT Type': 'Aurevon Obsidian Executive', 'Mint Status': 'Sent' } };
+    db.findMintByPaymentId.mockResolvedValue(obsidian);
+    db.findActiveMintsByEmail.mockResolvedValue([obsidian]);
+
+    await handleDisputeCreated({ id: 'dp_obs', payment_intent: 'pi_obs', charge: 'ch_obs' });
+
+    expect(chargesRetrieve).toHaveBeenCalledWith('ch_obs');
+    expect(sessionsList).toHaveBeenLastCalledWith({ subscription: 'sub_obs', limit: 1 });
+    expect(db.updatePaymentStatus).toHaveBeenCalledWith('cs_obs', 'Disputed');
+    expect(db.updateNftMint).toHaveBeenCalledWith('mint_obs', expect.objectContaining({ 'Mint Status': 'Revoked' }));
+    expect(discordBot.removeRoleFromMember).toHaveBeenCalledWith('disc_1', 'role_obsidian');
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+  });
+
+  it('a dispute with an expanded charge object uses its invoice without retrieving the charge', async () => {
+    subscriptionSession({ id: 'cs_gen', subscription: 'sub_gen', invoice: 'in_first', metadata: { tier: 'comm_monthly' } });
+    invoicesRetrieve.mockResolvedValue({ id: 'in_first', subscription: 'sub_gen', billing_reason: 'subscription_create' });
+    db.findMintByPaymentId.mockResolvedValue(genesis);
+    db.findActiveMintsByEmail.mockResolvedValue([genesis]);
+    await handleDisputeCreated({ id: 'dp_g', payment_intent: 'pi_gen', charge: { id: 'ch_g', invoice: 'in_first' } });
+    expect(chargesRetrieve).not.toHaveBeenCalled();
+    expect(db.updatePaymentStatus).toHaveBeenCalledWith('cs_gen', 'Disputed');
   });
 });

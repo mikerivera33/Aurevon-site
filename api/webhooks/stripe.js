@@ -192,6 +192,9 @@ export async function recordCheckoutPayment(session) {
   const customerEmail = session.customer_details?.email ?? session.customer_email ?? null;
   if (!customerEmail) {
     console.error(`[Stripe] No customer email on session ${sessionId} — aborting pipeline`);
+    // Settled money with nobody to fulfil: never silent.
+    await sendAlert('stripe.paid_session_no_email', { sessionId, tier: checkoutFacts(session).tier },
+      { severity: 'critical', dedupeKey: sessionId }).catch(() => {});
     return { status: 'skipped', reason: 'no_email' };
   }
 
@@ -599,17 +602,63 @@ export function isFullRefund(charge) {
   return typeof amount === 'number' && typeof refunded === 'number' && amount > 0 && refunded >= amount;
 }
 
-function paymentIntentIdFrom(obj) {
-  const pi = obj?.payment_intent;
-  if (typeof pi === 'string') return pi;
-  return pi?.id ?? null;
+// A Stripe reference that may be an id string or an expanded object.
+function idOf(ref) {
+  if (typeof ref === 'string') return ref || null;
+  return ref?.id ?? null;
 }
 
-// The Checkout Session (our Payments transaction id) behind a PaymentIntent.
-async function findCheckoutSessionForPaymentIntent(paymentIntentId) {
-  if (!paymentIntentId || !process.env.STRIPE_SECRET_KEY) return null;
-  const page = await stripeClient().checkout.sessions.list({ payment_intent: paymentIntentId, limit: 1 });
-  return page?.data?.[0] ?? null;
+function paymentIntentIdFrom(obj) {
+  return idOf(obj?.payment_intent);
+}
+
+/**
+ * The Checkout Session (our Payments transaction id) behind a charge or dispute.
+ *
+ * One-time purchases: the session carries the PaymentIntent. Subscription-mode
+ * sessions (Genesis, Ember, Obsidian) have payment_intent null — the charge
+ * belongs to an invoice — so fall back to charge → invoice → subscription →
+ * session. `charge.invoice` is absent on newer API versions; the PaymentIntent
+ * still carries it. Returns { session, invoice } (invoice only on the
+ * subscription path) or null.
+ */
+async function resolveReversalSession(source, { isDispute }) {
+  if (!process.env.STRIPE_SECRET_KEY) return null;
+  const stripe = stripeClient();
+  const paymentIntentId = paymentIntentIdFrom(source);
+
+  if (paymentIntentId) {
+    const page = await stripe.checkout.sessions.list({ payment_intent: paymentIntentId, limit: 1 });
+    const session = page?.data?.[0] ?? null;
+    if (session) return { session, invoice: null };
+  }
+
+  let invoiceId = null;
+  if (isDispute) {
+    const charge = source?.charge;
+    if (charge && typeof charge === 'object') invoiceId = idOf(charge.invoice);
+    else if (typeof charge === 'string') invoiceId = idOf((await stripe.charges.retrieve(charge))?.invoice);
+  } else {
+    invoiceId = idOf(source?.invoice);
+  }
+  if (!invoiceId && paymentIntentId) {
+    invoiceId = idOf((await stripe.paymentIntents.retrieve(paymentIntentId))?.invoice);
+  }
+  if (!invoiceId) return null;
+
+  const invoice = await stripe.invoices.retrieve(invoiceId);
+  const subscriptionId = idOf(invoice?.subscription)
+    ?? idOf(invoice?.parent?.subscription_details?.subscription);
+  if (!subscriptionId) return null;
+  const page = await stripe.checkout.sessions.list({ subscription: subscriptionId, limit: 1 });
+  const session = page?.data?.[0] ?? null;
+  return session ? { session, invoice } : null;
+}
+
+// The checkout's own (first) invoice — the one that paid for the pass.
+function isFirstSubscriptionInvoice(invoice, session) {
+  return invoice?.billing_reason === 'subscription_create'
+    || (idOf(session?.invoice) !== null && idOf(session?.invoice) === invoice?.id);
 }
 
 /**
@@ -664,12 +713,23 @@ async function revokeCheckoutEntitlement(transactionId, reason) {
   }, { severity: roleError ? 'warning' : 'info', dedupeKey: `${reason}:${transactionId}` }).catch(() => {});
 }
 
-async function settleReversal(paymentIntentId, { status, reason, sourceId }) {
-  const session = await findCheckoutSessionForPaymentIntent(paymentIntentId);
-  if (!session) {
+async function settleReversal(source, { status, reason, sourceId, isDispute = false }) {
+  const resolved = await resolveReversalSession(source, { isDispute });
+  if (!resolved) {
+    const paymentIntentId = paymentIntentIdFrom(source);
     console.warn(`[Stripe] ${reason} ${sourceId}: no Checkout Session for payment_intent ${paymentIntentId ?? 'none'}`);
     await sendAlert('stripe.refund_unmatched', { reason, sourceId, paymentIntentId },
       { severity: 'info', dedupeKey: `${reason}:${sourceId}` }).catch(() => {});
+    return;
+  }
+  const { session, invoice } = resolved;
+  // Policy: only the subscription's first invoice bought the pass. Refunding
+  // or disputing a later renewal changes nothing here (cancellation, if any,
+  // arrives as customer.subscription.* events).
+  if (invoice && !isFirstSubscriptionInvoice(invoice, session)) {
+    console.log(`[Stripe] ${reason} ${sourceId}: renewal invoice ${invoice.id} of ${session.id} — no change`);
+    await sendAlert('stripe.renewal_refund_ignored', { sessionId: session.id, invoiceId: invoice.id, tier: session.metadata?.tier ?? null },
+      { severity: 'info', dedupeKey: invoice.id }).catch(() => {});
     return;
   }
   const transactionId = session.id;
@@ -683,11 +743,11 @@ export async function handleChargeRefunded(charge) {
     console.log(`[Stripe] charge.refunded ${charge?.id}: partial refund (${charge?.amount_refunded ?? 0}/${charge?.amount ?? 0}) — no change`);
     return;
   }
-  await settleReversal(paymentIntentIdFrom(charge), { status: 'Refunded', reason: 'refund', sourceId: charge?.id ?? null });
+  await settleReversal(charge, { status: 'Refunded', reason: 'refund', sourceId: charge?.id ?? null });
 }
 
 export async function handleDisputeCreated(dispute) {
-  await settleReversal(paymentIntentIdFrom(dispute), { status: 'Disputed', reason: 'dispute', sourceId: dispute?.id ?? null });
+  await settleReversal(dispute, { status: 'Disputed', reason: 'dispute', sourceId: dispute?.id ?? null, isDispute: true });
 }
 
 // ---------------------------------------------------------------------------

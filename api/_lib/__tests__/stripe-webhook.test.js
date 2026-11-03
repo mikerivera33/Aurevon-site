@@ -396,6 +396,16 @@ describe('Stripe webhook handler', () => {
     await expect(recordCheckoutPayment(session('cs_rec_unpaid', { payment_status: 'unpaid' }))).resolves.toMatchObject({ status: 'skipped' });
   });
 
+  it('a SETTLED session with no customer email alerts stripe.paid_session_no_email (critical) and writes nothing', async () => {
+    const s = session('cs_paid_no_email', { customer_details: { name: 'Nobody' } });
+    const res = await deliverEvent(checkoutEvent(s));
+    expect(res.statusCode).toBe(200);
+    expect(db.createPayment).not.toHaveBeenCalled();
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('stripe.paid_session_no_email', { sessionId: 'cs_paid_no_email', tier: 'full' },
+      { severity: 'critical', dedupeKey: 'cs_paid_no_email' });
+  });
+
   it('a concurrent DUPLICATE_PAYMENT answers 200 and does not mint', async () => {
     db.createPayment.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'DUPLICATE_PAYMENT' }));
     const res = await deliverEvent(checkoutEvent(session('cs_sync_dup')));
