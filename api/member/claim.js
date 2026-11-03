@@ -24,12 +24,13 @@
 
 import crypto from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
-import { findMemberByEmail, findActiveMintByEmail, findActiveMintsByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listNftMints, listPaymentsSince, findLatestPaymentByEmailAndTier, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint } from '../_lib/airtable.js';
+import { findMemberByEmail, findActiveMintByEmail, findActiveMintsByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listUnlinkedMintsBefore, listPaymentsSince, findLatestPaymentByEmailAndTier, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint, dbConfigured } from '../_lib/db.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
 import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess, pickGrantableMint } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
 import { sendDiscordAccessLink } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
+import { airtableImportEnabled, importFromAirtable, importHasProblems } from '../_lib/airtable-import.js';
 
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 
@@ -277,6 +278,15 @@ async function handleReconcile() {
     errors: [],
   };
 
+  // 0. Bridge: copy rows still in Airtable into Supabase (stops once AIRTABLE_* env is removed).
+  if (airtableImportEnabled()) {
+    report.airtableImport = await importFromAirtable().catch((err) => ({ all: { error: err.message } }));
+    console.log(`[Reconcile] Airtable import: ${JSON.stringify(report.airtableImport)}`);
+    if (importHasProblems(report.airtableImport)) {
+      await sendAlert('reconcile.airtable_import_problems', report.airtableImport).catch(() => {});
+    }
+  }
+
   // 1. Find members with Discord linked but pending sync
   let pendingMembers = [];
   try {
@@ -372,10 +382,7 @@ async function handleReconcile() {
   // 3. Find buyers who never linked Discord — send Engage reminder
   try {
     const cutoffDate = new Date(Date.now() - 24 * 3_600_000).toISOString(); // 24h ago
-    const unlinkeds = await listNftMints(
-      `AND(OR({Mint Status}="Minted",{Mint Status}="Sent"),{Discord Synced}=FALSE(),IS_BEFORE({Mint Date},"${cutoffDate}"))`,
-      { maxRecords: 50 }
-    );
+    const unlinkeds = await listUnlinkedMintsBefore(cutoffDate, { maxRecords: 50 });
     for (const rec of unlinkeds) {
       const email   = rec.fields['Email'] ?? '';
       const nftType = rec.fields['NFT Type'] ?? '';
@@ -450,7 +457,7 @@ export async function resolveRetryIdempotencyKey({ reference, email, tier, recor
   if (ref.startsWith('PAY_')) return ref.slice('PAY_'.length);
   if (/^cs_(live|test)_/.test(ref)) return ref;
   if (email && tier) {
-    // No .catch: an Airtable error must not fall through to the serial key
+    // No .catch: a database error must not fall through to the serial key
     // (that reopens the double-mint). The caller skips the row this run.
     const payment = await findLatestPaymentByEmailAndTier(email, tier);
     const txnId = payment?.fields?.['Transaction ID'];
@@ -460,8 +467,8 @@ export async function resolveRetryIdempotencyKey({ reference, email, tier, recor
 }
 
 export async function handleRetryMints() {
-  if (!process.env.AIRTABLE_PAT || !process.env.AIRTABLE_BASE_ID) {
-    return { skipped: true, reason: 'Airtable not configured', retried: 0, errors: 0 };
+  if (!dbConfigured()) {
+    return { skipped: true, reason: 'Database not configured', retried: 0, errors: 0 };
   }
 
   const { TIER_NFT_MAP, getNextSerial } = await import('../_lib/tiers.js');

@@ -225,19 +225,21 @@ td.td-primary{color:var(--t1);font-weight:500}
 
 <script>
 // ─── CONFIG ────────────────────────────────────────────────
-const BASE_ID = 'appI9X8vcRcK1QZ1l';
-const TABLES = {
-  leads:    'tbllVIcSRXdZwofbs',
-  payments: 'tbl6KlhM9fIH19W5i',
-  nfts:     'tbliXEGJdoEIAJU06',
-  comms:    'tblNpcADGBIgHcLtk',
-};
+// Data comes from the owner API (/api/admin/data → Supabase). Records keep the
+// { id, fields: { 'Display Name': value } } shape; names are in api/_lib/db.js FIELDS.
+const API = '/api/admin/data';
+const TOKEN_KEY = 'aurevon_admin_token';
+const TABLES = { leads: 'leads', payments: 'payments', nfts: 'nft_mints' };
+const SUPABASE_EDITOR = 'https://supabase.com/dashboard/project/mcpgkrumizsaygasoovn/editor';
+const LEAD_STATUSES = ['New', 'In Review', 'In Progress', 'On Hold', 'Delivered', 'Cancelled'];
+
+try { localStorage.removeItem('bkt_airtable_pat'); } catch (_) {}
 
 const state = {
   view: 'dashboard',
-  leads: [], payments: [], nfts: [], comms: [],
+  leads: [], payments: [], nfts: [],
   filters: { search: '', status: '', tier: '', method: '', nftType: '' },
-  pat: localStorage.getItem('bkt_airtable_pat') || '',
+  token: localStorage.getItem(TOKEN_KEY) || '',
   loading: false,
   sortCol: {}, sortDir: {},
   expanded: {},
@@ -297,46 +299,54 @@ function methodPill(val) {
 }
 
 // ─���─ FETCH ──────────────────────────────────────────────────
-async function fetchTable(tableId, params = '') {
-  if (!state.pat) throw new Error('No PAT configured. Go to Settings.');
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${tableId}?${params}`;
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${state.pat}` } });
-  if (!r.ok) throw new Error(`HTTP ${r.status} – ${r.statusText}`);
-  const d = await r.json();
-  let records = d.records || [];
-  // paginate
-  let offset = d.offset;
-  while (offset) {
-    const r2 = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${tableId}?offset=${offset}`, { headers: { Authorization: `Bearer ${state.pat}` } });
-    const d2 = await r2.json();
-    records = records.concat(d2.records || []);
-    offset = d2.offset;
-  }
-  return records;
+function apiError(r) {
+  if (r.status === 401) return new Error('Admin token rejected (401)');
+  return new Error(`HTTP ${r.status}`);
 }
 
-async function patchRecord(tableId, recordId, fields) {
-  if (!state.pat) { showToast('No PAT configured', 'error'); return; }
-  const r = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${tableId}/${recordId}`, {
+async function fetchTable(table, limit = 1000) {
+  if (!state.token) throw new Error('No admin token. Go to Settings.');
+  const all = [];
+  let offset = 0;
+  while (offset !== null) {
+    const r = await fetch(`${API}?table=${encodeURIComponent(table)}&limit=${limit}&offset=${offset}`, {
+      headers: { Authorization: `Bearer ${state.token}` },
+      cache: 'no-store',
+    });
+    if (!r.ok) throw apiError(r);
+    const d = await r.json();
+    all.push(...(d.records || []));
+    offset = typeof d.nextOffset === 'number' ? d.nextOffset : null;
+  }
+  return all;
+}
+
+async function patchRecord(table, recordId, fields) {
+  if (!state.token) throw new Error('No admin token');
+  const r = await fetch(`${API}?table=${encodeURIComponent(table)}&id=${encodeURIComponent(recordId)}`, {
     method: 'PATCH',
-    headers: { Authorization: `Bearer ${state.pat}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${state.token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields }),
   });
-  if (!r.ok) throw new Error(`PATCH failed: HTTP ${r.status}`);
-  return await r.json();
+  if (!r.ok) throw apiError(r);
+  const d = await r.json();
+  // Keep the local copy in sync so the view updates without a full reload.
+  const list = state[table === 'nft_mints' ? 'nfts' : table];
+  const i = Array.isArray(list) ? list.findIndex(x => x.id === recordId) : -1;
+  if (i >= 0 && d.record) list[i] = d.record;
+  return d.record;
 }
 
 async function refreshAll() {
-  if (!state.pat) { state.view = 'settings'; render(); showToast('Configure your PAT in Settings', 'error'); return; }
+  if (!state.token) { navigate('settings'); showToast('Add your admin token in Settings', 'error'); return; }
   setLoading(true);
   try {
-    const [leads, payments, nfts, comms] = await Promise.all([
+    const [leads, payments, nfts] = await Promise.all([
       fetchTable(TABLES.leads),
       fetchTable(TABLES.payments),
       fetchTable(TABLES.nfts),
-      fetchTable(TABLES.comms),
     ]);
-    state.leads = leads; state.payments = payments; state.nfts = nfts; state.comms = comms;
+    state.leads = leads; state.payments = payments; state.nfts = nfts;
     showToast(`Loaded: ${leads.length} leads, ${payments.length} payments, ${nfts.length} NFTs`);
   } catch (e) {
     showToast('Error: ' + e.message, 'error');
@@ -454,9 +464,9 @@ function renderDashboard() {
   const activeLeads = leads.filter(r => !/complet|reject|cancel/i.test(f(r).Status || '')).length;
   const now = new Date(); const mtdStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const mtdRev = payments
-    .filter(r => { const d = f(r).Date; return d && new Date(d) >= mtdStart && /paid|complet|success/i.test(f(r).Status || ''); })
+    .filter(r => { const d = f(r)['Payment Date']; return d && new Date(d) >= mtdStart && /paid|complet|success/i.test(f(r).Status || ''); })
     .reduce((s, r) => s + (parseFloat(f(r).Amount) || 0), 0);
-  const mintedNfts = nfts.filter(r => /mint|sent|deliver/i.test(f(r).Status || '')).length;
+  const mintedNfts = nfts.filter(r => /mint|sent|deliver/i.test(f(r)['Mint Status'] || '')).length;
   const deals = leads.filter(r => /complet|deliver/i.test(f(r).Status || '')).length;
 
   // Revenue last 30 days
@@ -466,7 +476,7 @@ function renderDashboard() {
   const revByDay = {};
   days30.forEach(d => revByDay[d] = 0);
   payments.forEach(r => {
-    const fd = f(r); const d = (fd.Date || '').slice(0, 10);
+    const fd = f(r); const d = (fd['Payment Date'] || '').slice(0, 10);
     if (revByDay[d] !== undefined && /paid|complet|success/i.test(fd.Status || ''))
       revByDay[d] += parseFloat(fd.Amount) || 0;
   });
@@ -478,8 +488,8 @@ function renderDashboard() {
 
   // Recent activity
   const activity = [
-    ...leads.slice(0, 20).map(r => ({ type: 'lead', date: f(r).Submitted || '', label: f(r).Name || 'Unknown', sub: `Lead – ${f(r).Status || 'New'}`, dot: 'blue' })),
-    ...payments.slice(0, 20).map(r => ({ type: 'payment', date: f(r).Date || '', label: f(r)['Customer Name'] || f(r)['Customer Email'] || '—', sub: `Payment – ${fmtMoney(f(r).Amount)}`, dot: 'green' })),
+    ...leads.slice(0, 20).map(r => ({ type: 'lead', date: f(r)['Created At'] || '', label: f(r).Name || 'Unknown', sub: `Lead – ${f(r).Status || 'New'}`, dot: 'blue' })),
+    ...payments.slice(0, 20).map(r => ({ type: 'payment', date: f(r)['Payment Date'] || '', label: f(r)['Customer Name'] || f(r)['Customer Email'] || '—', sub: `Payment – ${fmtMoney(f(r).Amount)}`, dot: 'green' })),
   ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
 
   const feedHtml = activity.map(a => `
@@ -538,31 +548,38 @@ function leadsFilter(leads) {
 
 function leadExpandHtml(row) {
   const fd = f(row);
-  const linked_payments = state.payments.filter(p => f(p)['Customer Email'] === fd.Email);
-  const linked_nfts = state.nfts.filter(n => f(n)['Customer Email'] === fd.Email);
+  const email = String(fd.Email || '').toLowerCase();
+  const linked_payments = email ? state.payments.filter(p => String(f(p)['Customer Email'] || '').toLowerCase() === email) : [];
+  const linked_nfts = email ? state.nfts.filter(n => String(f(n).Email || '').toLowerCase() === email) : [];
 
   const fields = [
-    ['Name', fd.Name], ['Email', fd.Email], ['Tier', fd.Tier], ['Property Address', fd['Property Address']],
-    ['Asset Type', fd['Asset Type']], ['Purchase Price', fmtMoney(fd['Purchase Price'])],
-    ['Status', fd.Status], ['Submitted', fmtDate(fd.Submitted)],
-    ['Payment Token', fd['Payment Token']], ['Analyst', fd.Analyst],
+    ['Name', fd.Name], ['Email', fd.Email], ['Phone', fd.Phone], ['Company', fd.Company],
+    ['Tier', fd.Tier], ['Property Address', fd['Property Address']],
+    ['Asset Type', fd['Asset Type']], ['Purchase Price', fd['Purchase Price'] != null ? fmtMoney(fd['Purchase Price']) : ''],
+    ['Hold Period', fd['Hold Period']], ['Add-ons', fd['Add-ons']],
+    ['Status', fd.Status], ['Submitted', fmtDate(fd['Created At'])],
+    ['Source', fd.Source], ['Payment Token', fd['Payment Token']], ['Analyst', fd.Analyst],
   ];
+  const summaryHtml = fd['Deal Summary']
+    ? `<div style="margin-bottom:16px"><div class="detail-label" style="margin-bottom:4px">Deal Summary</div><div class="detail-value" style="white-space:pre-wrap">${esc(fd['Deal Summary'])}</div></div>`
+    : '';
 
   const detailHtml = `<div class="detail-grid">${fields.map(([l, v]) => `<div class="detail-field"><div class="detail-label">${esc(l)}</div><div class="detail-value">${esc(v) || '—'}</div></div>`).join('')}</div>`;
 
   const pmtHtml = linked_payments.length
     ? `<table style="width:100%;font-size:12px"><tr style="color:var(--t3)">${['Date','Amount','Method','Status'].map(h=>`<th style="text-align:left;padding:4px 8px;font-weight:500">${h}</th>`).join('')}</tr>${linked_payments.map(p => {
         const pf = f(p);
-        return `<tr><td style="padding:4px 8px">${fmtDate(pf.Date)}</td><td style="padding:4px 8px">${fmtMoney(pf.Amount)}</td><td style="padding:4px 8px">${methodPill(pf.Method)}</td><td style="padding:4px 8px">${statusPill(pf.Status)}</td></tr>`;
+        return `<tr><td style="padding:4px 8px">${fmtDate(pf['Payment Date'])}</td><td style="padding:4px 8px">${fmtMoney(pf.Amount)}</td><td style="padding:4px 8px">${methodPill(pf['Payment Provider'])}</td><td style="padding:4px 8px">${statusPill(pf.Status)}</td></tr>`;
       }).join('')}</table>`
     : '<span style="color:var(--t3);font-size:12px">No linked payments</span>';
 
   const nftHtml = linked_nfts.length
-    ? linked_nfts.map(n => { const nf = f(n); return `<span style="color:var(--t2);font-size:12px;margin-right:12px">${esc(nf['NFT Type']||'NFT')} – ${statusPill(nf.Status)}</span>`; }).join('')
+    ? linked_nfts.map(n => { const nf = f(n); return `<span style="color:var(--t2);font-size:12px;margin-right:12px">${esc(nf['NFT Type']||'NFT')} – ${statusPill(nf['Mint Status'])}</span>`; }).join('')
     : '<span style="color:var(--t3);font-size:12px">No linked NFTs</span>';
 
   return `<div onclick="event.stopPropagation()">
     ${detailHtml}
+    ${summaryHtml}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
       <div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;margin-bottom:8px">Linked Payments</div>${pmtHtml}</div>
       <div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;margin-bottom:8px">Linked NFTs</div>${nftHtml}</div>
@@ -573,19 +590,21 @@ function leadExpandHtml(row) {
 }
 
 function saveNotes(recordId, val) {
+  const rec = state.leads.find(r => r.id === recordId);
+  if (rec && (f(rec).Notes || '') === val) return;
   patchRecord(TABLES.leads, recordId, { Notes: val })
     .then(() => showToast('Notes saved'))
     .catch(e => showToast('Save failed: ' + e.message, 'error'));
 }
 
-function changeStatus(tableId, recordId, val) {
-  patchRecord(tableId, recordId, { Status: val })
-    .then(() => { showToast('Status updated'); refreshAll(); })
-    .catch(e => showToast('Update failed: ' + e.message, 'error'));
+function changeStatus(recordId, val) {
+  patchRecord(TABLES.leads, recordId, { Status: val })
+    .then(() => { showToast('Status updated'); render(); })
+    .catch(e => { showToast('Update failed: ' + e.message, 'error'); render(); });
 }
 
 function renderLeads() {
-  const allStatuses = [...new Set(state.leads.map(r => f(r).Status).filter(Boolean))];
+  const allStatuses = [...new Set([...LEAD_STATUSES, ...state.leads.map(r => f(r).Status).filter(Boolean)])];
   const allTiers = [...new Set(state.leads.map(r => f(r).Tier).filter(Boolean))];
   const rows = leadsFilter(state.leads).map(r => ({ _id: r.id, id: r.id, ...f(r) }));
 
@@ -594,10 +613,10 @@ function renderLeads() {
     { key: 'Email', label: 'Email' },
     { key: 'Tier', label: 'Tier', render: v => tierPill(v) },
     { key: 'Property Address', label: 'Property' },
-    { key: 'Status', label: 'Status', render: (v, row) => `<select class="status-select pill ${statusClass(v)}" onchange="changeStatus('${TABLES.leads}','${row.id}',this.value)" onclick="event.stopPropagation()">
-        ${allStatuses.map(s => `<option value="${esc(s)}" ${s===v?'selected':''}>${esc(s)}</option>`).join('')}
+    { key: 'Status', label: 'Status', render: (v, row) => `<select class="status-select pill ${statusClass(v)}" data-id="${esc(row.id)}" onchange="changeStatus(this.dataset.id,this.value)" onclick="event.stopPropagation()">
+        ${v ? '' : '<option value="" selected>—</option>'}${allStatuses.map(s => `<option value="${esc(s)}" ${s===v?'selected':''}>${esc(s)}</option>`).join('')}
       </select>` },
-    { key: 'Submitted', label: 'Submitted', render: v => fmtDate(v) },
+    { key: 'Created At', label: 'Submitted', render: v => fmtDate(v) },
     { key: 'Analyst', label: 'Analyst' },
   ];
 
@@ -631,20 +650,20 @@ function statusClass(v) {
 
 // ─── PAYMENTS ───────────────────────────────────────────────
 function renderPayments() {
-  const allMethods = [...new Set(state.payments.map(r => f(r).Method).filter(Boolean))];
+  const allMethods = [...new Set(state.payments.map(r => f(r)['Payment Provider']).filter(Boolean))];
   const allStatuses = [...new Set(state.payments.map(r => f(r).Status).filter(Boolean))];
   const { search, method, status } = state.filters;
   const rows = state.payments.filter(r => {
     const fd = f(r);
     if (search && !JSON.stringify(fd).toLowerCase().includes(search)) return false;
-    if (method && fd.Method !== method) return false;
+    if (method && fd['Payment Provider'] !== method) return false;
     if (status && fd.Status !== status) return false;
     return true;
   }).map(r => ({ _id: r.id, ...f(r) }));
 
   const totalAmt = rows.reduce((s, r) => s + (parseFloat(r.Amount) || 0), 0);
   const byMethod = {};
-  rows.forEach(r => { const m = r.Method || 'Unknown'; byMethod[m] = (byMethod[m] || 0) + (parseFloat(r.Amount) || 0); });
+  rows.forEach(r => { const m = r['Payment Provider'] || 'Unknown'; byMethod[m] = (byMethod[m] || 0) + (parseFloat(r.Amount) || 0); });
   const byMethodStr = Object.entries(byMethod).map(([m,v]) => `${m}: ${fmtMoney(v)}`).join(' · ');
 
   // Monthly chart data
@@ -652,7 +671,7 @@ function renderPayments() {
   const cm = currMonth.toISOString().slice(0,7); const lm = lastMonth.toISOString().slice(0,7);
   let cmRev = 0, lmRev = 0;
   state.payments.forEach(r => {
-    const fd = f(r); const d = (fd.Date || '').slice(0,7);
+    const fd = f(r); const d = (fd['Payment Date'] || '').slice(0,7);
     if (/paid|complet|success/i.test(fd.Status || '')) {
       if (d === cm) cmRev += parseFloat(fd.Amount) || 0;
       if (d === lm) lmRev += parseFloat(fd.Amount) || 0;
@@ -660,17 +679,18 @@ function renderPayments() {
   });
 
   const cols = [
-    { key: 'Date', label: 'Date', render: v => fmtDate(v) },
+    { key: 'Payment Date', label: 'Date', render: v => fmtDate(v) },
     { key: 'Customer Name', label: 'Customer', primary: true },
     { key: 'Customer Email', label: 'Email' },
-    { key: 'Tier', label: 'Tier', render: v => tierPill(v) },
+    { key: 'Pass Type', label: 'Tier', render: v => tierPill(v) },
     { key: 'Amount', label: 'Amount', render: v => `<span style="color:var(--acc2);font-weight:600">${fmtMoney(v)}</span>` },
-    { key: 'Method', label: 'Method', render: v => methodPill(v) },
+    { key: 'Payment Provider', label: 'Method', render: v => methodPill(v) },
     { key: 'Status', label: 'Status', render: v => statusPill(v) },
-    { key: 'Transaction ID', label: 'Tx ID', render: (v, r) => v ? `<span style="font-family:monospace;font-size:11px;color:var(--t3)" title="${esc(v)}">${String(v).slice(0,12)}…</span>` : '—' },
+    { key: 'Deliverable Status', label: 'Deliverable', render: v => v ? statusPill(v) : '—' },
+    { key: 'Transaction ID', label: 'Tx ID', render: (v, r) => v ? `<span style="font-family:monospace;font-size:11px;color:var(--t3)" title="${esc(v)}">${esc(String(v).slice(0,12))}…</span>` : '—' },
   ];
 
-  const summaryRow = ['', `<strong>Total: ${rows.length}</strong>`, '', '', `<span style="color:var(--acc2)">${fmtMoney(totalAmt)}</span>`, byMethodStr || '—', '', ''];
+  const summaryRow = ['', `<strong>Total: ${rows.length}</strong>`, '', '', `<span style="color:var(--acc2)">${fmtMoney(totalAmt)}</span>`, byMethodStr || '—', '', '', ''];
 
   document.getElementById('main').innerHTML = `
     <div class="section-header"><h2 class="section-title">Payments</h2><span style="color:var(--t3)">${rows.length} records</span></div>
@@ -714,13 +734,13 @@ function renderPayments() {
 // ─── NFTs ────────────────────────────────────────────────────
 function renderNFTs() {
   const allTypes = [...new Set(state.nfts.map(r => f(r)['NFT Type']).filter(Boolean))];
-  const allStatuses = [...new Set(state.nfts.map(r => f(r).Status).filter(Boolean))];
+  const allStatuses = [...new Set(state.nfts.map(r => f(r)['Mint Status']).filter(Boolean))];
   const { search, nftType, status } = state.filters;
   const rows = state.nfts.filter(r => {
     const fd = f(r);
     if (search && !JSON.stringify(fd).toLowerCase().includes(search)) return false;
     if (nftType && fd['NFT Type'] !== nftType) return false;
-    if (status && fd.Status !== status) return false;
+    if (status && fd['Mint Status'] !== status) return false;
     return true;
   }).map(r => ({ _id: r.id, ...f(r) }));
 
@@ -732,13 +752,14 @@ function renderNFTs() {
 
   const cols = [
     { key: 'Reference', label: 'Serial', primary: true },
-    { key: 'Customer Email', label: 'Customer Email' },
+    { key: 'Email', label: 'Customer Email' },
     { key: 'NFT Type', label: 'NFT Type', render: v => tierPill(v) },
     { key: 'Tier Source', label: 'Tier Source' },
-    { key: 'Status', label: 'Status', render: v => statusPill(v) },
-    { key: 'Sent Date', label: 'Sent Date', render: v => fmtDate(v) },
-    { key: 'Mint Tx', label: 'Mint Tx', render: v => v ? `<span style="font-family:monospace;font-size:11px;color:var(--t3)" title="${esc(v)}">${String(v).slice(0,16)}…</span>` : '—' },
-    { key: 'Wallet', label: 'Wallet', render: v => v ? `<span style="font-family:monospace;font-size:11px;color:var(--t3)" title="${esc(v)}">${String(v).slice(0,12)}…</span>` : '—' },
+    { key: 'Mint Status', label: 'Status', render: v => statusPill(v) },
+    { key: 'Mint Date', label: 'Sent Date', render: v => fmtDate(v) },
+    { key: 'Token ID', label: 'Token ID', render: v => v ? `<span style="font-family:monospace;font-size:11px;color:var(--t3)" title="${esc(v)}">${esc(String(v).slice(0,12))}…</span>` : '—' },
+    { key: 'Transaction Hash', label: 'Mint Tx', render: v => v ? `<span style="font-family:monospace;font-size:11px;color:var(--t3)" title="${esc(v)}">${esc(String(v).slice(0,16))}…</span>` : '—' },
+    { key: 'Wallet Address', label: 'Wallet', render: v => v ? `<span style="font-family:monospace;font-size:11px;color:var(--t3)" title="${esc(v)}">${esc(String(v).slice(0,12))}…</span>` : '—' },
   ];
 
   document.getElementById('main').innerHTML = `
@@ -763,21 +784,17 @@ function renderSettings() {
   document.getElementById('main').innerHTML = `
     <div class="section-header"><h2 class="section-title">Settings</h2></div>
     <div class="settings-group">
-      <h3>Airtable Connection</h3>
+      <h3>Database Connection</h3>
       <div class="form-row">
         <div class="form-field">
-          <label class="form-label">Personal Access Token (PAT)</label>
-          <input type="password" class="form-input" id="pat-input" value="${esc(state.pat)}" placeholder="pat_xxxxxxxxxxxxxxxx" aria-label="Airtable Personal Access Token">
-        </div>
-        <div class="form-field" style="max-width:260px">
-          <label class="form-label">Base ID</label>
-          <input type="text" class="form-input" value="${BASE_ID}" readonly>
+          <label class="form-label" for="token-input">Admin token</label>
+          <input type="password" class="form-input" id="token-input" value="${esc(state.token)}" placeholder="ADMIN_SECRET" autocomplete="off" spellcheck="false">
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-acc" onclick="savePat()">💾 Save PAT</button>
+        <button class="btn btn-acc" onclick="saveToken()">💾 Save Token</button>
         <button class="btn btn-ghost" onclick="testConnection()">🔌 Test Connection</button>
-        <button class="btn btn-danger" onclick="clearPat()">🗑 Clear PAT</button>
+        <button class="btn btn-danger" onclick="clearToken()">🗑 Clear Token</button>
       </div>
       <div id="conn-status" style="margin-top:10px;font-size:13px;color:var(--t3)"></div>
     </div>
@@ -786,7 +803,7 @@ function renderSettings() {
       <h3>Quick Links</h3>
       <div class="quick-links">
         <a class="quick-link" href="https://dashboard.stripe.com" target="_blank" rel="noopener">💳 Stripe Dashboard</a>
-        <a class="quick-link" href="https://airtable.com" target="_blank" rel="noopener">📊 Airtable</a>
+        <a class="quick-link" href="${SUPABASE_EDITOR}" target="_blank" rel="noopener">🗄 Supabase Table Editor</a>
         <a class="quick-link" href="https://discord.com" target="_blank" rel="noopener">💬 Discord Admin</a>
         <a class="quick-link" href="operator.html">🔧 Operator Hub</a>
         <a class="quick-link" href="index.html">🏠 Main Site</a>
@@ -801,7 +818,6 @@ function renderSettings() {
         <button class="btn btn-ghost" onclick="exportCSV('leads','Leads')">📥 Export Leads CSV</button>
         <button class="btn btn-ghost" onclick="exportCSV('payments','Payments')">📥 Export Payments CSV</button>
         <button class="btn btn-ghost" onclick="exportCSV('nfts','NFT_Mints')">📥 Export NFTs CSV</button>
-        <button class="btn btn-ghost" onclick="exportCSV('comms','Communications')">📥 Export Comms CSV</button>
       </div>
     </div>
 
@@ -811,44 +827,38 @@ function renderSettings() {
         <div class="detail-field"><div class="detail-label">Leads</div><div class="detail-value">${state.leads.length} records</div></div>
         <div class="detail-field"><div class="detail-label">Payments</div><div class="detail-value">${state.payments.length} records</div></div>
         <div class="detail-field"><div class="detail-label">NFTs</div><div class="detail-value">${state.nfts.length} records</div></div>
-        <div class="detail-field"><div class="detail-label">Communications</div><div class="detail-value">${state.comms.length} records</div></div>
       </div>
     </div>`;
 }
 
-function savePat() {
-  const val = document.getElementById('pat-input')?.value?.trim() || '';
-  state.pat = val;
-  localStorage.setItem('bkt_airtable_pat', val);
-  showToast('PAT saved');
+function saveToken() {
+  const val = document.getElementById('token-input')?.value?.trim() || '';
+  state.token = val;
+  if (val) localStorage.setItem(TOKEN_KEY, val); else localStorage.removeItem(TOKEN_KEY);
+  showToast(val ? 'Token saved' : 'Token cleared');
+  if (val) refreshAll();
 }
 
-function clearPat() {
-  state.pat = '';
-  localStorage.removeItem('bkt_airtable_pat');
-  const inp = document.getElementById('pat-input');
+function clearToken() {
+  state.token = '';
+  localStorage.removeItem(TOKEN_KEY);
+  state.leads = []; state.payments = []; state.nfts = [];
+  const inp = document.getElementById('token-input');
   if (inp) inp.value = '';
-  showToast('PAT cleared');
+  showToast('Token cleared');
 }
 
 async function testConnection() {
   const statusEl = document.getElementById('conn-status');
   if (statusEl) statusEl.innerHTML = '<span style="color:var(--t2)">Testing…</span>';
-  const inp = document.getElementById('pat-input');
-  if (inp) state.pat = inp.value.trim();
+  const inp = document.getElementById('token-input');
+  if (inp) state.token = inp.value.trim();
   try {
-    const r = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${TABLES.leads}?maxRecords=1`, {
-      headers: { Authorization: `Bearer ${state.pat}` },
-    });
-    if (r.ok) {
-      if (statusEl) statusEl.innerHTML = '<span style="color:#4ade80">✓ Connection successful</span>';
-      showToast('Connection successful');
-    } else {
-      if (statusEl) statusEl.innerHTML = `<span style="color:#f06060">✗ HTTP ${r.status} – check your PAT</span>`;
-      showToast(`HTTP ${r.status}`, 'error');
-    }
+    await fetchTable(TABLES.leads, 1);
+    if (statusEl) statusEl.innerHTML = '<span style="color:#4ade80">✓ Connection successful</span>';
+    showToast('Connection successful');
   } catch (e) {
-    if (statusEl) statusEl.innerHTML = `<span style="color:#f06060">✗ Error: ${e.message}</span>`;
+    if (statusEl) statusEl.innerHTML = `<span style="color:#f06060">✗ ${esc(e.message)}</span>`;
     showToast('Connection failed', 'error');
   }
 }
@@ -897,8 +907,7 @@ function render() {
 
 // ─── INIT ────────────────────────────────────────────────────
 render();
-if (state.pat) refreshAll();
-else { render(); }
+if (state.token) refreshAll();
 </script>
 <script>/* Setup Wizard: setup-wizard.html */</script></body>
 </html>

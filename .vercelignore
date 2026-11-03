@@ -12,3 +12,9 @@ api/discord/lib
 
 # Exclude docs/ from deployment (brand masters, design briefs — never publicly served)
 docs/
+
+# Database schema (applied to Supabase, never served)
+supabase/
+
+# Discord bot source — runs on Railway, not part of the site
+discord/

@@ -20,9 +20,9 @@
  *    /poll               — reaction poll (up to 4 options)
  *
  *  AUTHORIZATION & VERIFICATION
- *    /sync-member        — assign tier role from Airtable by email
+ *    /sync-member        — assign tier role from the database by email
  *    /revoke-member      — strip all managed roles
- *    /sync-all           — batch sync all pending Airtable members
+ *    /sync-all           — batch sync all pending members
  *    /verify-member      — force-link email + Discord ID
  *    Auto welcome DM on join with portal link
  *
@@ -48,8 +48,8 @@
  *  ANALYTICS
  *    /stats              — live tier + member breakdown
  *    /boost-stats        — server boost level & progress
- *    /lookup             — full Airtable profile for a member
- *    /member-report      — complete report (Airtable + Discord)
+ *    /lookup             — full member profile for a member
+ *    /member-report      — complete report (database + Discord)
  *    /welcome-dm         — re-send verification DM
  *    /boost-stats        — boost level / perks overview
  *
@@ -109,9 +109,9 @@
  *  DISCORD_ROLE_PRODUCT_C=          ← Obsidian Executive
  *  DISCORD_ROLE_VERIFIED=           ← Verified Member
  *
- *  # Airtable (optional — bot works without it, sync features disabled)
- *  AIRTABLE_PAT=pat...
- *  AIRTABLE_BASE_ID=appI9X8vcRcK1QZ1l
+ *  # Supabase (optional — bot works without it, sync features disabled)
+ *  SUPABASE_URL=https://mcpgkrumizsaygasoovn.supabase.co
+ *  SUPABASE_SECRET_KEY=sb_secret_...
  *
  * ============================================================
  */
@@ -148,56 +148,64 @@ const GUILD_ID  = process.env.DISCORD_GUILD_ID  ?? '1499526813490221207';
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID ?? '1506515165003255889';
 const SITE_URL  = process.env.SITE_URL          ?? 'https://www.aurevonvc.com';
 
-const AT_PAT     = process.env.AIRTABLE_PAT;
-const AT_BASE    = process.env.AIRTABLE_BASE_ID ?? 'appI9X8vcRcK1QZ1l';
-const AT_MEMBERS = process.env.AIRTABLE_TABLE_MEMBERS   ?? 'tblYPn7hxnrgH723B';
-const AT_MINTS   = process.env.AIRTABLE_TABLE_NFT_MINTS ?? 'tbliXEGJdoEIAJU06';
+// Supabase (same project as the site — see api/_lib/db.js). Server key only.
+const SB_URL   = process.env.SUPABASE_URL;
+const SB_KEY   = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+const DB_READY = Boolean(SB_URL && SB_KEY);
 
 if (!TOKEN) {
   console.error('❌  DISCORD_BOT_TOKEN is required — add it to .env');
   process.exit(1);
 }
 
-// ── Airtable helpers (inline — no external lib required) ──────────────────────
+// ── Database helpers (Supabase REST; records keep the { id, fields } shape) ───
 
-const AT_HEADERS = AT_PAT
-  ? { Authorization: `Bearer ${AT_PAT}`, 'Content-Type': 'application/json' }
+const DB_HEADERS = DB_READY
+  ? { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' }
   : null;
 
-async function atFetch(tableId, formula) {
-  if (!AT_HEADERS) return [];
-  const url = `https://api.airtable.com/v0/${AT_BASE}/${tableId}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=50`;
-  const r = await fetch(url, { headers: AT_HEADERS });
-  if (!r.ok) return [];
-  const d = await r.json();
-  return d.records ?? [];
+const COLUMNS = {
+  members: {
+    'Email': 'email', 'Active': 'active', 'Member Tier': 'member_tier', 'Customer Name': 'customer_name',
+    'Discord ID': 'discord_id', 'Discord Username': 'discord_username', 'Discord Linked At': 'discord_linked_at',
+    'Discord Sync Status': 'discord_sync_status', 'Discord Sync At': 'discord_sync_at',
+  },
+  nft_mints: { 'Email': 'email', 'NFT Type': 'nft_type', 'Mint Status': 'mint_status', 'Token ID': 'token_id' },
+};
+
+function toRecord(table, row) {
+  const fields = {};
+  for (const [name, col] of Object.entries(COLUMNS[table])) if (row[col] != null) fields[name] = row[col];
+  return { id: row.id, fields };
 }
 
-async function atPatch(tableId, recordId, fields) {
-  if (!AT_HEADERS) return;
-  await fetch(`https://api.airtable.com/v0/${AT_BASE}/${tableId}/${recordId}`, {
-    method: 'PATCH',
-    headers: AT_HEADERS,
-    body: JSON.stringify({ fields }),
+/** GET rows. `query` is a PostgREST query string, e.g. "email=eq.a%40b.com". */
+async function dbSelect(table, query) {
+  if (!DB_HEADERS) return [];
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?select=*&limit=50&${query}`, { headers: DB_HEADERS });
+  if (!r.ok) { console.error(`[db] ${table} select ${r.status}: ${await r.text()}`); return []; }
+  return (await r.json()).map((row) => toRecord(table, row));
+}
+
+async function dbPatch(table, id, fields) {
+  if (!DB_HEADERS) return;
+  const row = {};
+  for (const [name, v] of Object.entries(fields)) row[COLUMNS[table][name]] = v;
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, {
+    method: 'PATCH', headers: DB_HEADERS, body: JSON.stringify(row),
   });
+  if (!r.ok) console.error(`[db] ${table} patch ${r.status}: ${await r.text()}`);
 }
 
-// Strip characters that would break out of a double-quoted Airtable formula
-// string (defense against formula injection via user-supplied email).
-function atQuote(v) {
-  return String(v).replace(/["\\]/g, '');
-}
+const eqEmail = (email) => `email=eq.${encodeURIComponent(String(email).toLowerCase().trim())}`;
 
 async function findMember(email) {
-  const rows = await atFetch(AT_MEMBERS, `LOWER({Email})="${atQuote(email.toLowerCase())}"`);
+  const rows = await dbSelect('members', eqEmail(email));
   return rows[0] ?? null;
 }
 
 async function findMint(email) {
-  const rows = await atFetch(
-    AT_MINTS,
-    `AND(LOWER({Email})="${atQuote(email.toLowerCase())}",OR({Mint Status}="Minted",{Mint Status}="Sent"))`
-  );
+  const rows = await dbSelect('nft_mints', `${eqEmail(email)}&mint_status=in.(Minted,Sent)&order=created_at.desc`);
   return rows[0] ?? null;
 }
 
@@ -224,7 +232,7 @@ function resolveRoleFromNft(nftType) {
 }
 
 // ── Warning store (in-memory — persists until restart) ────────────────────────
-// Replace with Airtable or Redis for production persistence
+// In-memory only; move to the database if this must survive restarts
 
 const warnStore = new Map(); // userId → [{ reason, mod, ts }]
 
@@ -451,7 +459,7 @@ const COMMANDS = [
   // ── AUTHORIZATION & VERIFICATION ─────────────────────────────────────────
 
   new SlashCommandBuilder().setName('sync-member')
-    .setDescription('Assign correct tier role from Airtable by purchase email')
+    .setDescription('Assign correct tier role by purchase email')
     .setDefaultMemberPermissions(ADMIN)
     .addStringOption(o => o.setName('email').setDescription("Member's purchase email").setRequired(true)),
 
@@ -461,11 +469,11 @@ const COMMANDS = [
     .addUserOption(o => o.setName('user').setDescription('Member to revoke').setRequired(true)),
 
   new SlashCommandBuilder().setName('sync-all')
-    .setDescription('Batch-sync all pending Airtable members to their Discord roles')
+    .setDescription('Batch-sync all pending members to their Discord roles')
     .setDefaultMemberPermissions(ADMIN),
 
   new SlashCommandBuilder().setName('verify-member')
-    .setDescription('Force-link a Discord user to a purchase email in Airtable')
+    .setDescription('Force-link a Discord user to a purchase email')
     .setDefaultMemberPermissions(ADMIN)
     .addUserOption(o => o.setName('user').setDescription('Discord member').setRequired(true))
     .addStringOption(o => o.setName('email').setDescription('Purchase email').setRequired(true)),
@@ -565,13 +573,13 @@ const COMMANDS = [
     .setDefaultMemberPermissions(MOD),
 
   new SlashCommandBuilder().setName('lookup')
-    .setDescription('Look up a member profile from Airtable')
+    .setDescription('Look up a member profile')
     .setDefaultMemberPermissions(ADMIN)
     .addStringOption(o => o.setName('email').setDescription("Member's purchase email").setRequired(false))
     .addUserOption(o => o.setName('user').setDescription('Discord member').setRequired(false)),
 
   new SlashCommandBuilder().setName('member-report')
-    .setDescription('Full member report — Discord info + Airtable data + role status')
+    .setDescription('Full member report — Discord info + member data + role status')
     .setDefaultMemberPermissions(ADMIN)
     .addUserOption(o => o.setName('user').setDescription('Discord member').setRequired(true)),
 
@@ -939,7 +947,7 @@ async function cmdSyncMember(i) {
   await i.deferReply({ ephemeral: true });
   const email = i.options.getString('email').toLowerCase().trim();
 
-  if (!AT_PAT) return i.editReply('❌  Airtable not configured — set AIRTABLE_PAT in .env');
+  if (!DB_READY) return i.editReply('❌  Database not configured — set SUPABASE_URL and SUPABASE_SECRET_KEY in .env');
 
   const [member, mint] = await Promise.all([findMember(email), findMint(email)]);
   if (!mint) return i.editReply(`❌  No active NFT mint found for \`${email}\`.`);
@@ -957,7 +965,7 @@ async function cmdSyncMember(i) {
   await gm.roles.add(roleId);
 
   if (member) {
-    await atPatch(AT_MEMBERS, member.id, { 'Discord Sync Status': 'synced', 'Discord Sync At': new Date().toISOString() });
+    await dbPatch('members', member.id, { 'Discord Sync Status': 'synced', 'Discord Sync At': new Date().toISOString() });
   }
 
   const role  = i.guild.roles.cache.get(roleId);
@@ -1001,11 +1009,11 @@ async function cmdRevokeMember(i) {
 
 async function cmdSyncAll(i) {
   await i.deferReply({ ephemeral: true });
-  if (!AT_PAT) return i.editReply('❌  Airtable not configured.');
+  if (!DB_READY) return i.editReply('❌  Database not configured.');
 
-  const pending = await atFetch(
-    AT_MEMBERS,
-    `AND({Discord ID}!="",OR({Discord Sync Status}="pending",{Discord Sync Status}="failed",{Discord Sync Status}=""))`
+  const pending = await dbSelect(
+    'members',
+    'discord_id=not.is.null&discord_id=neq.&or=(discord_sync_status.is.null,discord_sync_status.in.(pending,failed,""))'
   );
   if (!pending.length) return i.editReply('✅  No members pending sync.');
 
@@ -1026,7 +1034,7 @@ async function cmdSyncAll(i) {
       if (!gm) { skipped++; continue; }
 
       await gm.roles.add(roleId);
-      await atPatch(AT_MEMBERS, rec.id, { 'Discord Sync Status': 'synced', 'Discord Sync At': new Date().toISOString() });
+      await dbPatch('members', rec.id, { 'Discord Sync Status': 'synced', 'Discord Sync At': new Date().toISOString() });
       synced++;
     } catch {
       failed++;
@@ -1051,7 +1059,7 @@ async function cmdVerifyMember(i) {
   const target = i.options.getUser('user');
   const email  = i.options.getString('email').toLowerCase().trim();
 
-  if (!AT_PAT) return i.editReply('❌  Airtable not configured.');
+  if (!DB_READY) return i.editReply('❌  Database not configured.');
 
   const member = await findMember(email);
   const fields = {
@@ -1063,7 +1071,7 @@ async function cmdVerifyMember(i) {
   };
 
   if (member) {
-    await atPatch(AT_MEMBERS, member.id, fields);
+    await dbPatch('members', member.id, fields);
   }
 
   const embed = goldEmbed('🔗  Member Linked')
@@ -1472,7 +1480,7 @@ async function cmdLookup(i) {
   const lookupEmail = email?.toLowerCase().trim();
   let memberRec, mintRec;
 
-  if (lookupEmail && AT_PAT) {
+  if (lookupEmail && DB_READY) {
     [memberRec, mintRec] = await Promise.all([findMember(lookupEmail), findMint(lookupEmail)]);
   }
 
@@ -1600,7 +1608,7 @@ client.once(Events.ClientReady, async () => {
     await log(guild, 'bot-commands', {
       embeds: [goldEmbed('🟢  Aurevon Bot Online')
         .setDescription(`Ready in **${guild.name}**. ${COMMANDS.length} commands registered.`)
-        .addFields({ name: 'Airtable', value: AT_PAT ? '✅ Connected' : '⚠️ Not configured', inline: true })],
+        .addFields({ name: 'Database', value: DB_READY ? '✅ Connected' : '⚠️ Not configured', inline: true })],
     });
   }
 });

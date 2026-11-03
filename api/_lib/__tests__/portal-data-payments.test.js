@@ -3,20 +3,25 @@
  *
  * handleAuth already queries that field (add-on-only buyers have a Payments
  * row and no Members/NFT row). handleData used to reuse the Members/NFT
- * `{Email}` formula against Payments, so a successful login still returned
+ * `{Email}` filter against Payments, so a successful login still returned
  * payments: [] — empty history and zero pending-deliverable stats.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('../db.js', () => ({
+  dbConfigured: vi.fn(() => true),
+  findMemberByEmail: vi.fn(),
+  listMintsByEmail: vi.fn(),
+  listPaymentsByEmail: vi.fn(),
+  findCustomerAuth: vi.fn(),
+  upsertCustomerAuth: vi.fn(),
+  updateCustomerAuth: vi.fn(),
+}));
+
 import handler from '../../portal/data.js';
+import * as db from '../db.js';
 
-const AUTH = process.env.AIRTABLE_TABLE_CUSTOMER_AUTH ?? 'tblbCS7TL65FcOiWn';
-const PAYMENTS = process.env.AIRTABLE_TABLE_PAYMENTS ?? 'tbl6KlhM9fIH19W5i';
-const MEMBERS = process.env.AIRTABLE_TABLE_MEMBERS ?? 'tblYPn7hxnrgH723B';
-const NFTS = process.env.AIRTABLE_TABLE_NFT_MINTS ?? 'tbliXEGJdoEIAJU06';
 const RAND = 'a'.repeat(64);
-
-const SAVED = { ...process.env };
-afterEach(() => { process.env = { ...SAVED }; vi.unstubAllGlobals(); });
 
 function res() {
   return {
@@ -27,56 +32,31 @@ function res() {
     json(b) { this.body = b; return this; },
   };
 }
-
 function dataReq(email, sessionToken) {
   return { method: 'POST', query: { action: 'data' }, body: { email, sessionToken } };
 }
 
-function installFetch({ paymentRows = [] } = {}) {
+/** CustomerAuth holds a fresh session for addon@example.com; Payments returns `paymentRows`. */
+function install({ paymentRows = [] } = {}) {
   const token = `${Date.now().toString(36)}.${RAND}`;
-  const calls = { paymentQuery: null, nftQuery: null, memberQuery: null, token };
-  vi.stubGlobal('fetch', vi.fn(async (url) => {
-    if (url.includes(AUTH)) {
-      return {
-        ok: true,
-        json: async () => ({
-          records: [{
-            id: 'recAuth',
-            fields: {
-              Email: 'addon@example.com',
-              'Session Active': true,
-              'Session Token': token,
-            },
-          }],
-        }),
-      };
-    }
-    if (url.includes(PAYMENTS)) {
-      calls.paymentQuery = decodeURIComponent(url);
-      return { ok: true, json: async () => ({ records: paymentRows }) };
-    }
-    if (url.includes(NFTS)) {
-      calls.nftQuery = decodeURIComponent(url);
-      return { ok: true, json: async () => ({ records: [] }) };
-    }
-    if (url.includes(MEMBERS)) {
-      calls.memberQuery = decodeURIComponent(url);
-      return { ok: true, json: async () => ({ records: [] }) };
-    }
-    return { ok: true, json: async () => ({ records: [] }) };
-  }));
-  return calls;
+  db.findCustomerAuth.mockResolvedValue({
+    id: 'recAuth',
+    fields: { Email: 'addon@example.com', 'Session Active': true, 'Session Token': token },
+  });
+  db.listPaymentsByEmail.mockResolvedValue(paymentRows);
+  db.listMintsByEmail.mockResolvedValue([]);
+  db.findMemberByEmail.mockResolvedValue(null);
+  return { token };
 }
 
 describe('portal data Payments field', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.AIRTABLE_PAT = 'pat_test';
-    process.env.AIRTABLE_BASE_ID = 'app_test';
+    db.dbConfigured.mockReturnValue(true);
   });
 
   it('queries Payments by Customer Email and returns those rows', async () => {
-    const calls = installFetch({
+    const { token } = install({
       paymentRows: [{
         id: 'p1',
         fields: {
@@ -89,17 +69,30 @@ describe('portal data Payments field', () => {
       }],
     });
     const r = res();
-    await handler(dataReq('addon@example.com', calls.token), r);
+    await handler(dataReq('Addon@Example.com', token), r);
 
     expect(r.statusCode).toBe(200);
-    const paymentQuery = calls.paymentQuery.replace(/\+/g, ' ');
-    expect(paymentQuery).toContain('Customer Email');
-    expect(paymentQuery).not.toMatch(/LOWER\(\{Email\}\)/);
-    expect(calls.nftQuery.replace(/\+/g, ' ')).toContain('{Email}');
-    expect(calls.memberQuery.replace(/\+/g, ' ')).toContain('{Email}');
+    // Payments are looked up by the buyer's (normalized) email — listPaymentsByEmail
+    // filters on customer_email (asserted in db.test.js); mints + member by email.
+    expect(db.findCustomerAuth).toHaveBeenCalledWith('addon@example.com');
+    expect(db.listPaymentsByEmail).toHaveBeenCalledWith('addon@example.com');
+    expect(db.listMintsByEmail).toHaveBeenCalledWith('addon@example.com');
+    expect(db.findMemberByEmail).toHaveBeenCalledWith('addon@example.com');
     expect(r.body.payments).toHaveLength(1);
     expect(r.body.payments[0].serviceProduct).toBe('12-Hour Rush');
+    expect(r.body.payments[0].amount).toBe(99);
     expect(r.body.summary.totalPayments).toBe(1);
     expect(r.body.summary.pendingDeliverables).toBe(1);
+  });
+
+  it('does not read any customer data when the session is invalid', async () => {
+    install();
+    const r = res();
+    await handler(dataReq('addon@example.com', `${Date.now().toString(36)}.${'b'.repeat(64)}`), r);
+
+    expect(r.statusCode).toBe(401);
+    expect(db.listPaymentsByEmail).not.toHaveBeenCalled();
+    expect(db.listMintsByEmail).not.toHaveBeenCalled();
+    expect(db.findMemberByEmail).not.toHaveBeenCalled();
   });
 });

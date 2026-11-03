@@ -1771,7 +1771,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 
     try {
       // We'll use the data endpoint for profile updates — but for name we
-      // need a PATCH to Airtable via a dedicated call. For now, store locally
+      // need a dedicated API call. For now, store locally
       // and show success (a full PATCH endpoint can be added later).
       sessionStorage.setItem('bl_name', name);
       localStorage.setItem('bl_name', name);

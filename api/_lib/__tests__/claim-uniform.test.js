@@ -11,20 +11,22 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-vi.mock('../airtable.js', () => ({
+vi.mock('../db.js', () => ({
   findActiveMintByEmail: vi.fn(),
   // referenced at module load by claim.js:
   findMemberByEmail: vi.fn(), findActiveMintByEmailAndType: vi.fn(), findAnyMintByEmailAndType: vi.fn(),
-  listNftMints: vi.fn(), listPaymentsSince: vi.fn(), listPendingDiscordSync: vi.fn(),
+  findMintByTokenId: vi.fn(), listUnlinkedMintsBefore: vi.fn(), listPaymentsSince: vi.fn(), listPendingDiscordSync: vi.fn(),
   listOutOfSyncEntitlements: vi.fn(), listFailedMints: vi.fn(), updateDiscordSyncStatus: vi.fn(),
   updateNftMint: vi.fn(), createNftMint: vi.fn(),
+  findActiveMintsByEmail: vi.fn(), findLatestPaymentByEmailAndTier: vi.fn(), dbConfigured: vi.fn(() => true),
 }));
+vi.mock('../airtable-import.js', () => ({ importHasProblems: vi.fn(() => false), airtableImportEnabled: vi.fn(() => false), importFromAirtable: vi.fn() }));
 vi.mock('../email.js', () => ({ sendDiscordAccessLink: vi.fn().mockResolvedValue({ ok: true, id: 'em_1' }) }));
 vi.mock('../discord-bot.js', () => ({ addRoleToMember: vi.fn(), removeRoleFromMember: vi.fn() }));
 vi.mock('../engage.js', () => ({ onDiscordLinkReminder: vi.fn(), onSubscriptionCancelled: vi.fn() }));
 
 import handler from '../../member/claim.js';
-import * as airtable from '../airtable.js';
+import * as db from '../db.js';
 import * as email from '../email.js';
 
 function mockRes() {
@@ -50,7 +52,7 @@ describe('POST /api/member/claim — uniform response (M2)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('emails the access link and returns the uniform body when a membership exists', async () => {
-    airtable.findActiveMintByEmail.mockResolvedValueOnce({ id: 'm1', fields: { 'NFT Type': 'Aurevon Ember', 'Mint Status': 'Sent' } });
+    db.findActiveMintByEmail.mockResolvedValueOnce({ id: 'm1', fields: { 'NFT Type': 'Aurevon Ember', 'Mint Status': 'Sent' } });
     const res = await postClaim('member@example.com');
 
     expect(res.statusCode).toBe(200);
@@ -60,7 +62,7 @@ describe('POST /api/member/claim — uniform response (M2)', () => {
   });
 
   it('returns the SAME body and sends NO email when no membership exists', async () => {
-    airtable.findActiveMintByEmail.mockResolvedValueOnce(null);
+    db.findActiveMintByEmail.mockResolvedValueOnce(null);
     const res = await postClaim('stranger@example.com');
 
     expect(res.statusCode).toBe(200);
@@ -69,9 +71,9 @@ describe('POST /api/member/claim — uniform response (M2)', () => {
   });
 
   it('is a non-oracle: member and non-member responses are byte-identical', async () => {
-    airtable.findActiveMintByEmail.mockResolvedValueOnce({ id: 'm1', fields: { 'NFT Type': 'Aurevon Ember', 'Mint Status': 'Sent' } });
+    db.findActiveMintByEmail.mockResolvedValueOnce({ id: 'm1', fields: { 'NFT Type': 'Aurevon Ember', 'Mint Status': 'Sent' } });
     const hit = await postClaim('member@example.com');
-    airtable.findActiveMintByEmail.mockResolvedValueOnce(null);
+    db.findActiveMintByEmail.mockResolvedValueOnce(null);
     const miss = await postClaim('stranger@example.com');
 
     expect(hit.statusCode).toBe(miss.statusCode);
@@ -79,18 +81,18 @@ describe('POST /api/member/claim — uniform response (M2)', () => {
   });
 
   it('never writes member rows (no upsert helper is even imported/called)', async () => {
-    airtable.findActiveMintByEmail.mockResolvedValueOnce(null);
+    db.findActiveMintByEmail.mockResolvedValueOnce(null);
     await postClaim('stranger@example.com');
     // upsertMemberByEmail is intentionally not part of the mocked surface — if
     // claim.js tried to call it, the module would have failed to import.
-    expect(airtable.updateNftMint).not.toHaveBeenCalled();
-    expect(airtable.createNftMint).not.toHaveBeenCalled();
+    expect(db.updateNftMint).not.toHaveBeenCalled();
+    expect(db.createNftMint).not.toHaveBeenCalled();
   });
 
   it('rejects an invalid email with 400 and no lookup', async () => {
     const res = await postClaim('not-an-email');
     expect(res.statusCode).toBe(400);
-    expect(airtable.findActiveMintByEmail).not.toHaveBeenCalled();
+    expect(db.findActiveMintByEmail).not.toHaveBeenCalled();
     expect(email.sendDiscordAccessLink).not.toHaveBeenCalled();
   });
 });

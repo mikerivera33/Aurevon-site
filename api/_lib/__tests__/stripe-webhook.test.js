@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock the side-effecting libs. tiers.js stays REAL so TIER_NFT_MAP / getNextSerial
 // exercise the real mapping (getNextSerial calls the mocked countNftMintsByPrefix).
-vi.mock('../airtable.js', () => ({
+vi.mock('../db.js', () => ({
   findPaymentByTransactionId: vi.fn(),
   createPayment: vi.fn().mockResolvedValue({}),
   createNftMint: vi.fn().mockResolvedValue({}),
@@ -44,8 +44,10 @@ vi.mock('stripe', () => ({
 }));
 
 import { handleCheckoutSessionCompleted, isSettledCheckout } from '../../webhooks/stripe.js';
-import * as airtable from '../airtable.js';
+import * as db from '../db.js';
 import * as crossmint from '../crossmint.js';
+import { sendAlert } from '../alert.js';
+import * as email from '../email.js';
 
 function session(id = 'cs_test_dedupe_1', extras = {}) {
   return {
@@ -61,49 +63,79 @@ function session(id = 'cs_test_dedupe_1', extras = {}) {
 describe('Stripe webhook idempotency (durability under retry)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    airtable.createPayment.mockResolvedValue({});
+    db.createPayment.mockResolvedValue({});
   });
 
   it('mints exactly once when the same session is delivered twice', async () => {
     const s = session();
 
     // First delivery: no prior Payments row.
-    airtable.findPaymentByTransactionId.mockResolvedValueOnce(null);
+    db.findPaymentByTransactionId.mockResolvedValueOnce(null);
     await handleCheckoutSessionCompleted(s);
 
     expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
-    expect(airtable.createPayment).toHaveBeenCalledTimes(1);
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
 
     // Redelivery: the marker now exists → must be a no-op.
-    airtable.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
+    db.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
     await handleCheckoutSessionCompleted(s);
 
     expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1); // still once
-    expect(airtable.createPayment).toHaveBeenCalledTimes(1); // no second marker
+    expect(db.createPayment).toHaveBeenCalledTimes(1); // no second marker
   });
 
   it('does NOT mint when the dedup marker (createPayment) fails to persist', async () => {
-    airtable.findPaymentByTransactionId.mockResolvedValueOnce(null);
-    airtable.createPayment.mockRejectedValueOnce(new Error('Airtable 500'));
+    db.findPaymentByTransactionId.mockResolvedValueOnce(null);
+    db.createPayment.mockRejectedValueOnce(new Error('Supabase 500'));
 
     await handleCheckoutSessionCompleted(session('cs_test_marker_fail'));
 
     // No marker written ⇒ pipeline aborted before the irreversible mint.
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(db.createNftMint).not.toHaveBeenCalled();
+    // A genuine write failure is an incident: the owner is alerted.
+    expect(sendAlert).toHaveBeenCalledWith('stripe.payment_marker_failed', expect.objectContaining({ sessionId: 'cs_test_marker_fail' }));
+  });
+
+  it('a concurrent duplicate delivery (DUPLICATE_PAYMENT on the marker) returns quietly: no mint, no alert', async () => {
+    // Two deliveries race past findPaymentByTransactionId; the UNIQUE
+    // transaction_id makes the loser's insert fail with DUPLICATE_PAYMENT.
+    const dup = Object.assign(new Error('Supabase insert payments: duplicate key value violates unique constraint'), { code: 'DUPLICATE_PAYMENT' });
+    db.findPaymentByTransactionId.mockResolvedValueOnce(null);
+    db.createPayment.mockRejectedValueOnce(dup);
+
+    await expect(handleCheckoutSessionCompleted(session('cs_test_race'))).resolves.toBeUndefined();
+
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(db.createNftMint).not.toHaveBeenCalled();
+    expect(email.sendNftDelivery).not.toHaveBeenCalled();
+    expect(email.sendPurchaseConfirmation).not.toHaveBeenCalled();
+    expect(sendAlert).not.toHaveBeenCalled();
+  });
+
+  it('a non-duplicate Postgres error code on the marker still alerts and aborts before mint', async () => {
+    db.findPaymentByTransactionId.mockResolvedValueOnce(null);
+    db.createPayment.mockRejectedValueOnce(Object.assign(new Error('Supabase insert payments: null value in column'), { code: '23502' }));
+
+    await handleCheckoutSessionCompleted(session('cs_test_not_null'));
+
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('stripe.payment_marker_failed', expect.objectContaining({ sessionId: 'cs_test_not_null' }));
   });
 
   it('does NOT mint when the idempotency lookup itself fails', async () => {
-    airtable.findPaymentByTransactionId.mockRejectedValueOnce(new Error('Airtable timeout'));
+    db.findPaymentByTransactionId.mockRejectedValueOnce(new Error('Supabase timeout'));
 
     await handleCheckoutSessionCompleted(session('cs_test_lookup_fail'));
 
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
   });
 
   it('still writes subscription metadata when the Payments marker already exists', async () => {
     process.env.STRIPE_SECRET_KEY = 'sk_test_x';
-    airtable.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
+    db.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
 
     await handleCheckoutSessionCompleted({
       id: 'cs_retry_sub',
@@ -116,7 +148,7 @@ describe('Stripe webhook idempotency (durability under retry)', () => {
     });
 
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
     expect(subscriptionsUpdate).toHaveBeenCalledWith('sub_retry', {
       metadata: { email: 'monthly@example.com', tier: 'comm_monthly' },
     });
@@ -126,8 +158,8 @@ describe('Stripe webhook idempotency (durability under retry)', () => {
 describe('Stripe webhook settlement gate (async payment methods)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    airtable.createPayment.mockResolvedValue({});
-    airtable.findPaymentByTransactionId.mockResolvedValue(null);
+    db.createPayment.mockResolvedValue({});
+    db.findPaymentByTransactionId.mockResolvedValue(null);
   });
 
   it('treats only paid and no_payment_required as settled', () => {
@@ -142,8 +174,8 @@ describe('Stripe webhook settlement gate (async payment methods)', () => {
     await handleCheckoutSessionCompleted(session('cs_test_afterpay_unpaid', { payment_status: 'unpaid' }));
 
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
-    expect(airtable.createPayment).not.toHaveBeenCalled();
-    expect(airtable.findPaymentByTransactionId).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
+    expect(db.findPaymentByTransactionId).not.toHaveBeenCalled();
   });
 
   it('does NOT mint when payment_status is missing (fail closed)', async () => {
@@ -152,7 +184,7 @@ describe('Stripe webhook settlement gate (async payment methods)', () => {
     await handleCheckoutSessionCompleted(s);
 
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
   });
 
   it('mints once when the same session later arrives as paid (async_payment_succeeded)', async () => {
@@ -162,14 +194,14 @@ describe('Stripe webhook settlement gate (async payment methods)', () => {
 
     await handleCheckoutSessionCompleted({ ...unpaid, payment_status: 'paid' });
     expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
-    expect(airtable.createPayment).toHaveBeenCalledTimes(1);
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
   });
 
   it('a paid monthly checkout (incl. re-subscribe after cancel) resets Billing State to active', async () => {
     await handleCheckoutSessionCompleted(session('cs_test_resub', {
       payment_status: 'paid', mode: 'subscription', amount_total: 2999, metadata: { tier: 'comm_monthly' },
     }));
-    expect(airtable.updateEntitlementState).toHaveBeenCalledWith('buyer@example.com', {
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('buyer@example.com', {
       entitlementType: 'monthly_membership', status: 'active', billingState: 'active',
     });
   });
@@ -179,20 +211,20 @@ describe('Stripe webhook settlement gate (async payment methods)', () => {
     const paid = session('cs_test_redeliver', {
       payment_status: 'paid', mode: 'subscription', subscription: 'sub_r', amount_total: 2999, metadata: { tier: 'comm_monthly' },
     });
-    airtable.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
+    db.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
     subscriptionsRetrieve.mockResolvedValueOnce({ status: 'canceled' });
     await handleCheckoutSessionCompleted(paid);
-    expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
 
-    airtable.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
+    db.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
     subscriptionsRetrieve.mockResolvedValueOnce({ status: 'active' });
     await handleCheckoutSessionCompleted(paid);
-    expect(airtable.updateEntitlementState).toHaveBeenCalledWith('buyer@example.com', expect.objectContaining({ billingState: 'active' }));
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('buyer@example.com', expect.objectContaining({ billingState: 'active' }));
   });
 
   it('a one-time purchase does not touch monthly billing state', async () => {
     await handleCheckoutSessionCompleted(session('cs_test_full_once', { payment_status: 'paid' }));
-    expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
   });
 
   it('fulfills a $0 / 100% promo checkout (no_payment_required)', async () => {
@@ -200,7 +232,7 @@ describe('Stripe webhook settlement gate (async payment methods)', () => {
       session('cs_test_promo_zero', { payment_status: 'no_payment_required', amount_total: 0 })
     );
 
-    expect(airtable.createPayment).toHaveBeenCalledTimes(1);
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
     expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
   });
 });

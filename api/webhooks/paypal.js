@@ -5,13 +5,13 @@
  * Verification: re-POST the exact body back to PayPal IPN endpoint with
  * "cmd=_notify-validate" prepended — PayPal responds "VERIFIED" or "INVALID".
  *
- * Same downstream pipeline as Stripe: Airtable → Crossmint → Airtable → Resend.
+ * Same downstream pipeline as Stripe: database → Crossmint → database → Resend.
  */
 
 import { waitUntil } from '@vercel/functions';
 import { TIER_NFT_MAP, getNextSerial, formatSerial, inferTierFromAmount } from '../_lib/tiers.js';
 import { mintToEmail } from '../_lib/crossmint.js';
-import { createPayment, createNftMint, findPaymentByTransactionId } from '../_lib/airtable.js';
+import { createPayment, createNftMint, findPaymentByTransactionId } from '../_lib/db.js';
 import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
 
@@ -194,6 +194,11 @@ export async function handleVerifiedIPN(ipn) {
       token,
     });
   } catch (err) {
+    if (err.code === 'DUPLICATE_PAYMENT') {
+      // A concurrent IPN for this txn already wrote the marker and owns fulfilment.
+      console.log(`[PayPal IPN] txn ${txnId} already being processed — skipping duplicate`);
+      return;
+    }
     console.error(`[PayPal IPN] createPayment (idempotency marker) failed: ${err.message} — aborting before mint`);
     await sendAlert('paypal.payment_marker_failed', { txnId, tier: tier ?? 'unknown', error: err.message });
     return;
@@ -299,7 +304,7 @@ export async function handleVerifiedIPN(ipn) {
       if (isDuplicate && attempt < 2) {
         console.warn(`[PayPal IPN] Reference collision on "${ref}" (attempt ${attempt + 1}) — incrementing serial and retrying`);
       } else {
-        console.error(`[PayPal IPN] Airtable createNftMint failed (attempt ${attempt + 1}): ${err.message}`);
+        console.error(`[PayPal IPN] createNftMint failed (attempt ${attempt + 1}): ${err.message}`);
         break;
       }
     }
@@ -391,10 +396,9 @@ export async function processIPN(rawBody) {
   const ipn = parseIPN(rawBody);
   console.log(`[PayPal IPN] Verified. txn_id=${ipn.txn_id}, payment_status=${ipn.payment_status}`);
 
-  // Idempotency check — skip if this txn_id has already been processed. Uses the
-  // shared airtable helper instead of a bespoke raw fetch: it resolves the base/table
-  // via the same (now fail-loud, no stale hardcoded fallback) config path and runs the
-  // Transaction ID through escapeFormulaValue. Lookup failure is fail-closed: the
+  // Idempotency check — skip if this txn_id has already been processed (the
+  // UNIQUE Transaction ID in Payments also blocks a concurrent duplicate at
+  // createPayment). Lookup failure is fail-closed: the
   // handler has already answered 200, so PayPal will NOT redeliver — the alert
   // below is what surfaces the payment for manual recovery.
   const txnId = ipn.txn_id;

@@ -17,10 +17,10 @@
 
 import crypto from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
-import { updateNftMint, findMemberByEmail, listNftMints } from '../_lib/airtable.js';
+import { updateNftMint, findMemberByEmail, findMintByTokenId, findActiveMintByEmail } from '../_lib/db.js';
 import { resolveEntitlementFromNftType, getRoleId } from '../_lib/entitlements.js';
 import { addRoleToMember } from '../_lib/discord-bot.js';
-import { updateDiscordSyncStatus } from '../_lib/airtable.js';
+import { updateDiscordSyncStatus } from '../_lib/db.js';
 import { onEntitlementActivated } from '../_lib/engage.js';
 
 // ── Signature verification ───────────────────────────────────────────────────
@@ -79,11 +79,9 @@ async function handleMintSuccess(event) {
 
   let mintRecord = null;
   if (mintId) {
-    const recs = await listNftMints(`{Token ID}="${mintId}"`, { maxRecords: 1 });
-    mintRecord = recs[0] ?? null;
+    mintRecord = await findMintByTokenId(mintId);
   }
   if (!mintRecord && recipientEmail) {
-    const { findActiveMintByEmail } = await import('../_lib/airtable.js');
     mintRecord = await findActiveMintByEmail(recipientEmail);
   }
   if (!mintRecord) {
@@ -150,12 +148,12 @@ async function handleMintFailure(event) {
   const errorMsg = event.data?.error?.message ?? JSON.stringify(event.data?.error ?? {});
   console.warn(`[Crossmint Webhook] Mint failed mintId=${mintId} error=${errorMsg}`);
   if (mintId) {
-    const recs = await listNftMints(`{Token ID}="${mintId}"`, { maxRecords: 1 }).catch(() => []);
-    if (recs[0]) {
-      await updateNftMint(recs[0].id, {
+    const rec = await findMintByTokenId(mintId).catch(() => null);
+    if (rec) {
+      await updateNftMint(rec.id, {
         'Mint Status': 'Failed',
         'Notes': `Crossmint failed: ${errorMsg}`,
-      }).catch((e) => console.error(`[Crossmint Webhook] Airtable update failed: ${e.message}`));
+      }).catch((e) => console.error(`[Crossmint Webhook] mint row update failed: ${e.message}`));
     }
   }
 }
@@ -206,7 +204,7 @@ export default async function handler(req, res) {
 
   // Register the post-ack work with waitUntil so Vercel keeps the function alive
   // until it settles. Fired detached after res.json(), this work would otherwise
-  // be frozen after the response flushes — silently dropping the Airtable update
+  // be frozen after the response flushes — silently dropping the mint row update
   // and Discord role assignment (the durability bug this branch targets).
   if (isSuccess) {
     waitUntil(handleMintSuccess(event).catch((e) =>

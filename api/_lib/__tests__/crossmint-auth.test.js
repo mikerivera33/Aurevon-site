@@ -9,8 +9,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Stub side-effecting libs so a hypothetical processing path can't touch I/O.
-vi.mock('../airtable.js', () => ({
-  updateNftMint: vi.fn(), findMemberByEmail: vi.fn(), listNftMints: vi.fn(),
+vi.mock('../db.js', () => ({
+  updateNftMint: vi.fn(), findMemberByEmail: vi.fn(), findMintByTokenId: vi.fn(), listUnlinkedMintsBefore: vi.fn(),
   updateDiscordSyncStatus: vi.fn(), findActiveMintByEmail: vi.fn(),
 }));
 vi.mock('../entitlements.js', () => ({ resolveEntitlementFromNftType: vi.fn(), getRoleId: vi.fn() }));

@@ -9,8 +9,9 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { dbConfigured, ping } from './_lib/db.js';
 
-const VERSION = '2.1.0';
+const VERSION = '2.2.0';
 
 // Vercel Pro: 100 serverless functions per project (Hobby is 12).
 const FUNCTION_LIMIT = 100;
@@ -53,9 +54,8 @@ const REQUIRED_ENV = [
       // Resend
       'RESEND_API_KEY',
       'RESEND_FROM_EMAIL',
-      // Airtable
-      'AIRTABLE_PAT',
-      'AIRTABLE_BASE_ID',
+      // Supabase (data layer)
+      'SUPABASE_URL',
       // Discord
       'DISCORD_BOT_TOKEN',
       'DISCORD_CLIENT_ID',
@@ -105,9 +105,35 @@ const OPTIONAL_ENV = [
       'PAYPAL_SANDBOX',
       'RESEND_FROM_NAME',
       'DISCORD_ROLE_VERIFIED',
+      // Temporary Airtable → Supabase bridge (remove once the import reports nothing new)
+      'AIRTABLE_PAT',
+      'AIRTABLE_BASE_ID',
     ];
 
-export default function handler(req, res) {
+// One database ping per warm instance every 30s, however often /api/health is hit.
+const DB_STATUS_TTL_MS = 30_000;
+let dbStatusCache = null; // { value, at }
+
+/** 'ok' | 'unconfigured' | 'unavailable' — answers within ~3s. */
+async function databaseStatus() {
+  if (!dbConfigured()) return 'unconfigured';
+  if (dbStatusCache && Date.now() - dbStatusCache.at < DB_STATUS_TTL_MS) return dbStatusCache.value;
+  let value;
+  try {
+    await Promise.race([ping(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000))]);
+    value = 'ok';
+  } catch (err) {
+    console.error(`[health] database check failed: ${err.message}`);
+    value = 'unavailable';
+  }
+  dbStatusCache = { value, at: Date.now() };
+  return value;
+}
+
+/** Test hook. */
+export function _resetHealthCache() { dbStatusCache = null; }
+
+export default async function handler(req, res) {
       if (req.method !== 'GET') {
               return res.status(405).json({ error: 'Method not allowed' });
       }
@@ -136,12 +162,14 @@ export default function handler(req, res) {
         }
   }
 
+  const database = await databaseStatus();
+
   if (!authed) {
-        return res.status(200).json({ ok: true, status: 'healthy' });
+        return res.status(200).json({ ok: true, status: 'healthy', database });
   }
 
   const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
-      const allRequired = missing.length === 0;
+  if (!process.env.SUPABASE_SECRET_KEY && !process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SECRET_KEY');
       const optionalPresent = OPTIONAL_ENV.filter((k) => Boolean(process.env[k])).length;
 
   return res.status(200).json({
@@ -150,8 +178,9 @@ export default function handler(req, res) {
           version: VERSION,
           timestamp: new Date().toISOString(),
           pipeline: 'Aurevon NFT Membership + Discord Automation',
-          env: allRequired ? 'complete' : 'partial',
-          missing_required: allRequired ? [] : missing,
+          env: missing.length === 0 ? 'complete' : 'partial',
+          database,
+          missing_required: missing,
           optional_env: `${optionalPresent}/${OPTIONAL_ENV.length}`,
           function_count: FUNCTION_COUNT,
           function_limit: FUNCTION_LIMIT,

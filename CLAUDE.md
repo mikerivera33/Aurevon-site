@@ -64,6 +64,15 @@ The two are bridged by a Proxy + alias map in `tiers.js` so webhook handlers can
 
 Headings, facts, actions. No eyebrow labels, taglines, intro paragraphs under headings, "Live Now" badges, decorative emoji, or helper text that explains the obvious. If a section only makes sense with extra copy, fix the layout or the heading instead. Keep verbatim: prices, what's included, legal/disclaimer text, form labels, JS-referenced ids. Footer is `© <year> Aurevon Ventures LLC` + links. Text on blue gradient buttons is white (contrast). Only hero sections are full-height. Owner-only notes (Printify setup, merch margins) live in `docs/merch-printify.md`, not in public HTML.
 
+## Data layer — Supabase Postgres (replaced Airtable, Nov 2026)
+
+- `api/_lib/db.js` is the only module that talks to the database (supabase-js, secret key, server-only). It keeps the old Airtable record shape `{ id, fields: { 'Mint Status': … } }`; `FIELDS` maps display names to columns, and writing an unknown field throws.
+- Schema lives in `supabase/migrations/` (not deployed). Tables: `members`, `payments`, `nft_mints`, `customer_auth`, `leads`. RLS is on with no policies and the anon/authenticated roles have no grants — the publishable key can read nothing. Don't add client-side Supabase access without designing policies first.
+- `payments.transaction_id` is UNIQUE: `createPayment` is the atomic webhook idempotency marker. A concurrent redelivery gets `err.code === 'DUPLICATE_PAYMENT'` and the webhook returns quietly — that is not an error.
+- Owner consoles (`aurevon-crm.html`, `operator.html`) read through `/api/admin/data` with `Authorization: Bearer <ADMIN_SECRET>`; only lead `Status`/`Notes`/`Analyst` are writable there. Owners can also edit rows in the Supabase Table Editor.
+- Deal intake: the form still posts to Formspree (owner email + attachments); `/api/intake/submit` re-verifies payment and saves the lead to Supabase.
+- `discord/bot.js` (Railway) reads/writes the same tables via Supabase REST with its own `SUPABASE_URL` + `SUPABASE_SECRET_KEY`.
+
 ## Archive index — code that's been removed but kept for re-activation
 
 | What | Where | Why archived | How to re-activate |
@@ -111,7 +120,7 @@ If you're touching analytics or assets, run the guards locally before pushing �
 ## Production configuration that the code depends on (verified 2026-11-02)
 
 - **Stripe webhook events** — the live endpoint `https://www.aurevonvc.com/api/webhooks/stripe` must be subscribed to: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`. On 2026-11-02 only `checkout.session.completed`, `customer.subscription.deleted` and `invoice.payment_failed` were enabled.
-- **Airtable table IDs** — `api/_lib/airtable.js` defaults (`TABLE.*`) come from a different base ("Aurevon Operations"). Production sets `AIRTABLE_TABLE_MEMBERS` and `AIRTABLE_TABLE_NFT_MINTS`; **`AIRTABLE_TABLE_PAYMENTS`, `AIRTABLE_TABLE_CUSTOMER_AUTH` and `AIRTABLE_TABLE_LEADS` were unset**, and the Payments default answered `403 INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND`. Every webhook's idempotency check reads Payments first, so purchases abort before fulfilment until this is set. The production Payments table must have the fields the code writes (`Transaction ID`, `Status`, `Customer Email`, `Pass Type`, `Tier Source`, `Payment Provider`, `Payment Date`, …).
+- **Supabase** — project `aurevon-site` (ref `mcpgkrumizsaygasoovn`, us-east-1, org on Pro). Vercel needs `SUPABASE_URL` + `SUPABASE_SECRET_KEY` (or `SUPABASE_SERVICE_ROLE_KEY`) from the Supabase → Vercel integration, plus `ADMIN_SECRET` for the owner consoles. `GET /api/health` reports `database: ok|unconfigured|unavailable`. While `AIRTABLE_PAT` + `AIRTABLE_BASE_ID` stay set, the nightly reconcile copies any leftover Airtable rows into Supabase (`api/_lib/airtable-import.js`); remove them once it reports nothing new.
 
 ## Env vars assumed present in production (not in dev)
 
@@ -119,7 +128,7 @@ Local dev WILL fail at the catalog → Stripe step because `STRIPE_SECRET_KEY` i
 
 For a full env list see `.env.example`. For monitoring see `api/health.js` (reports `env: "complete"` or `"partial"` with the missing list).
 
-Production also needs: `STRIPE_WEBHOOK_SECRET`, `PAYPAL_*`, `CROSSMINT_*` (API key + 5 templates + collection IDs), `RESEND_API_KEY`, `AIRTABLE_PAT` + `AIRTABLE_BASE_ID`, `DISCORD_*` (bot, OAuth, 5 role IDs), `STATE_SECRET`, `SYNC_SECRET`, `RECONCILE_SECRET`.
+Production also needs: `STRIPE_WEBHOOK_SECRET`, `PAYPAL_*`, `CROSSMINT_*` (API key + 5 templates + collection IDs), `RESEND_API_KEY`, `SUPABASE_URL` + `SUPABASE_SECRET_KEY`, `ADMIN_SECRET`, `DISCORD_*` (bot, OAuth, 5 role IDs), `STATE_SECRET`, `SYNC_SECRET`, `RECONCILE_SECRET`.
 
 ## Workflow
 
