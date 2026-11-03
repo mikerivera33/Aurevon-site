@@ -12,7 +12,7 @@ import Stripe from 'stripe';
 import { waitUntil } from '@vercel/functions';
 import { TIER_NFT_MAP, inferTierFromAmount, getNextSerial, formatSerial } from '../_lib/tiers.js';
 import { mintToEmail } from '../_lib/crossmint.js';
-import { createPayment, createNftMint, updateDiscordSyncStatus, findMemberByEmail, findPaymentByTransactionId, updateEntitlementState } from '../_lib/airtable.js';
+import { createPayment, createNftMint, updateDiscordSyncStatus, findMemberByEmail, findPaymentByTransactionId, updateEntitlementState } from '../_lib/db.js';
 import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
 import { resolveEntitlementFromSku, getRoleId, ENTITLEMENT_MAP } from '../_lib/entitlements.js';
 import { removeRoleFromMember } from '../_lib/discord-bot.js';
@@ -206,6 +206,11 @@ export async function handleCheckoutSessionCompleted(session) {
                 token,
         });
   } catch (err) {
+        if (err.code === 'DUPLICATE_PAYMENT') {
+              // A concurrent delivery of this session already wrote the marker and owns fulfilment.
+              console.log(`[Stripe] Session ${sessionId} already being processed — skipping duplicate delivery`);
+              return;
+        }
         console.error(`[Stripe] createPayment (idempotency marker) failed for ${sessionId}: ${err.message} — aborting before mint`);
         await sendAlert('stripe.payment_marker_failed', { sessionId, tier, error: err.message });
         return;

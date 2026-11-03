@@ -17,7 +17,7 @@
  */
 
 import Stripe from 'stripe';
-import { findPaymentByTransactionId } from './airtable.js';
+import { findPaymentByTransactionId } from './db.js';
 
 // Only Aurevon Capital underwriting purchases unlock the deal-intake form —
 // not community memberships or stand-alone add-ons. Stripe metadata carries

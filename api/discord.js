@@ -12,7 +12,7 @@
 
 import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 import { addRoleToMember, addMemberToGuild } from './_lib/discord-bot.js';
-import { upsertDiscordLink, updateDiscordSyncStatus, findActiveMintsByEmail, findMemberByEmail, isDiscordAuthNonceUsed, markDiscordAuthNonceUsed } from './_lib/airtable.js';
+import { upsertDiscordLink, updateDiscordSyncStatus, findActiveMintsByEmail, findMemberByEmail, isDiscordAuthNonceUsed, markDiscordAuthNonceUsed, dbConfigured } from './_lib/db.js';
 import { resolveEntitlementFromNftType, getRoleId, pickGrantableMint, UNKNOWN_BILLING_FIELDS } from './_lib/entitlements.js';
 import { onEntitlementActivated } from './_lib/engage.js';
 
@@ -372,11 +372,11 @@ async function handleCheckMembership(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  if (!process.env.AIRTABLE_PAT || !process.env.AIRTABLE_BASE_ID) {
-    return res.status(200).json({ ok: true, skipped: true, reason: 'Airtable not configured', synced: 0, errors: 0 });
+  if (!dbConfigured()) {
+    return res.status(200).json({ ok: true, skipped: true, reason: 'Database not configured', synced: 0, errors: 0 });
   }
 
-  const { listPendingDiscordSync, findActiveMintsByEmail: findMints, updateDiscordSyncStatus: updateSync } = await import('./_lib/airtable.js');
+  const { listPendingDiscordSync, findActiveMintsByEmail: findMints, updateDiscordSyncStatus: updateSync } = await import('./_lib/db.js');
   const synced = [];
   const errors = [];
 

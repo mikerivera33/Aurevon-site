@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-vi.mock('../airtable.js', () => ({
+vi.mock('../db.js', () => ({
   findPaymentByTransactionId: vi.fn(),
 }));
 
@@ -19,7 +19,7 @@ vi.mock('stripe', () => ({
 }));
 
 import { verifyIntakePayment } from '../intake-verify.js';
-import * as airtable from '../airtable.js';
+import * as db from '../db.js';
 
 const SAVED = { ...process.env };
 
@@ -39,14 +39,14 @@ describe('verifyIntakePayment', () => {
     vi.clearAllMocks();
     process.env = { ...SAVED, STRIPE_SECRET_KEY: 'sk_test_x' };
     retrieve.mockReset();
-    airtable.findPaymentByTransactionId.mockReset();
+    db.findPaymentByTransactionId.mockReset();
   });
 
   it('rejects a client-minted paid_ token (no sessionId / txnId)', async () => {
     const result = await verifyIntakePayment({ token: 'paid_full_abc123xyz' });
     expect(result).toEqual({ ok: false, status: 400, error: 'missing_id' });
     expect(retrieve).not.toHaveBeenCalled();
-    expect(airtable.findPaymentByTransactionId).not.toHaveBeenCalled();
+    expect(db.findPaymentByTransactionId).not.toHaveBeenCalled();
   });
 
   it('rejects a session id that is not a Stripe Checkout id', async () => {
@@ -78,7 +78,7 @@ describe('verifyIntakePayment', () => {
     });
     const result = await verifyIntakePayment({ sessionId: 'cs_test_abc123' });
     expect(result).toEqual({ ok: true, tier: 're_full', method: 'stripe' });
-    expect(airtable.findPaymentByTransactionId).not.toHaveBeenCalled();
+    expect(db.findPaymentByTransactionId).not.toHaveBeenCalled();
   });
 
   it('rejects unpaid async Checkout (Afterpay/Cash App/ACH not yet collected)', async () => {
@@ -101,13 +101,13 @@ describe('verifyIntakePayment', () => {
 
   it('falls back to a Succeeded Payments row when Stripe retrieve fails', async () => {
     retrieve.mockRejectedValueOnce(new Error('No such checkout.session'));
-    airtable.findPaymentByTransactionId.mockResolvedValueOnce(paymentRow());
+    db.findPaymentByTransactionId.mockResolvedValueOnce(paymentRow());
     const result = await verifyIntakePayment({ sessionId: 'cs_live_recorded' });
     expect(result).toEqual({ ok: true, tier: 're_full', method: 'stripe' });
   });
 
   it('unlocks a PayPal txn_id that has a Succeeded Payments row', async () => {
-    airtable.findPaymentByTransactionId.mockResolvedValueOnce(
+    db.findPaymentByTransactionId.mockResolvedValueOnce(
       paymentRow({ 'Pass Type': 'full', 'Payment Provider': 'PayPal' }),
     );
     const result = await verifyIntakePayment({ txnId: '1AB23456CD7890123' });
@@ -116,27 +116,27 @@ describe('verifyIntakePayment', () => {
   });
 
   it('rejects a PayPal txn_id with no Succeeded Payments row', async () => {
-    airtable.findPaymentByTransactionId.mockResolvedValueOnce(null);
+    db.findPaymentByTransactionId.mockResolvedValueOnce(null);
     const result = await verifyIntakePayment({ txnId: '9ZZ99999ZZ9999999' });
     expect(result).toEqual({ ok: false, status: 404, error: 'not_found' });
   });
 
   it('rejects a Payments row that is not Succeeded', async () => {
-    airtable.findPaymentByTransactionId.mockResolvedValueOnce(
+    db.findPaymentByTransactionId.mockResolvedValueOnce(
       paymentRow({ Status: 'Pending', 'Payment Provider': 'PayPal' }),
     );
     const result = await verifyIntakePayment({ txnId: '1AB23456CD7890123' });
     expect(result).toEqual({ ok: false, status: 404, error: 'not_found' });
   });
 
-  it('rejects a malformed PayPal txn_id without hitting Airtable', async () => {
+  it('rejects a malformed PayPal txn_id without hitting the database', async () => {
     const result = await verifyIntakePayment({ txnId: 'paid_full_not_a_txn' });
     expect(result).toEqual({ ok: false, status: 400, error: 'invalid_txn' });
-    expect(airtable.findPaymentByTransactionId).not.toHaveBeenCalled();
+    expect(db.findPaymentByTransactionId).not.toHaveBeenCalled();
   });
 
   it('fails closed when the Payments lookup throws', async () => {
-    airtable.findPaymentByTransactionId.mockRejectedValueOnce(new Error('Airtable timeout'));
+    db.findPaymentByTransactionId.mockRejectedValueOnce(new Error('Supabase timeout'));
     const result = await verifyIntakePayment({ txnId: '1AB23456CD7890123' });
     expect(result).toEqual({ ok: false, status: 503, error: 'lookup_failed' });
   });

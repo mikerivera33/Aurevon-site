@@ -11,7 +11,7 @@
 import { waitUntil } from '@vercel/functions';
 import { TIER_NFT_MAP, getNextSerial, formatSerial, inferTierFromAmount } from '../_lib/tiers.js';
 import { mintToEmail } from '../_lib/crossmint.js';
-import { createPayment, createNftMint, findPaymentByTransactionId } from '../_lib/airtable.js';
+import { createPayment, createNftMint, findPaymentByTransactionId } from '../_lib/db.js';
 import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
 
@@ -194,6 +194,11 @@ export async function handleVerifiedIPN(ipn) {
       token,
     });
   } catch (err) {
+    if (err.code === 'DUPLICATE_PAYMENT') {
+      // A concurrent IPN for this txn already wrote the marker and owns fulfilment.
+      console.log(`[PayPal IPN] txn ${txnId} already being processed — skipping duplicate`);
+      return;
+    }
     console.error(`[PayPal IPN] createPayment (idempotency marker) failed: ${err.message} — aborting before mint`);
     await sendAlert('paypal.payment_marker_failed', { txnId, tier: tier ?? 'unknown', error: err.message });
     return;

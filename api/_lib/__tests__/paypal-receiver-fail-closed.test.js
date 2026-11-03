@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-vi.mock('../airtable.js', () => ({
+vi.mock('../db.js', () => ({
   createPayment: vi.fn().mockResolvedValue({}),
   createNftMint: vi.fn().mockResolvedValue({}),
   findPaymentByTransactionId: vi.fn().mockResolvedValue(null),
@@ -25,7 +25,7 @@ vi.mock('../email.js', () => ({
 vi.mock('../alert.js', () => ({ sendAlert: vi.fn().mockResolvedValue(undefined) }));
 
 import { handleVerifiedIPN, processIPN } from '../../webhooks/paypal.js';
-import * as airtable from '../airtable.js';
+import * as db from '../db.js';
 import * as crossmint from '../crossmint.js';
 import { sendAlert } from '../alert.js';
 
@@ -54,7 +54,7 @@ describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
 
   it('refuses to process (no mint, no marker) and alerts when PAYPAL_BUSINESS_EMAIL is unset', async () => {
     await handleVerifiedIPN(completedIpn('anyone@paypal.com'));
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
     expect(sendAlert).toHaveBeenCalledWith('paypal.business_email_unset', expect.objectContaining({ txnId: 'PP_TEST_1' }));
   });
 
@@ -62,13 +62,13 @@ describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
     process.env.PAYPAL_BUSINESS_EMAIL = 'MIKE@Aurevonvc.com';
     await handleVerifiedIPN(completedIpn('mike@aurevonvc.com'));
     // Passed the receiver gate → wrote the idempotency marker.
-    expect(airtable.createPayment).toHaveBeenCalledTimes(1);
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a genuine receiver mismatch (no marker written)', async () => {
     process.env.PAYPAL_BUSINESS_EMAIL = 'mike@aurevonvc.com';
     await handleVerifiedIPN(completedIpn('attacker@paypal.com'));
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
     expect(sendAlert).not.toHaveBeenCalled();
   });
 
@@ -79,7 +79,7 @@ describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
       mc_currency: 'JPY',
       custom: '{"tier":"enterprise"}',
     }));
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
     expect(sendAlert).toHaveBeenCalledWith('paypal.non_usd_rejected', expect.objectContaining({ currency: 'JPY', gross: '2499.00' }));
   });
@@ -97,7 +97,7 @@ describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
       mc_gross: '1.00',
       custom: '{"tier":"enterprise"}',
     }));
-    expect(airtable.createPayment).toHaveBeenCalledTimes(1);
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
   });
 
@@ -106,7 +106,7 @@ describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
     const ipn = completedIpn('mike@aurevonvc.com');
     delete ipn.txn_id;
     await handleVerifiedIPN(ipn);
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
   });
 });
 
@@ -124,10 +124,10 @@ describe('paypal IPN idempotency (fail-closed)', () => {
   });
 
   it('does NOT process when the idempotency lookup itself fails', async () => {
-    airtable.findPaymentByTransactionId.mockRejectedValueOnce(new Error('Airtable timeout'));
+    db.findPaymentByTransactionId.mockRejectedValueOnce(new Error('Supabase timeout'));
     const raw = new URLSearchParams(completedIpn('mike@aurevonvc.com')).toString();
     await processIPN(raw);
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
     expect(sendAlert).toHaveBeenCalledWith(
       'paypal.idempotency_lookup_failed',
@@ -139,7 +139,7 @@ describe('paypal IPN idempotency (fail-closed)', () => {
     const ipn = completedIpn('mike@aurevonvc.com');
     delete ipn.txn_id;
     await processIPN(new URLSearchParams(ipn).toString());
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
   });
 });

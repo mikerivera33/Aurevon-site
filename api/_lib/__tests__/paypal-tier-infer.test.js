@@ -16,7 +16,7 @@ import { describe, it, expect, vi } from 'vitest';
 // tiers.js is intentionally NOT mocked — inferTierFromIPN must use the real map.
 vi.mock('@vercel/functions', () => ({ waitUntil: vi.fn() }));
 vi.mock('../crossmint.js', () => ({ mintToEmail: vi.fn() }));
-vi.mock('../airtable.js', () => ({ createPayment: vi.fn(), createNftMint: vi.fn() }));
+vi.mock('../db.js', () => ({ createPayment: vi.fn(), createNftMint: vi.fn() }));
 vi.mock('../email.js', () => ({ sendNftDelivery: vi.fn(), sendPurchaseConfirmation: vi.fn() }));
 
 import { inferTierFromIPN } from '../../webhooks/paypal.js';
