@@ -14,9 +14,11 @@
  *
  * @param {string} event  short machine-ish event name, e.g. 'stripe.mint_failed'
  * @param {object} [detail] small bag of IDs/counts (no PII)
+ * @param {{severity?: string, dedupeKey?: string}} [_opts] accepted for forward
+ *   compatibility (severity / dedupe are implemented later); currently ignored.
  * @returns {Promise<{ok: boolean, skipped?: boolean, error?: string}>}
  */
-export async function sendAlert(event, detail = {}) {
+export async function sendAlert(event, detail = {}, _opts = {}) {
   const url = process.env.ALERT_WEBHOOK_URL;
   if (!url) return { ok: false, skipped: true };
 
