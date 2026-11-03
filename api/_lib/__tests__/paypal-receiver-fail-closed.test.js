@@ -13,8 +13,9 @@ vi.mock('../db.js', () => ({
   createPayment: vi.fn().mockResolvedValue({}),
   createNftMint: vi.fn().mockResolvedValue({}),
   findPaymentByTransactionId: vi.fn().mockResolvedValue(null),
-  countNftMintsByPrefix: vi.fn().mockResolvedValue(0),
+  nextSerial: vi.fn().mockResolvedValue(1),
 }));
+vi.mock('../airtable-import.js', () => ({ airtableImportEnabled: vi.fn(() => false), countAirtableMintsByPrefix: vi.fn() }));
 vi.mock('../crossmint.js', () => ({
   mintToEmail: vi.fn().mockResolvedValue({ ok: true, actionId: 'act_test', imageUrl: null }),
 }));

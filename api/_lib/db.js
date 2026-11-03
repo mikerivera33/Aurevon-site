@@ -271,7 +271,7 @@ export async function createNftMint({
       'Entitlement Type': entitlementType,
       'Discord Synced': false,
       'Payment Transaction ID': paymentTransactionId ? String(paymentTransactionId) : undefined,
-      'Crossmint Action ID': crossmintActionId || undefined,
+      'Crossmint Action ID': crossmintActionId ? String(crossmintActionId) : undefined,
     });
   } catch (err) {
     if (err.code === '23505') {
@@ -382,7 +382,7 @@ export async function listUndeliveredMints({ maxRecords = 20 } = {}) {
 
 const minutesAgo = (m) => new Date(Date.now() - m * 60_000).toISOString();
 
-async function count(table, query, what) {
+async function count(query, what) {
   const res = await query;
   check(res, what);
   return res.count ?? 0;
@@ -394,19 +394,19 @@ export async function countMints({ status, olderThanMinutes } = {}) {
   let q = head('nft_mints');
   if (status) q = q.eq('mint_status', status);
   if (olderThanMinutes !== undefined && olderThanMinutes !== null) q = q.lt('updated_at', minutesAgo(olderThanMinutes));
-  return count('nft_mints', q, 'countMints');
+  return count(q, 'countMints');
 }
 
 /** Members queued for Discord role sync whose row has not changed for `hours`. */
 export async function countPendingDiscordSyncOlderThan(hours) {
-  return count('members',
+  return count(
     head('members').eq('discord_sync_status', 'pending').lt('updated_at', minutesAgo(hours * 60)),
     'countPendingDiscordSyncOlderThan');
 }
 
 /** Minted/Sent mints whose delivery email has not gone out. */
 export async function countUndeliveredEmails() {
-  return count('nft_mints',
+  return count(
     head('nft_mints').in('mint_status', ['Minted', 'Sent']).eq('email_delivered', false),
     'countUndeliveredEmails');
 }

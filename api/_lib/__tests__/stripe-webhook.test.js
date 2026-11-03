@@ -12,16 +12,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock the side-effecting libs. tiers.js stays REAL so TIER_NFT_MAP / getNextSerial
-// exercise the real mapping (getNextSerial calls the mocked countNftMintsByPrefix).
+// exercise the real mapping (getNextSerial reserves from the mocked nextSerial counter;
+// airtable-import is mocked off so the Airtable bridge guard never runs).
 vi.mock('../db.js', () => ({
   findPaymentByTransactionId: vi.fn(),
   createPayment: vi.fn().mockResolvedValue({}),
   createNftMint: vi.fn().mockResolvedValue({}),
-  countNftMintsByPrefix: vi.fn().mockResolvedValue(0),
+  nextSerial: vi.fn().mockResolvedValue(1),
   updateDiscordSyncStatus: vi.fn().mockResolvedValue({}),
   findMemberByEmail: vi.fn().mockResolvedValue(null),
   updateEntitlementState: vi.fn().mockResolvedValue({}),
 }));
+vi.mock('../airtable-import.js', () => ({ airtableImportEnabled: vi.fn(() => false), countAirtableMintsByPrefix: vi.fn() }));
 vi.mock('../crossmint.js', () => ({
   mintToEmail: vi.fn().mockResolvedValue({ ok: true, actionId: 'act_test', imageUrl: null }),
 }));
@@ -75,6 +77,9 @@ describe('Stripe webhook idempotency (durability under retry)', () => {
 
     expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
     expect(db.createPayment).toHaveBeenCalledTimes(1);
+    // Normal path: the serial comes from the atomic counter and is the mint reference.
+    expect(db.nextSerial).toHaveBeenCalledWith('INSIDER');
+    expect(db.createNftMint).toHaveBeenCalledWith(expect.objectContaining({ reference: 'INSIDER_001' }));
 
     // Redelivery: the marker now exists → must be a no-op.
     db.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });

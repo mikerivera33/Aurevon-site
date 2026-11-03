@@ -26,6 +26,7 @@ language sql security definer set search_path = public as $$
   returning last;
 $$;
 revoke all on function public.next_serial(text) from public, anon, authenticated;
+grant execute on function public.next_serial(text) to service_role;
 insert into public.nft_serials (prefix, last)
 select split_part(reference, '_', 1), max(nullif(regexp_replace(split_part(reference, '_', 2), '\D', '', 'g'), '')::int)
 from public.nft_mints where reference ~ '^[A-Z]+_[0-9]+$' group by 1
