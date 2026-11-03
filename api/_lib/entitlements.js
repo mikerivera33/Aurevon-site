@@ -51,9 +51,7 @@ export const ENTITLEMENT_MAP = {
   product_a_reward: {
     skus: [
       'full',
-      'bogo',
       're_full',
-      're_bogo',
       'aurevon-product-a',
       'product-a',
       'insider',

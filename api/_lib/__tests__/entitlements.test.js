@@ -36,14 +36,12 @@ describe('resolveEntitlementFromSku', () => {
     expect(resolveEntitlementFromSku('comm_monthly')).toBe('monthly_membership');
     expect(resolveEntitlementFromSku('comm_lifetime')).toBe('lifetime_membership');
     expect(resolveEntitlementFromSku('full')).toBe('product_a_reward');
-    expect(resolveEntitlementFromSku('bogo')).toBe('product_a_reward');
     expect(resolveEntitlementFromSku('retainer')).toBe('product_b_reward');
     expect(resolveEntitlementFromSku('enterprise')).toBe('product_c_reward');
   });
 
   it('resolves re_* SKU aliases', () => {
     expect(resolveEntitlementFromSku('re_full')).toBe('product_a_reward');
-    expect(resolveEntitlementFromSku('re_bogo')).toBe('product_a_reward');
     expect(resolveEntitlementFromSku('re_retainer')).toBe('product_b_reward');
     expect(resolveEntitlementFromSku('re_enterprise')).toBe('product_c_reward');
   });
@@ -67,9 +65,11 @@ describe('resolveEntitlementFromSku', () => {
     expect(resolveEntitlementFromSku(null)).toBeNull();
   });
 
-  it('returns null for no-NFT SKU (re_single)', () => {
+  it('returns null for no-NFT SKUs (Second Opinion, BOGO)', () => {
     expect(resolveEntitlementFromSku('re_single')).toBeNull();
     expect(resolveEntitlementFromSku('single')).toBeNull();
+    expect(resolveEntitlementFromSku('bogo')).toBeNull();
+    expect(resolveEntitlementFromSku('re_bogo')).toBeNull();
   });
 });
 

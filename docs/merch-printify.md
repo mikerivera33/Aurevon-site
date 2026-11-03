@@ -49,7 +49,6 @@ PRINTIFY SETUP (Print-on-Demand fulfillment):
 | Aurevon Laptop Sleeve | $38 | ~$14 | $24 | 63% |
 | Aurevon Hydro Bottle | $32 | ~$13 | $19 | 59% |
 | Operator's Log Journal | $28 | ~$9 | $19 | 68% |
-| Aurevon Shield Phone Case | $25 | ~$7 | $18 | 72% |
 | Aurevon Sticker Pack (10) | $12 | ~$3 | $9 | 75% |
 | Aurevon Coaster Set (4) | $20 | ~$7 | $13 | 65% |
 | Aurevon Canvas Tote | $24 | ~$9 | $15 | 63% |
