@@ -44,6 +44,7 @@ export default async function handler(req, res) {
       const id = String(req.query?.id ?? '');
       const fields = req.body?.fields ?? {};
       if (!allowed || !id) return res.status(400).json({ error: 'not_writable' });
+      if (Object.keys(fields).length === 0) return res.status(400).json({ error: 'no_fields' });
       const bad = Object.keys(fields).filter((k) => !allowed.has(k));
       if (bad.length) return res.status(400).json({ error: 'field_not_writable', fields: bad });
       return res.status(200).json({ record: await updateRecord(table, id, fields) });

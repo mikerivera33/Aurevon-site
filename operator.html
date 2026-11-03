@@ -169,11 +169,11 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 .tbl-footer{padding:.8rem 1rem;background:rgba(59,130,246,.05);border-top:1px solid var(--border);font-size:.78rem;color:var(--txt2);display:flex;flex-wrap:wrap;gap:1rem;}
 </style>
 
-<style id="airtable-css">
-.airtable-status{padding:0.7rem 1rem;border-radius:10px;font-size:.85rem;font-weight:600;border:1px solid;}
-.airtable-status[data-state="ok"]{background:rgba(46,204,113,0.08);border-color:rgba(46,204,113,0.3);color:#2ecc71;}
-.airtable-status[data-state="error"]{background:rgba(231,76,60,0.08);border-color:rgba(231,76,60,0.3);color:#e74c3c;}
-.airtable-status[data-state="loading"]{background:rgba(59,130,246,0.08);border-color:rgba(59,130,246,0.3);color:var(--gold);}
+<style id="live-data-css">
+.live-status{padding:0.7rem 1rem;border-radius:10px;font-size:.85rem;font-weight:600;border:1px solid;}
+.live-status[data-state="ok"]{background:rgba(46,204,113,0.08);border-color:rgba(46,204,113,0.3);color:#2ecc71;}
+.live-status[data-state="error"]{background:rgba(231,76,60,0.08);border-color:rgba(231,76,60,0.3);color:#e74c3c;}
+.live-status[data-state="loading"]{background:rgba(59,130,246,0.08);border-color:rgba(59,130,246,0.3);color:var(--gold);}
 .btn-primary{display:inline-flex;align-items:center;gap:6px;padding:0.6rem 1.2rem;border-radius:8px;background:linear-gradient(135deg,var(--orange),var(--gold));color:#0A0A0A;font-family:'Archivo Black',sans-serif;font-size:.8rem;border:none;cursor:pointer;letter-spacing:0.02em;box-shadow:0 6px 20px rgba(30,58,138,0.25);transition:transform .15s,box-shadow .15s;}
 .btn-primary:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(30,58,138,0.4);}
 .btn-secondary{display:inline-flex;align-items:center;gap:6px;padding:0.6rem 1rem;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--txt);font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s;}
@@ -223,7 +223,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 
 <!-- ══ MAIN CONTENT ═════════════════════════════════════════════ -->
 <div class="wrap">
-<!-- ============ AIRTABLE LIVE DATA — CONNECT PANEL ============ -->
+<!-- ============ LIVE DATA — CONNECT PANEL ============ -->
 
 <!-- ============ AUTOMATION BACKEND STATUS ============ -->
 <section class="section" id="automation-backend-section">
@@ -237,8 +237,8 @@ tr:hover td{background:rgba(255,255,255,0.02);}
       <div class="card-title">Backend Health</div>
       <div class="card-note">Once deployed to Vercel, this panel pings <code style="background:rgba(59,130,246,0.08);padding:1px 5px;border-radius:3px;color:var(--gold);">/api/health</code> and shows live status of every service in the autonomous pipeline. Pre-deploy it shows the wiring map.</div>
       <div style="display:grid;grid-template-columns:1fr;gap:0.6rem;margin-top:1rem;" id="backendStatusGrid">
-        <div class="aurevon-svc-row" data-svc="airtable">
-          <div class="svc-name">📋 Airtable (data layer)</div>
+        <div class="aurevon-svc-row" data-svc="database">
+          <div class="svc-name">🗄 Supabase (data layer)</div>
           <div class="svc-state" data-state="pending">Checking...</div>
         </div>
         <div class="aurevon-svc-row" data-svc="stripe">
@@ -282,14 +282,14 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 1. Customer clicks Buy on RE Final or Web3 → unified payment terminal opens
 2. Payment via Stripe Checkout (Card / Cash App / Afterpay) OR PayPal
 3. On success: webhook hits /api/webhooks/stripe (or /api/webhooks/paypal)
-4. Webhook → Airtable.createPayment() → row in Payments table
+4. Webhook → db.createPayment() → row in Supabase payments table
 5. Webhook → Crossmint.mintToEmail() → NFT minted to customer email (no wallet)
-6. Webhook → Airtable.createNftMint() → row in NFT_Mints table (status: Sent)
+6. Webhook → db.createNftMint() → row in Supabase nft_mints table (status: Sent)
 7. Webhook → Resend.sendNftDelivery() → branded email with NFT image + Discord invite
 8. Customer clicks Discord invite link → /api/discord/auth (OAuth start)
 9. Discord redirects to /api/discord/callback → role assigned by NFT type
 10. Customer lands on /discord-welcome.html → tier-specific welcome shown
-11. NFT_Mints row updated: Discord linked (Status → Minted)
+11. nft_mints row updated: Discord linked (Mint Status → Minted)
 
 Cron jobs:
 - /api/cron/retry-mints (hourly): retries any Queued/Failed mints
@@ -337,14 +337,27 @@ window.bktCheckBackend = async function(){
       if (missing) return !missing.includes(envKey);
       return env[envKey] === true || (legacyKey && env[legacyKey] === true);
     }
+    // Unauthenticated /api/health returns only { ok, status, database }: env
+    // presence isn't reported, so those rows say so instead of "Set env vars".
+    const reported = Boolean(missing) || Object.keys(env).length > 0;
     function setRow(svc, ok, msg){
       const row = grid.querySelector('[data-svc="'+svc+'"]');
       if(!row) return;
       const el = row.querySelector('.svc-state');
+      if(!reported){ el.setAttribute('data-state','pending'); el.textContent = 'Not reported'; return; }
       el.setAttribute('data-state', ok ? 'ok' : 'not-configured');
       el.textContent = ok ? '✓ Configured' : (msg || '⚠ Set env vars');
     }
-    setRow('airtable', present('AIRTABLE_PAT', 'airtable'));
+    (function(){
+      const row = grid.querySelector('[data-svc="database"]');
+      if(!row) return;
+      const el = row.querySelector('.svc-state');
+      const db = data && data.database;
+      if(db === 'ok'){ el.setAttribute('data-state','ok'); el.textContent = '✓ Connected'; }
+      else if(db === 'unavailable'){ el.setAttribute('data-state','error'); el.textContent = '✗ Unavailable'; }
+      else if(db === 'unconfigured'){ el.setAttribute('data-state','not-configured'); el.textContent = '⚠ Set SUPABASE_URL + SUPABASE_SECRET_KEY'; }
+      else { el.setAttribute('data-state','pending'); el.textContent = 'Not reported'; }
+    })();
     setRow('stripe', present('STRIPE_SECRET_KEY', 'stripe'));
     setRow('paypal', present('PAYPAL_BUSINESS_EMAIL', 'paypal'));
     setRow('crossmint', present('CROSSMINT_API_KEY', 'crossmint'));
@@ -372,53 +385,42 @@ document.addEventListener('DOMContentLoaded', function(){
 <section class="section" id="connect-section">
   <div class="section-anchor" id="connect"></div>
   <div class="section-header" data-toggle="connect-body">
-    <div class="section-title"><span class="section-icon">🔌</span> Live Data — Airtable Connection</div>
+    <div class="section-title"><span class="section-icon">🔌</span> Live Data — Database Connection</div>
     <span class="chevron">▼</span>
   </div>
   <div class="section-body open" id="connect-body">
     <div class="card">
       <div class="card-title">Status</div>
-      <div id="airtableStatus" class="airtable-status">⚠ Not connected — paste your Airtable PAT below to load live data.</div>
+      <div id="liveStatus" class="live-status">⚠ Not connected — paste your admin token below to load live data.</div>
       <div style="margin-top:1rem;display:grid;grid-template-columns:1fr;gap:0.75rem;max-width:560px;">
-        <label style="font-size:.78rem;color:var(--txt2);font-weight:600;">Airtable Personal Access Token (PAT)</label>
-        <input type="password" id="airtablePat" placeholder="patXXXXXXXXXXXXX..." aria-label="Airtable Personal Access Token" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.7rem 1rem;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:0.85rem;outline:none;" autocomplete="off" spellcheck="false">
-        <label style="font-size:.78rem;color:var(--txt2);font-weight:600;margin-top:0.4rem;">Base ID (pre-filled — Aurevon Operations)</label>
-        <input type="text" id="airtableBaseId" value="appI9X8vcRcK1QZ1l" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.7rem 1rem;color:var(--txt);font-family:'DM Sans',monospace;font-size:0.85rem;outline:none;" readonly>
+        <label for="adminToken" style="font-size:.78rem;color:var(--txt2);font-weight:600;">Admin token (ADMIN_SECRET)</label>
+        <input type="password" id="adminToken" placeholder="ADMIN_SECRET" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.7rem 1rem;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:0.85rem;outline:none;" autocomplete="off" spellcheck="false">
         <div style="display:flex;gap:0.6rem;margin-top:0.4rem;flex-wrap:wrap;">
-          <button class="btn-primary" type="button" onclick="bktAirtableSave()">💾 Save & Connect</button>
-          <button class="btn-secondary" type="button" onclick="bktAirtableTest()">🔍 Test Connection</button>
-          <button class="btn-secondary" type="button" onclick="bktAirtableClear()" style="border-color:rgba(231,76,60,0.3);color:#e74c3c;">🗑 Clear PAT</button>
-          <a class="btn-secondary" href="https://airtable.com/create/tokens" target="_blank" rel="noopener" style="text-decoration:none;">↗ Create Airtable PAT</a>
+          <button class="btn-primary" type="button" onclick="bktLiveSave()">💾 Save & Connect</button>
+          <button class="btn-secondary" type="button" onclick="bktLiveTest()">🔍 Test Connection</button>
+          <button class="btn-secondary" type="button" onclick="bktLiveClear()" style="border-color:rgba(231,76,60,0.3);color:#e74c3c;">🗑 Clear Token</button>
         </div>
       </div>
-      <div class="card-note" style="margin-top:1rem;line-height:1.6;">
-        <strong>How to get your Personal Access Token (PAT):</strong>
-        <ol style="margin:0.5rem 0 0 1.2rem;padding:0;color:var(--txt3);font-size:.78rem;">
-          <li>Click "↗ Create Airtable PAT" above (opens airtable.com/create/tokens)</li>
-          <li>Click <strong>+ Create new token</strong></li>
-          <li>Name: "Aurevon Operator Hub"</li>
-          <li>Add scopes: <code style="background:rgba(59,130,246,0.08);padding:1px 5px;border-radius:3px;color:var(--gold);">data.records:read</code> and <code style="background:rgba(59,130,246,0.08);padding:1px 5px;border-radius:3px;color:var(--gold);">data.records:write</code></li>
-          <li>Add access to <strong>Aurevon Operations</strong> base only</li>
-          <li>Click Create token, copy the <code>pat...</code> string</li>
-          <li>Paste above and click <strong>Save & Connect</strong></li>
-        </ol>
-        <p style="margin-top:0.6rem;font-size:.74rem;color:var(--txt3);">⚠️ The PAT is stored in your browser's localStorage (only on this device). Never share it. Use Clear PAT to remove. For production, rotate tokens regularly.</p>
-      </div>
+      <p class="card-note" style="margin-top:1rem;font-size:.74rem;color:var(--txt3);">Stored in this browser's localStorage only.</p>
     </div>
     <div class="card" style="margin-top:1rem;">
-      <div class="card-title">Connected Base — Quick Links</div>
+      <div class="card-title">Supabase Tables</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.6rem;">
-        <a href="https://airtable.com/appI9X8vcRcK1QZ1l/tbllVIcSRXdZwofbs" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
-          <div class="lt-title">📋 Leads Table</div>
-          <div class="lt-tag" style="font-family:'DM Sans',monospace;font-size:.7rem;">tbllVIcSRXdZwofbs</div>
+        <a href="https://supabase.com/dashboard/project/mcpgkrumizsaygasoovn/editor/17724" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
+          <div class="lt-title">📋 Leads</div>
+          <div class="lt-tag" style="font-family:'DM Sans',monospace;font-size:.7rem;">public.leads</div>
         </a>
-        <a href="https://airtable.com/appI9X8vcRcK1QZ1l/tbl6KlhM9fIH19W5i" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
-          <div class="lt-title">💰 Payments Table</div>
-          <div class="lt-tag" style="font-family:'DM Sans',monospace;font-size:.7rem;">tbl6KlhM9fIH19W5i</div>
+        <a href="https://supabase.com/dashboard/project/mcpgkrumizsaygasoovn/editor/17669" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
+          <div class="lt-title">💰 Payments</div>
+          <div class="lt-tag" style="font-family:'DM Sans',monospace;font-size:.7rem;">public.payments</div>
         </a>
-        <a href="https://airtable.com/appI9X8vcRcK1QZ1l/tbliXEGJdoEIAJU06" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
-          <div class="lt-title">🎴 NFT Mints Table</div>
-          <div class="lt-tag" style="font-family:'DM Sans',monospace;font-size:.7rem;">tbliXEGJdoEIAJU06</div>
+        <a href="https://supabase.com/dashboard/project/mcpgkrumizsaygasoovn/editor/17688" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
+          <div class="lt-title">🎴 NFT Mints</div>
+          <div class="lt-tag" style="font-family:'DM Sans',monospace;font-size:.7rem;">public.nft_mints</div>
+        </a>
+        <a href="https://supabase.com/dashboard/project/mcpgkrumizsaygasoovn/editor/17652" target="_blank" rel="noopener" class="link-tile" style="text-decoration:none;">
+          <div class="lt-title">👥 Members</div>
+          <div class="lt-tag" style="font-family:'DM Sans',monospace;font-size:.7rem;">public.members</div>
         </a>
       </div>
     </div>
@@ -430,7 +432,7 @@ document.addEventListener('DOMContentLoaded', function(){
   <!-- HERO -->
   <div class="hero">
     <h1 class="hero-title">Aurevon OPERATOR HUB</h1>
-    <p class="hero-sub">The cockpit for running Aurevon. Owner access only. <br/><em style="color:var(--txt3);font-size:.8rem;">KPI tiles show — until Airtable is wired. See <a href="#setup">Setup Checklist</a>.</em></p>
+    <p class="hero-sub">The cockpit for running Aurevon. Owner access only. <br/><em style="color:var(--txt3);font-size:.8rem;">KPI tiles show — until live data is connected. See <a href="#connect">Live Data</a>.</em></p>
     <div class="kpi-strip">
       <div class="kpi-tile">
         <div class="kpi-label">Active Leads (This Week)</div>
@@ -465,9 +467,8 @@ document.addEventListener('DOMContentLoaded', function(){
     </div>
     <div class="section-body open">
       <div class="card">
-        <div class="card-title">Airtable Integration</div>
-        <p style="font-size:.83rem;color:var(--txt2);">All deal submissions from <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">aurevon-re-intake.html</code> are logged here. Connect <strong>Airtable Base ID</strong> <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">appI9X8vcRcK1QZ1l</code> Table <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">Leads</code> to populate this view.</p>
-        <div class="card-note">Setup → <strong>Airtable</strong> → <code>AUREVON_CONFIG.AIRTABLE_LEADS_BASE_ID</code>. Webhook from Formspree → Airtable supported via Zapier or Make.com.</div>
+        <div class="card-title">Supabase Leads</div>
+        <p style="font-size:.83rem;color:var(--txt2);">Deal submissions from <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">aurevon-re-intake.html</code> are saved to the Supabase <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">leads</code> table by <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">/api/intake/submit</code> (Formspree still emails the owner with attachments).</p>
       </div>
       <div class="tbl-wrap">
         <table>
@@ -497,7 +498,7 @@ document.addEventListener('DOMContentLoaded', function(){
       <div class="card">
         <div class="card-title">Payment Aggregator</div>
         <p style="font-size:.83rem;color:var(--txt2);">All Stripe / PayPal / Cash App / Afterpay payments aggregate here. Stripe webhook + PayPal IPN + Cash App for Business webhook required for live data.</p>
-        <div class="card-note">Without webhooks, rely on dashboard exports — these can be CSV-imported into the Airtable <code>Payments</code> table.</div>
+        <div class="card-note">Without webhooks, rely on dashboard exports — these can be CSV-imported into the Supabase <code>payments</code> table (Table Editor → Insert → Import data from CSV).</div>
         <span class="detail-toggle" onclick="toggleDetail(this)">▶ Webhook Setup Checklist</span>
         <div class="detail-body">
           <ul>
@@ -505,7 +506,7 @@ document.addEventListener('DOMContentLoaded', function(){
             <li><strong>PayPal IPN URL:</strong> <code>/api/webhooks/paypal</code> — enable IPN in PayPal Business → Account Settings</li>
             <li><strong>Cash App for Business:</strong> Configure webhook in Square Dashboard (Cash App Pay uses Square's backend)</li>
             <li><strong>Afterpay:</strong> Set Afterpay Merchant Key in Stripe Dashboard → Payment Methods → Afterpay/Clearpay</li>
-            <li><strong>Manual fallback:</strong> Export CSV from each processor monthly and import to Airtable <code>Payments</code> table</li>
+            <li><strong>Manual fallback:</strong> Export CSV from each processor monthly and import to the Supabase <code>payments</code> table</li>
           </ul>
         </div>
       </div>
@@ -547,7 +548,7 @@ document.addEventListener('DOMContentLoaded', function(){
       <div class="tbl-wrap">
         <table>
           <thead><tr>
-            <th>Customer</th><th>Tier</th><th>NFT Name</th><th>Status</th><th>Mint Tx</th>
+            <th>Customer</th><th>Tier</th><th>NFT Name</th><th>Status</th><th>Mint Tx</th><th>Action</th>
           </tr></thead>
           <tbody id="mint-tbody">
             <tr><td>Priya S.</td><td>Rush</td><td>🔥 Ember Pass</td><td><span class="pill pill-sent">Sent</span></td><td>Email-only</td></tr>
@@ -642,9 +643,9 @@ document.addEventListener('DOMContentLoaded', function(){
         <div class="auto-tile">
           <div class="auto-icon">🔔</div>
           <div class="auto-title">New Lead → Slack Alert</div>
-          <div class="auto-desc">Trigger: Airtable new row in Leads table. Action: Post to #new-leads Slack channel with name, tier, and property.</div>
+          <div class="auto-desc">Trigger: Supabase Database Webhook on insert into <code style="font-size:.73rem;">leads</code>. Action: Post to #new-leads Slack channel with name, tier, and property.</div>
           <div class="auto-footer">
-            <span class="auto-tag">Zapier / Make</span>
+            <span class="auto-tag">Supabase Webhook + Zapier / Make</span>
             <a class="btn" style="font-size:.72rem;" href="mailto:mike@aurevonvc.com?subject=Setup+Slack+Alert">Set up →</a>
           </div>
         </div>
@@ -660,7 +661,7 @@ document.addEventListener('DOMContentLoaded', function(){
         <div class="auto-tile">
           <div class="auto-icon">🚨</div>
           <div class="auto-title">24h SLA Breach → Escalation</div>
-          <div class="auto-desc">Trigger: Airtable record status = In Progress AND due_date < now(). Action: Slack DM + email to owner.</div>
+          <div class="auto-desc">Trigger: scheduled query — <code style="font-size:.73rem;">leads</code> with Status = In Progress and updated_at older than 24h. Action: Slack DM + email to owner.</div>
           <div class="auto-footer">
             <span class="auto-tag">Make.com</span>
             <a class="btn" style="font-size:.72rem;" href="mailto:mike@aurevonvc.com?subject=Setup+SLA+Alert">Set up →</a>
@@ -832,9 +833,9 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="check-box">✓</div>
           <div class="check-label">Create Discord server → create permanent invite → set up tier-specific roles (Insider, Ember, Obsidian, Genesis, Chrome)</div>
         </div>
-        <div class="check-item" data-key="airtable" onclick="toggleCheck(this)">
+        <div class="check-item" data-key="supabase" onclick="toggleCheck(this)">
           <div class="check-box">✓</div>
-          <div class="check-label">Connect Airtable → create Leads, Payments, and Deliverables tables → set Base ID in config</div>
+          <div class="check-label">Connect Supabase to Vercel → set <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">SUPABASE_URL</code>, <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">SUPABASE_SECRET_KEY</code> and <code style="color:var(--gold);background:rgba(255,255,255,.06);padding:1px 4px;border-radius:4px;">ADMIN_SECRET</code> → paste the admin token in Live Data above</div>
         </div>
         <div class="check-item" data-key="hosting" onclick="toggleCheck(this)">
           <div class="check-box">✓</div>
@@ -935,10 +936,10 @@ document.addEventListener('DOMContentLoaded', function(){
           <div class="lt-name">PayPal Business</div>
           <div class="lt-tag">paypal.com/merchant</div>
         </a>
-        <a href="https://airtable.com" target="_blank" rel="noopener noreferrer" class="link-tile">
-          <div class="lt-icon">📊</div>
-          <div class="lt-name">Airtable</div>
-          <div class="lt-tag">airtable.com</div>
+        <a href="https://supabase.com/dashboard/project/mcpgkrumizsaygasoovn/editor" target="_blank" rel="noopener noreferrer" class="link-tile">
+          <div class="lt-icon">🗄</div>
+          <div class="lt-name">Supabase</div>
+          <div class="lt-tag">Table Editor</div>
         </a>
         <a href="https://formspree.io" target="_blank" rel="noopener noreferrer" class="link-tile">
           <div class="lt-icon">📬</div>
@@ -1090,119 +1091,121 @@ function embedThread() {
 loadChecklist();
 </script>
 
-<script id="airtable-module">
+<script id="live-data-module">
 (function(){
-  // ── Aurevon Airtable client ──
+  // ── Owner data client: /api/admin/data (Supabase), Bearer ADMIN_SECRET ──
+  const EDITOR = 'https://supabase.com/dashboard/project/mcpgkrumizsaygasoovn/editor';
+  // Table Editor ids (pg_class oid). If a table is ever recreated, update these.
+  const TABLE_OIDS = { leads: 17724, payments: 17669, nft_mints: 17688 };
   const A = {
-    BASE_ID: 'appI9X8vcRcK1QZ1l',
-    TABLES: {'Leads': 'tbllVIcSRXdZwofbs', 'Payments': 'tbl6KlhM9fIH19W5i', 'NFT_Mints': 'tbliXEGJdoEIAJU06'},
-    PAT_KEY: 'bkt_airtable_pat',
-    pat: localStorage.getItem('bkt_airtable_pat') || '',
+    TOKEN_KEY: 'aurevon_admin_token',
+    token: '',
   };
-  window.BKT_AIRTABLE = A;
+  try {
+    localStorage.removeItem('bkt_airtable_pat');
+    A.token = localStorage.getItem(A.TOKEN_KEY) || '';
+  } catch(_){}
+  window.BKT_LIVE = A;
 
-  // Render initial status on page load
   document.addEventListener('DOMContentLoaded', function(){
-    const inp = document.getElementById('airtablePat');
-    if(inp && A.pat){ inp.value = A.pat; }
+    const inp = document.getElementById('adminToken');
+    if(inp && A.token){ inp.value = A.token; }
     updateStatus();
-    if(A.pat){ refreshAll(); }
+    if(A.token){ refreshAll(); }
   });
 
   function updateStatus(text, state){
-    const el = document.getElementById('airtableStatus');
+    const el = document.getElementById('liveStatus');
     if(!el) return;
     if(text){
       el.textContent = text;
       el.setAttribute('data-state', state || '');
-    } else if(A.pat){
-      el.textContent = '✓ Connected to Aurevon Operations · last sync ' + new Date().toLocaleTimeString();
+    } else if(A.token){
+      el.textContent = '✓ Connected to Supabase · last sync ' + new Date().toLocaleTimeString();
       el.setAttribute('data-state', 'ok');
     } else {
-      el.textContent = '⚠ Not connected — paste your Airtable PAT below to load live data.';
+      el.textContent = '⚠ Not connected — paste your admin token below to load live data.';
       el.setAttribute('data-state', 'error');
     }
   }
 
-  window.bktAirtableSave = function(){
-    const inp = document.getElementById('airtablePat');
+  window.bktLiveSave = function(){
+    const inp = document.getElementById('adminToken');
     const v = (inp && inp.value || '').trim();
-    if(!v.startsWith('pat')){
-      alert('PAT must start with "pat...". Get one at airtable.com/create/tokens.');
-      return;
-    }
-    A.pat = v;
-    localStorage.setItem(A.PAT_KEY, v);
+    if(!v){ alert('Paste the admin token (ADMIN_SECRET) first.'); return; }
+    A.token = v;
+    try { localStorage.setItem(A.TOKEN_KEY, v); } catch(_){}
     updateStatus('Saved. Testing connection...', 'loading');
-    bktAirtableTest();
+    bktLiveTest();
   };
 
-  window.bktAirtableClear = function(){
-    if(!confirm('Clear stored PAT? You will need to paste it again.')) return;
-    localStorage.removeItem(A.PAT_KEY);
-    A.pat = '';
-    const inp = document.getElementById('airtablePat');
+  window.bktLiveClear = function(){
+    if(!confirm('Clear stored admin token? You will need to paste it again.')) return;
+    try { localStorage.removeItem(A.TOKEN_KEY); } catch(_){}
+    A.token = '';
+    const inp = document.getElementById('adminToken');
     if(inp) inp.value = '';
     updateStatus();
-    // Reset tables to mock state
     ['leads','payments','mint'].forEach(s => setSectionMock(s));
   };
 
-  window.bktAirtableTest = async function(){
-    if(!A.pat){ alert('Paste your PAT first.'); return; }
+  window.bktLiveTest = async function(){
+    const inp = document.getElementById('adminToken');
+    if(inp && inp.value.trim()) A.token = inp.value.trim();
+    if(!A.token){ alert('Paste the admin token first.'); return; }
     updateStatus('Testing connection...', 'loading');
     try {
-      const r = await fetch('https://api.airtable.com/v0/' + A.BASE_ID + '/' + A.TABLES.Leads + '?maxRecords=1', {
-        headers: { 'Authorization': 'Bearer ' + A.pat }
-      });
-      if(r.ok){
-        updateStatus('✓ Connection OK — refreshing data...', 'ok');
-        await refreshAll();
-        updateStatus();
-      } else {
-        const err = await r.json().catch(()=>({}));
-        updateStatus('✗ ' + (err.error?.message || ('HTTP ' + r.status)), 'error');
-      }
+      await fetchTable('leads', 1);
+      updateStatus('✓ Connection OK — refreshing data...', 'ok');
+      await refreshAll();
     } catch(e){
-      updateStatus('✗ Network error: ' + e.message, 'error');
+      updateStatus('✗ ' + e.message, 'error');
     }
   };
 
-  async function fetchTable(tableId, params){
-    if(!A.pat) throw new Error('No PAT configured');
-    const url = 'https://api.airtable.com/v0/' + A.BASE_ID + '/' + tableId + (params ? '?' + params : '');
-    const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + A.pat }});
+  async function fetchTable(table, limit){
+    if(!A.token) throw new Error('No admin token configured');
+    const r = await fetch('/api/admin/data?table=' + encodeURIComponent(table) + '&limit=' + (limit || 20), {
+      headers: { 'Authorization': 'Bearer ' + A.token },
+      cache: 'no-store',
+    });
+    if(r.status === 401) throw new Error('Admin token rejected (401)');
     if(!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     return data.records || [];
   }
 
   async function refreshAll(){
-    if(!A.pat) return;
+    if(!A.token) return;
     try {
+      // KPIs need more than the 20 rows shown in each table.
       const [leads, payments, mints] = await Promise.all([
-        fetchTable(A.TABLES.Leads, 'pageSize=20'),
-        fetchTable(A.TABLES.Payments, 'pageSize=20'),
-        fetchTable(A.TABLES.NFT_Mints, 'pageSize=20'),
+        fetchTable('leads', 500),
+        fetchTable('payments', 500),
+        fetchTable('nft_mints', 500),
       ]);
-      renderLeads(leads);
-      renderPayments(payments);
-      renderMints(mints);
+      renderLeads(leads.slice(0, 20));
+      renderPayments(payments.slice(0, 20));
+      renderMints(mints.slice(0, 20));
       renderKPIs(leads, payments, mints);
       updateStatus();
     } catch(e){
-      updateStatus(A.pat ? ('✗ Refresh failed: ' + e.message + ' — Check browser console.') : '⚠️ Airtable PAT not configured — enter your PAT in Setup below to load live data.', A.pat ? 'error' : 'warn');
+      updateStatus('✗ Refresh failed: ' + e.message, 'error');
     }
   }
   window.bktRefresh = refreshAll;
   window.bktRefreshSection = async function(section){
-    if(!A.pat){ alert('Connect Airtable first.'); return; }
+    if(!A.token){ alert('Paste the admin token in Live Data first.'); return; }
     try {
-      if(section === 'leads'){ const r = await fetchTable(A.TABLES.Leads,'pageSize=20'); renderLeads(r); }
-      else if(section === 'payments'){ const r = await fetchTable(A.TABLES.Payments,'pageSize=20'); renderPayments(r); }
-      else if(section === 'mints'){ const r = await fetchTable(A.TABLES.NFT_Mints,'pageSize=20'); renderMints(r); }
+      if(section === 'leads'){ renderLeads(await fetchTable('leads', 20)); }
+      else if(section === 'payments'){ renderPayments(await fetchTable('payments', 20)); }
+      else if(section === 'mints'){ renderMints(await fetchTable('nft_mints', 20)); }
     } catch(e){ alert('Refresh failed: ' + e.message); }
   };
+
+  function openLink(table){
+    return '<a href="' + EDITOR + '/' + TABLE_OIDS[table] + '" target="_blank" rel="noopener" style="color:var(--gold);font-size:.78rem;">Open ↗</a>';
+  }
 
   function statusPill(value){
     if(!value) return '<span class="status-pill" style="background:rgba(120,120,120,.1);color:#888;">—</span>';
@@ -1237,13 +1240,13 @@ loadChecklist();
     tbody.innerHTML = records.map(r => {
       const f = r.fields || {};
       return '<tr>'
-        + '<td>'+fmtDate(f['Submitted'] || r.createdTime)+'</td>'
+        + '<td>'+fmtDate(f['Created At'])+'</td>'
         + '<td>'+esc(f['Name'] || '—')+'</td>'
         + '<td>'+esc(f['Email'] || '—')+'</td>'
         + '<td>'+esc(f['Property Address'] || '—')+'</td>'
         + '<td>'+esc(f['Tier'] || '—')+'</td>'
         + '<td>'+statusPill(f['Status'])+'</td>'
-        + '<td><a href="https://airtable.com/'+A.BASE_ID+'/'+A.TABLES.Leads+'/'+r.id+'" target="_blank" rel="noopener" style="color:var(--gold);font-size:.78rem;">Open ↗</a></td>'
+        + '<td>'+openLink('leads')+'</td>'
       + '</tr>';
     }).join('');
     markLive('leads');
@@ -1253,19 +1256,20 @@ loadChecklist();
     const tbody = document.querySelector('#payments-tbody');
     if(!tbody) return;
     if(!records.length){
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-row">No payments yet. Once Stripe / PayPal webhooks are wired, transactions land here.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-row">No payments yet. Once Stripe / PayPal webhooks are wired, transactions land here.</td></tr>';
       return;
     }
     tbody.innerHTML = records.map(r => {
       const f = r.fields || {};
       return '<tr>'
-        + '<td>'+fmtDate(f['Date'] || r.createdTime)+'</td>'
-        + '<td>'+esc(f['Method'] || '—')+'</td>'
-        + '<td>'+esc(f['Tier'] || '—')+'</td>'
+        + '<td>'+fmtDate(f['Payment Date'] || f['Created At'])+'</td>'
+        + '<td>'+esc(f['Payment Provider'] || '—')+'</td>'
+        + '<td>'+esc(f['Pass Type'] || '—')+'</td>'
         + '<td><strong style="color:var(--gold);">'+fmtMoney(f['Amount'])+'</strong></td>'
         + '<td>'+esc(f['Customer Name'] || f['Customer Email'] || '—')+'</td>'
         + '<td>'+statusPill(f['Status'])+'</td>'
-        + '<td><a href="https://airtable.com/'+A.BASE_ID+'/'+A.TABLES.Payments+'/'+r.id+'" target="_blank" rel="noopener" style="color:var(--gold);font-size:.78rem;">Open ↗</a></td>'
+        + '<td>'+(f['Transaction ID'] ? '<code style="font-size:.68rem;color:var(--txt3);" title="'+esc(f['Transaction ID'])+'">'+esc(String(f['Transaction ID']).slice(0,10))+'…</code>' : '—')+'</td>'
+        + '<td>'+openLink('payments')+'</td>'
       + '</tr>';
     }).join('');
     markLive('payments');
@@ -1281,12 +1285,12 @@ loadChecklist();
     tbody.innerHTML = records.map(r => {
       const f = r.fields || {};
       return '<tr>'
-        + '<td>'+esc(f['Customer Email'] || '—')+'</td>'
+        + '<td>'+esc(f['Email'] || '—')+'</td>'
         + '<td>'+esc(f['Tier Source'] || '—')+'</td>'
         + '<td>'+esc(f['NFT Type'] || '—')+'</td>'
-        + '<td>'+statusPill(f['Status'])+'</td>'
-        + '<td>'+(f['Mint Tx'] ? '<code style="font-size:.7rem;">'+esc(f['Mint Tx']).slice(0,12)+'…</code>' : '<em style="color:var(--txt3);">Email-only</em>')+'</td>'
-        + '<td><a href="https://airtable.com/'+A.BASE_ID+'/'+A.TABLES.NFT_Mints+'/'+r.id+'" target="_blank" rel="noopener" style="color:var(--gold);font-size:.78rem;">Open ↗</a></td>'
+        + '<td>'+statusPill(f['Mint Status'])+'</td>'
+        + '<td>'+(f['Transaction Hash'] ? '<code style="font-size:.7rem;">'+esc(String(f['Transaction Hash']).slice(0,12))+'…</code>' : '<em style="color:var(--txt3);">Email-only</em>')+'</td>'
+        + '<td>'+openLink('nft_mints')+'</td>'
       + '</tr>';
     }).join('');
     markLive('mint');
@@ -1300,7 +1304,7 @@ loadChecklist();
     // MTD revenue
     const now = new Date();
     const mtdRev = payments.filter(r => {
-      const d = r.fields && (r.fields['Date'] || r.createdTime);
+      const d = r.fields && (r.fields['Payment Date'] || r.fields['Created At']);
       const s = r.fields && r.fields['Status'];
       if(s !== 'Succeeded') return false;
       if(!d) return false;
@@ -1312,7 +1316,7 @@ loadChecklist();
       return s === 'New' || s === 'In Progress' || s === 'In Review';
     }).length;
     const queueMints = mints.filter(r => {
-      const s = (r.fields && r.fields['Status']) || '';
+      const s = (r.fields && r.fields['Mint Status']) || '';
       return s === 'Queued';
     }).length;
     setKpi(0, activeLeads);

@@ -110,17 +110,28 @@ const OPTIONAL_ENV = [
       'AIRTABLE_BASE_ID',
     ];
 
+// One database ping per warm instance every 30s, however often /api/health is hit.
+const DB_STATUS_TTL_MS = 30_000;
+let dbStatusCache = null; // { value, at }
+
 /** 'ok' | 'unconfigured' | 'unavailable' — answers within ~3s. */
 async function databaseStatus() {
   if (!dbConfigured()) return 'unconfigured';
+  if (dbStatusCache && Date.now() - dbStatusCache.at < DB_STATUS_TTL_MS) return dbStatusCache.value;
+  let value;
   try {
     await Promise.race([ping(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000))]);
-    return 'ok';
+    value = 'ok';
   } catch (err) {
     console.error(`[health] database check failed: ${err.message}`);
-    return 'unavailable';
+    value = 'unavailable';
   }
+  dbStatusCache = { value, at: Date.now() };
+  return value;
 }
+
+/** Test hook. */
+export function _resetHealthCache() { dbStatusCache = null; }
 
 export default async function handler(req, res) {
       if (req.method !== 'GET') {

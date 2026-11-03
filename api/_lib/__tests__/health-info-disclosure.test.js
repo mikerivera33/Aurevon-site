@@ -20,7 +20,7 @@ vi.mock('../db.js', () => ({
   ping: vi.fn().mockResolvedValue(true),
 }));
 
-import handler from '../../health.js';
+import handler, { _resetHealthCache } from '../../health.js';
 import * as db from '../db.js';
 
 function mockRes() {
@@ -38,6 +38,7 @@ const MINIMAL_KEYS = ['database', 'ok', 'status'];
 
 const SAVED = { ...process.env };
 beforeEach(() => {
+  _resetHealthCache();
   vi.clearAllMocks();
   db.dbConfigured.mockReturnValue(true);
   db.ping.mockResolvedValue(true);
@@ -163,5 +164,15 @@ describe('GET /api/health — database status', () => {
     await vi.advanceTimersByTimeAsync(3000);
     await done;
     expect(res.body).toEqual({ ok: true, status: 'healthy', database: 'unavailable' });
+  });
+});
+
+describe('GET /api/health — database status cache', () => {
+  it('pings the database at most once per 30s per instance', async () => {
+    const a = await get();
+    const b = await get();
+    expect(a.body.database).toBe('ok');
+    expect(b.body.database).toBe('ok');
+    expect(db.ping).toHaveBeenCalledTimes(1);
   });
 });

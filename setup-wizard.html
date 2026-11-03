@@ -925,7 +925,7 @@
     </div>
     <p class="final-sub">All environment variables from every section combined into one block. Paste this into <a href="https://vercel.com/dashboard" target="_blank" rel="noopener" style="color:var(--accent-b);">Vercel → Project → Settings → Environment Variables</a> (or your <code style="font-family:var(--mono);font-size:0.85em;">.env.local</code> file for local dev).</p>
 
-    <!-- Extra vars: Resend + Airtable -->
+    <!-- Extra vars: Resend + Supabase -->
     <div style="margin-bottom:1.2rem;">
       <div style="font-size:0.78rem;font-weight:600;color:var(--text-sec);margin-bottom:0.6rem;letter-spacing:0.05em;">Additional Services</div>
       <div class="field-row" style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin-bottom:0.8rem;">
@@ -941,12 +941,20 @@
       </div>
       <div class="field-row" style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;">
         <div class="field">
-          <label>Airtable API Key</label>
-          <input type="password" id="airtableKey" placeholder="pat..." oninput="updateEnvBlock()" class="mono" />
+          <label>Supabase URL</label>
+          <input type="text" id="supabaseUrl" placeholder="https://mcpgkrumizsaygasoovn.supabase.co" oninput="updateEnvBlock()" class="mono" />
+          <div class="field-hint"><a href="https://supabase.com/dashboard/project/mcpgkrumizsaygasoovn/settings/api-keys" target="_blank" rel="noopener">Supabase → API Keys ↗</a></div>
         </div>
         <div class="field">
-          <label>Airtable Base ID</label>
-          <input type="text" id="airtableBaseId" placeholder="appXXXXXXXXXXXXXX" oninput="updateEnvBlock()" class="mono" value="appXXXXXXXXXXXXXX" />
+          <label>Supabase Secret Key</label>
+          <input type="password" id="supabaseSecretKey" placeholder="sb_secret_..." oninput="updateEnvBlock()" class="mono" />
+        </div>
+      </div>
+      <div class="field-row" style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin-top:0.8rem;">
+        <div class="field">
+          <label>Admin Secret (owner consoles)</label>
+          <input type="password" id="adminSecret" placeholder="long random string" oninput="updateEnvBlock()" class="mono" />
+          <div class="field-hint">Generate with <code style="font-family:var(--mono);">openssl rand -hex 32</code></div>
         </div>
       </div>
     </div>
@@ -995,9 +1003,12 @@
 <span class="k">RESEND_API_KEY</span>=<span id="fev-resend">re_...</span>
 <span class="k">RESEND_FROM_EMAIL</span>=<span id="fev-resend-from">mike@aurevonvc.com</span>
 
-<span class="c"># ── Airtable</span>
-<span class="k">AIRTABLE_API_KEY</span>=<span id="fev-at-key">pat...</span>
-<span class="k">AIRTABLE_BASE_ID</span>=<span id="fev-at-base">appXXXXXXXXXXXXXX</span></pre>
+<span class="c"># ── Supabase (data layer)</span>
+<span class="k">SUPABASE_URL</span>=<span id="fev-sb-url">https://mcpgkrumizsaygasoovn.supabase.co</span>
+<span class="k">SUPABASE_SECRET_KEY</span>=<span id="fev-sb-key">sb_secret_...</span>
+
+<span class="c"># ── Owner consoles (CRM / Operator Hub)</span>
+<span class="k">ADMIN_SECRET</span>=<span id="fev-admin">...</span></pre>
       <button class="code-copy-btn" onclick="copyFinalBlock(this)">Copy All</button>
     </div>
 
@@ -1048,6 +1059,10 @@
   }
 
   var state = loadState();
+  // Airtable was replaced by Supabase; drop any saved Airtable token.
+  if (state.inp_airtableKey || state.inp_airtableBaseId) {
+    delete state.inp_airtableKey; delete state.inp_airtableBaseId; saveState(state);
+  }
 
   // ── Section toggle
   window.toggleSection = function(id) {
@@ -1086,7 +1101,7 @@
     'tpl-insider','tpl-operator','tpl-foundation','tpl-genesis','tpl-sovereign',
     'dcClientId','dcClientSecret','dcBotToken','dcGuildId',
     'role-sovereign','role-architect','role-builder','role-genesis','role-foundation','role-operator','role-insider',
-    'resendKey','resendFrom','airtableKey','airtableBaseId'
+    'resendKey','resendFrom','supabaseUrl','supabaseSecretKey','adminSecret'
   ];
   inputIds.forEach(function(id) {
     var el = document.getElementById(id);
@@ -1175,8 +1190,9 @@
     var dcRs = getVal('role-sovereign') || '...';
     var resend = getVal('resendKey') || 're_...';
     var resendFrom = getVal('resendFrom') || 'mike@aurevonvc.com';
-    var atKey = getVal('airtableKey') || 'pat...';
-    var atBase = getVal('airtableBaseId') || 'appXXXXXXXXXXXXXX';
+    var sbUrl = getVal('supabaseUrl') || 'https://mcpgkrumizsaygasoovn.supabase.co';
+    var sbKey = getVal('supabaseSecretKey') || 'sb_secret_...';
+    var adminSecret = getVal('adminSecret') || '...';
 
     // Update Stripe section spans
     setText('ev-stripe-sk', strSk);
@@ -1237,8 +1253,9 @@
     setText('fev-dc-rs', dcRs);
     setText('fev-resend', resend);
     setText('fev-resend-from', resendFrom);
-    setText('fev-at-key', atKey);
-    setText('fev-at-base', atBase);
+    setText('fev-sb-url', sbUrl);
+    setText('fev-sb-key', sbKey);
+    setText('fev-admin', adminSecret);
   };
 
   function setText(id, val) {

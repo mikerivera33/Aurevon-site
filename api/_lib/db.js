@@ -119,8 +119,8 @@ let client = null;
 
 export function supabase() {
   if (client) return client;
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url) throw new Error('Missing SUPABASE_URL env var');
   if (!key) throw new Error('Missing SUPABASE_SECRET_KEY env var');
   client = createClient(url, key, {
@@ -131,8 +131,8 @@ export function supabase() {
 
 /** True when the Supabase env vars are present (crons skip cleanly otherwise). */
 export function dbConfigured() {
-  return Boolean((process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL)
-    && (process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY));
+  return Boolean((process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)
+    && (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY));
 }
 
 /** Test hook: drop the cached client so env changes take effect. */
