@@ -49,6 +49,8 @@ log()   { echo "[deploy] $*"; }
 PROJECT="$(md project/project-id)"
 BUCKET="$(md instance/attributes/bot-bucket)"
 SECRET="$(md instance/attributes/bot-secret)"
+# Metadata unreachable at start: exit so systemd (Restart=always) tries again.
+[ -n "$PROJECT" ] && [ -n "$BUCKET" ] && [ -n "$SECRET" ] || { log "instance metadata not ready"; exit 1; }
 OBJECT="https://storage.googleapis.com/storage/v1/b/$BUCKET/o/discord-bot.tgz"
 STATE=/var/lib/aurevon-bot/generation
 APP=/opt/aurevon-bot
@@ -59,16 +61,18 @@ install_bundle() { # $1 = generation
   tok="$(token)" || return 1
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' RETURN
-  curl -fsS -H "Authorization: Bearer $tok" -o "$tmp/bot.tgz" "$OBJECT?alt=media&generation=$1" || return 1
-  mkdir "$tmp/app" && tar -xzf "$tmp/bot.tgz" -C "$tmp/app" || return 1
-  (cd "$tmp/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error) || return 1
 
   # The env secret is a dotenv file (KEY=value lines), read fresh on every deploy.
+  # Fetched first so a missing secret costs one request, not an npm install.
   payload="$(curl -fsS -H "Authorization: Bearer $tok" \
     "https://secretmanager.googleapis.com/v1/projects/$PROJECT/secrets/$SECRET/versions/latest:access" \
     | sed -n 's/.*"data": *"\([^"]*\)".*/\1/p')"
   if [ -z "$payload" ]; then log "secret $SECRET has no version yet; add one in Secret Manager"; return 1; fi
   base64 -d <<<"$payload" | tr -d '\r' > "$tmp/env" || return 1
+
+  curl -fsS -H "Authorization: Bearer $tok" -o "$tmp/bot.tgz" "$OBJECT?alt=media&generation=$1" || return 1
+  mkdir "$tmp/app" && tar -xzf "$tmp/bot.tgz" -C "$tmp/app" || return 1
+  (cd "$tmp/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error) || return 1
   install -m 600 -o root -g root "$tmp/env" /etc/aurevon-bot.env
 
   rm -rf "$APP.previous"

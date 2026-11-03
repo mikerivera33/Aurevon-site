@@ -26,6 +26,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 
 g() { gcloud --project "$PROJECT" --quiet "$@"; }
 exists() { "$@" >/dev/null 2>&1; }
+# New service accounts take a few seconds to appear to IAM; retry bindings.
+retry() { local _; for _ in 1 2 3 4 5 6; do "$@" >/dev/null && return 0; sleep 10; done; "$@"; }
 
 g services enable compute.googleapis.com secretmanager.googleapis.com storage.googleapis.com \
   iam.googleapis.com iamcredentials.googleapis.com sts.googleapis.com
@@ -37,12 +39,12 @@ exists g iam service-accounts describe "$DEPLOY_SA" ||
 
 exists g storage buckets describe "$BUCKET" ||
   g storage buckets create "$BUCKET" --location="$REGION" --uniform-bucket-level-access --public-access-prevention
-g storage buckets add-iam-policy-binding "$BUCKET" --member="serviceAccount:$RUNTIME_SA" --role=roles/storage.objectViewer >/dev/null
-g storage buckets add-iam-policy-binding "$BUCKET" --member="serviceAccount:$DEPLOY_SA" --role=roles/storage.objectUser >/dev/null
+retry g storage buckets add-iam-policy-binding "$BUCKET" --member="serviceAccount:$RUNTIME_SA" --role=roles/storage.objectViewer
+retry g storage buckets add-iam-policy-binding "$BUCKET" --member="serviceAccount:$DEPLOY_SA" --role=roles/storage.objectUser
 
 exists g secrets describe "$SECRET" ||
   g secrets create "$SECRET" --replication-policy=user-managed --locations="$REGION"
-g secrets add-iam-policy-binding "$SECRET" --member="serviceAccount:$RUNTIME_SA" --role=roles/secretmanager.secretAccessor >/dev/null
+retry g secrets add-iam-policy-binding "$SECRET" --member="serviceAccount:$RUNTIME_SA" --role=roles/secretmanager.secretAccessor
 
 if ! exists g compute instances describe "$VM" --zone="$ZONE"; then
   g compute instances create "$VM" --zone="$ZONE" --machine-type=e2-micro \
@@ -57,7 +59,8 @@ else
   g compute instances add-metadata "$VM" --zone="$ZONE" --metadata-from-file=startup-script="$HERE/startup.sh"
 fi
 
-# GitHub Actions → Google, keyless: only pushes to main of this repo may act as the deployer.
+# GitHub Actions → Google, keyless: only the deploy workflow, on main of this repo, may act as the deployer.
+WIF_CONDITION="assertion.repository_id=='${GITHUB_REPO_ID}' && assertion.ref=='refs/heads/main' && assertion.workflow_ref.startsWith('mikerivera33/Aurevon-site/.github/workflows/deploy-discord-bot.yml@')"
 NUMBER="$(g projects describe "$PROJECT" --format='value(projectNumber)')"
 exists g iam workload-identity-pools describe github --location=global ||
   g iam workload-identity-pools create github --location=global --display-name="GitHub Actions"
@@ -65,9 +68,11 @@ exists g iam workload-identity-pools providers describe aurevon-site --location=
   g iam workload-identity-pools providers create-oidc aurevon-site --location=global --workload-identity-pool=github \
     --issuer-uri=https://token.actions.githubusercontent.com \
     --attribute-mapping=google.subject=assertion.sub,attribute.repository_id=assertion.repository_id,attribute.ref=assertion.ref \
-    --attribute-condition="assertion.repository_id=='${GITHUB_REPO_ID}' && assertion.ref=='refs/heads/main'"
-g iam service-accounts add-iam-policy-binding "$DEPLOY_SA" --role=roles/iam.workloadIdentityUser \
-  --member="principalSet://iam.googleapis.com/projects/${NUMBER}/locations/global/workloadIdentityPools/github/attribute.repository_id/${GITHUB_REPO_ID}" >/dev/null
+    --attribute-condition="$WIF_CONDITION"
+g iam workload-identity-pools providers update-oidc aurevon-site --location=global --workload-identity-pool=github \
+  --attribute-condition="$WIF_CONDITION" >/dev/null
+retry g iam service-accounts add-iam-policy-binding "$DEPLOY_SA" --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/${NUMBER}/locations/global/workloadIdentityPools/github/attribute.repository_id/${GITHUB_REPO_ID}"
 
 echo
 echo "Provisioned. Workload identity provider for .github/workflows/deploy-discord-bot.yml:"

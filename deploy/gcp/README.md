@@ -42,7 +42,7 @@ SUPABASE_URL=https://mcpgkrumizsaygasoovn.supabase.co
 SUPABASE_SECRET_KEY=sb_secret_…
 ```
 
-The `AIRTABLE_*` lines are no longer used.
+The `AIRTABLE_*` lines are no longer used. Use plain `KEY=value` lines: no `export`, and no `# comment` after a value (systemd would keep it as part of the value).
 
 To change a value, open Secret Manager → `aurevon-bot-env` → **New version**, paste the whole file, then run **Actions → Deploy Discord bot → Run workflow**.
 
@@ -64,5 +64,5 @@ Rollback: revert the commit on `main`, or run `deploy/gcp/deploy.sh <good-sha>`.
 1. Open billing on the project (Billing → link an open billing account). The free tier still needs a card on file.
 2. Run `PROJECT=nifty-formula-513621-d4 deploy/gcp/provision.sh`.
 3. Add the first version of `aurevon-bot-env`.
-4. Stop the Railway service so only one copy of the bot is online, then run `deploy/gcp/deploy.sh`. If two copies run, members get every reply and DM twice.
+4. Stop the Railway service so only one copy of the bot is online, then run `deploy/gcp/deploy.sh`. If two copies run, members get every reply and DM twice. Stop Railway before merging this change too: the merge itself triggers the deploy workflow.
 5. Check the serial output for `Aurevon Bot online`, or confirm the bot shows online in Discord.
