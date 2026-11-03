@@ -46,6 +46,8 @@ vi.mock('stripe', () => ({
 import { handleCheckoutSessionCompleted, isSettledCheckout } from '../../webhooks/stripe.js';
 import * as db from '../db.js';
 import * as crossmint from '../crossmint.js';
+import { sendAlert } from '../alert.js';
+import * as email from '../email.js';
 
 function session(id = 'cs_test_dedupe_1', extras = {}) {
   return {
@@ -90,6 +92,36 @@ describe('Stripe webhook idempotency (durability under retry)', () => {
 
     // No marker written ⇒ pipeline aborted before the irreversible mint.
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(db.createNftMint).not.toHaveBeenCalled();
+    // A genuine write failure is an incident: the owner is alerted.
+    expect(sendAlert).toHaveBeenCalledWith('stripe.payment_marker_failed', expect.objectContaining({ sessionId: 'cs_test_marker_fail' }));
+  });
+
+  it('a concurrent duplicate delivery (DUPLICATE_PAYMENT on the marker) returns quietly: no mint, no alert', async () => {
+    // Two deliveries race past findPaymentByTransactionId; the UNIQUE
+    // transaction_id makes the loser's insert fail with DUPLICATE_PAYMENT.
+    const dup = Object.assign(new Error('Supabase insert payments: duplicate key value violates unique constraint'), { code: 'DUPLICATE_PAYMENT' });
+    db.findPaymentByTransactionId.mockResolvedValueOnce(null);
+    db.createPayment.mockRejectedValueOnce(dup);
+
+    await expect(handleCheckoutSessionCompleted(session('cs_test_race'))).resolves.toBeUndefined();
+
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(db.createNftMint).not.toHaveBeenCalled();
+    expect(email.sendNftDelivery).not.toHaveBeenCalled();
+    expect(email.sendPurchaseConfirmation).not.toHaveBeenCalled();
+    expect(sendAlert).not.toHaveBeenCalled();
+  });
+
+  it('a non-duplicate Postgres error code on the marker still alerts and aborts before mint', async () => {
+    db.findPaymentByTransactionId.mockResolvedValueOnce(null);
+    db.createPayment.mockRejectedValueOnce(Object.assign(new Error('Supabase insert payments: null value in column'), { code: '23502' }));
+
+    await handleCheckoutSessionCompleted(session('cs_test_not_null'));
+
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('stripe.payment_marker_failed', expect.objectContaining({ sessionId: 'cs_test_not_null' }));
   });
 
   it('does NOT mint when the idempotency lookup itself fails', async () => {

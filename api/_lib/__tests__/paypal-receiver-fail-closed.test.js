@@ -27,6 +27,7 @@ vi.mock('../alert.js', () => ({ sendAlert: vi.fn().mockResolvedValue(undefined) 
 import { handleVerifiedIPN, processIPN } from '../../webhooks/paypal.js';
 import * as db from '../db.js';
 import * as crossmint from '../crossmint.js';
+import * as email from '../email.js';
 import { sendAlert } from '../alert.js';
 
 // A completed IPN for a $250 Full Package (tier "full" → Aurevon Insider).
@@ -133,6 +134,36 @@ describe('paypal IPN idempotency (fail-closed)', () => {
       'paypal.idempotency_lookup_failed',
       expect.objectContaining({ txnId: 'PP_TEST_1' }),
     );
+  });
+
+  it('mints once on the happy path (control for the marker tests below)', async () => {
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com'));
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
+    expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('a concurrent duplicate IPN (DUPLICATE_PAYMENT on the marker) returns quietly: no mint, no alert', async () => {
+    const dup = Object.assign(new Error('Supabase insert payments: duplicate key value violates unique constraint'), { code: 'DUPLICATE_PAYMENT' });
+    db.createPayment.mockRejectedValueOnce(dup);
+
+    await expect(handleVerifiedIPN(completedIpn('mike@aurevonvc.com'))).resolves.toBeUndefined();
+
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(db.createNftMint).not.toHaveBeenCalled();
+    expect(email.sendNftDelivery).not.toHaveBeenCalled();
+    expect(email.sendPurchaseConfirmation).not.toHaveBeenCalled();
+    expect(sendAlert).not.toHaveBeenCalled();
+  });
+
+  it('any other marker failure alerts and aborts before mint', async () => {
+    db.createPayment.mockRejectedValueOnce(new Error('Supabase insert payments: connection reset'));
+
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com'));
+
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(db.createNftMint).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('paypal.payment_marker_failed', expect.objectContaining({ txnId: 'PP_TEST_1' }));
   });
 
   it('does NOT process a verified IPN missing txn_id', async () => {
