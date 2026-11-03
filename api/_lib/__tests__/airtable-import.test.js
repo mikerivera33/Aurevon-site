@@ -59,7 +59,7 @@ describe('importFromAirtable', () => {
         ? [{ id: 'recOK', fields: { 'Email': 'a@b.com', 'Reference': 'INSIDER_001' } },
            { id: 'recBAD', fields: { 'Email': 'c@d.com', 'Reference': 'INSIDER_002' } }]
         : [];
-      return new Response(JSON.stringify({ records }), { status: 200 });
+      return { ok: true, status: 200, json: async () => ({ records }), text: async () => "" };
     });
   });
 
