@@ -16,5 +16,5 @@ docs/
 # Database schema (applied to Supabase, never served)
 supabase/
 
-# Discord bot source — runs on Railway, not part of the site
+# Discord bot source + its Google Cloud deploy scripts — not part of the site
 discord/
