@@ -120,7 +120,8 @@ export async function mintToEmail({
     metadata: {
       name: `Aurevon ${artKey} Pass`,
       image: imageUrl,
-      description: `${cfg.accessLabel} membership pass. Aurevon Ventures LLC Systems Capital Infrastructure. On-chain on ${CROSSMINT_CHAIN === 'base-sepolia' ? 'Base Sepolia (testnet)' : 'Base Ethereum L2'}. Serial: ${serial}.`,
+      // A mint without a reserved serial (counter outage) omits the sentence rather than writing "Serial: null".
+      description: `${cfg.accessLabel} membership pass. Aurevon Ventures LLC Systems Capital Infrastructure. On-chain on ${CROSSMINT_CHAIN === 'base-sepolia' ? 'Base Sepolia (testnet)' : 'Base Ethereum L2'}.${serial ? ` Serial: ${serial}.` : ''}`,
       animation_url: NFT_ANIMATIONS[artKey],
       attributes: [
         { trait_type: 'Tier',          value: cfg.nftType },

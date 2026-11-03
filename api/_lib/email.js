@@ -5,7 +5,7 @@
 
 import { signDiscordAccessToken } from '../discord.js';
 import { resolveEntitlementFromNftType } from './entitlements.js';
-import { isIntakeTier } from './intake-verify.js';
+import { isIntakeTier, STRIPE_SESSION_RE, PAYPAL_TXN_RE } from './tiers.js';
 import { sendAlert } from './alert.js';
 
 const RESEND_BASE_URL = 'https://api.resend.com';
@@ -41,11 +41,16 @@ export function discordLinkIsSigned(url) {
 const INTAKE_URL = 'https://www.aurevonvc.com/aurevon-re-intake.html';
 const UNDERWRITING_ENTITLEMENTS = new Set(['product_a_reward', 'product_b_reward', 'product_c_reward']);
 
-/** Deal-intake link; carries the Stripe Checkout session id when we have one. */
+/**
+ * Deal-intake link carrying the payment proof the intake gate accepts:
+ * `?session_id=` for a Stripe Checkout session, `?txn_id=` for a PayPal txn.
+ * Anything else (e.g. a `manual-…` mint id) gets the bare link.
+ */
 function buildIntakeUrl(transactionId) {
-  return typeof transactionId === 'string' && transactionId.startsWith('cs_')
-    ? `${INTAKE_URL}?session_id=${encodeURIComponent(transactionId)}`
-    : INTAKE_URL;
+  if (typeof transactionId !== 'string') return INTAKE_URL;
+  if (STRIPE_SESSION_RE.test(transactionId)) return `${INTAKE_URL}?session_id=${encodeURIComponent(transactionId)}`;
+  if (PAYPAL_TXN_RE.test(transactionId)) return `${INTAKE_URL}?txn_id=${encodeURIComponent(transactionId)}`;
+  return INTAKE_URL;
 }
 
 /** Insider / Ember / Obsidian Executive — the NFTs earned by an underwriting purchase. */
@@ -560,8 +565,6 @@ export async function sendPurchaseConfirmation({ email, customerName, tier, tran
     html: buildPurchaseConfirmHtml({ customerName, tier, transactionId }),
     text: buildPurchaseConfirmText({ customerName, tier, transactionId }),
   };
-
-  console.log(`[Resend] Sending purchase confirmation email to ${email}`);
 
   let response;
   try {

@@ -107,6 +107,14 @@ describe('minted variant', () => {
     expect(paypal).not.toContain('session_id=');
   });
 
+  it('a PayPal txn id adds ?txn_id=; a manual mint id adds nothing', () => {
+    const paypal = buildNftDeliveryHtml({ ...BASE, nftType: 'Aurevon Insider', transactionId: '8AB12345CD678901E' });
+    expect(paypal).toContain(`${INTAKE}?txn_id=8AB12345CD678901E`);
+    const manual = buildNftDeliveryHtml({ ...BASE, nftType: 'Aurevon Insider', transactionId: 'manual-1b2c3d4e-0000-4000-8000-000000000000' });
+    expect(manual).toContain(`${INTAKE}"`);
+    expect(manual).not.toMatch(/txn_id=|session_id=/);
+  });
+
   it.each(['001 Genesis', '004 Chrome'])('community NFT %s has no intake link', (nftType) => {
     const html = buildNftDeliveryHtml({ ...BASE, nftType });
     expect(html).not.toContain('aurevon-re-intake');
@@ -150,6 +158,11 @@ describe('purchase confirmation display names', () => {
     expect(uw).not.toContain('intake form');
     const addon = buildPurchaseConfirmHtml({ customerName: 'Pat', tier: 'addon_rush' });
     expect(addon).not.toContain('Submit your deal');
+  });
+
+  it('a PayPal purchase confirmation links the intake form with ?txn_id=', () => {
+    const pp = buildPurchaseConfirmHtml({ customerName: 'Pat', tier: 'single', transactionId: '5TY12345AB678901C' });
+    expect(pp).toContain(`${INTAKE}?txn_id=5TY12345AB678901C`);
   });
 });
 

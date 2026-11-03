@@ -59,6 +59,29 @@ export const TIER_NFT_MAP = new Proxy({}, {
 });
 
 /**
+ * Canonical (bare) tier key: strips the checkout `re_` prefix
+ * (`re_full` → `full`); any other value is returned unchanged.
+ * Used for the stored NFT_Mints `Tier Source`.
+ */
+export function canonicalTier(tier) {
+  return typeof tier === 'string' ? tier.replace(/^re_/, '') : tier;
+}
+
+// Only Aurevon Capital underwriting purchases unlock the deal-intake form —
+// not community memberships or stand-alone add-ons. Stripe metadata carries
+// the prefixed checkout key (re_full); PayPal rows carry the bare key (full).
+// Lives here (dependency-free) so email.js can use it without pulling in the
+// Stripe SDK; intake-verify.js re-exports it.
+export const INTAKE_TIERS = new Set(['single', 'full', 'bogo', 'retainer', 'enterprise', 'deal']);
+export function isIntakeTier(tier) {
+  return INTAKE_TIERS.has(String(tier ?? '').trim().toLowerCase().replace(/^re_/, ''));
+}
+
+/** Proof-of-payment id formats the deal-intake gate accepts. */
+export const STRIPE_SESSION_RE = /^cs_(test|live)_[A-Za-z0-9]+$/;
+export const PAYPAL_TXN_RE = /^[A-Za-z0-9]{8,32}$/;
+
+/**
  * Format a serial number as PREFIX_NNN.
  */
 export function formatSerial(prefix, number) {

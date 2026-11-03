@@ -19,16 +19,11 @@
 import Stripe from 'stripe';
 import { findPaymentByTransactionId } from './db.js';
 
-// Only Aurevon Capital underwriting purchases unlock the deal-intake form —
-// not community memberships or stand-alone add-ons. Stripe metadata carries
-// the prefixed checkout key (re_full); PayPal rows carry the bare key (full).
-const INTAKE_TIERS = new Set(['single', 'full', 'bogo', 'retainer', 'enterprise', 'deal']);
-export function isIntakeTier(tier) {
-  return INTAKE_TIERS.has(String(tier ?? '').trim().toLowerCase().replace(/^re_/, ''));
-}
+import { isIntakeTier, STRIPE_SESSION_RE, PAYPAL_TXN_RE } from './tiers.js';
 
-export const STRIPE_SESSION_RE = /^cs_(test|live)_[A-Za-z0-9]+$/;
-export const PAYPAL_TXN_RE = /^[A-Za-z0-9]{8,32}$/;
+// INTAKE_TIERS / isIntakeTier and the id formats live in tiers.js (dependency-free);
+// re-exported so existing imports keep working.
+export { isIntakeTier, STRIPE_SESSION_RE, PAYPAL_TXN_RE };
 
 function succeededPayment(record) {
   if (!record) return null;

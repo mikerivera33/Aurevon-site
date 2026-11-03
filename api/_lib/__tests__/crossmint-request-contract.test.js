@@ -86,6 +86,15 @@ describe('mintToEmail request contract', () => {
     expect(res).toEqual({ ok: true, actionId: 'act_1', id: 'nft_1', tokenId: '7', imageUrl: IPFS[art] });
   });
 
+  it('description carries the serial, and omits it (never "Serial: null") when none was reserved', async () => {
+    await crossmint.mintToEmail({ email: 'b@example.com', nftType: 'Aurevon Ember', serial: 'EMBER_007', idempotencyKey: 'ks1' });
+    await crossmint.mintToEmail({ email: 'b@example.com', nftType: 'Aurevon Ember', serial: null, idempotencyKey: 'ks2' });
+    expect(JSON.parse(calls[0].opts.body).metadata.description).toContain('Serial: EMBER_007.');
+    const bare = JSON.parse(calls[1].opts.body).metadata.description;
+    expect(bare).not.toMatch(/Serial|null|undefined/);
+    expect(bare).toMatch(/Base Ethereum L2\.$/);
+  });
+
   it('Obsidian carries the Executive rarity', async () => {
     await crossmint.mintToEmail({ email: 'b@example.com', nftType: 'Aurevon Obsidian Executive', serial: 'O_1', idempotencyKey: 'k1' });
     const attrs = JSON.parse(calls[0].opts.body).metadata.attributes;
