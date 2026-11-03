@@ -78,15 +78,6 @@
     }
 
     .logo span { color: var(--white); }
-
-    .header-label {
-      font-size: 0.75rem;
-      font-weight: 500;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
     /* ---- Hero ---- */
     .hero {
       width: 100%;
@@ -94,21 +85,6 @@
       text-align: center;
       margin-top: 5rem;
     }
-
-    .badge {
-      display: inline-block;
-      padding: 0.35rem 1rem;
-      background: rgba(200, 169, 110, 0.1);
-      border: 1px solid rgba(200, 169, 110, 0.3);
-      border-radius: 100px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      color: var(--gold);
-      margin-bottom: 2rem;
-    }
-
     .hero-title {
       font-family: 'Space Grotesk', sans-serif;
       font-size: clamp(2.5rem, 6vw, 3.75rem);
@@ -236,12 +212,6 @@
     }
 
     .btn-discord svg { flex-shrink: 0; }
-
-    .cta-note {
-      font-size: 0.78rem;
-      color: var(--muted);
-    }
-
     /* ---- Error state ---- */
     .error-box {
       background: rgba(239, 68, 68, 0.08);
@@ -301,23 +271,18 @@
   <!-- Header -->
   <header class="header">
     <div class="logo"><img src="assets/aurevon_logo_nav.png" alt="Aurevon" style="width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:contain;">Aurevon<span> Ventures</span></div>
-    <div class="header-label">Operator Portal</div>
   </header>
 
   <main id="main-content" class="hero" style="display:none">
-    <div class="badge">Access Granted</div>
     <h1 class="hero-title">You're In,<br/><span class="accent">Operator.</span></h1>
-    <p class="hero-sub">
-      Your NFT has been verified and your Discord role has been assigned.
-      Welcome to the Aurevon private operator network.
-    </p>
+    <p class="hero-sub">Your Discord role is assigned.</p>
 
     <div class="role-chip">
       <span class="dot"></span>
       <span id="role-label">Loading…</span>
     </div>
 
-    <div class="section-label">Channels you now have access to</div>
+    <h2 class="section-label">Your channels</h2>
     <div class="channels-grid" id="channels-grid">
       <!-- Injected by JS -->
     </div>
@@ -330,7 +295,6 @@
         </svg>
         Open Discord
       </a>
-      <p class="cta-note">Discord will open in a new tab. Your role is already assigned.</p>
     </div>
   </main>
 
@@ -342,8 +306,7 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <span>Aurevon &copy; <span id="aurevonYr">2026</span></span>
-    <span>Confidential — Operator Access Only</span>
+    <span>&copy; <span id="aurevonYr">2026</span> Aurevon Ventures LLC</span>
   </footer>
 </div>
 
