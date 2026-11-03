@@ -537,7 +537,7 @@ footer{padding:2.2rem 0;border-top:1px solid rgba(255,255,255,0.07);color:var(--
       <div class="cstep reveal">
         <div class="cstep-num">1</div>
         <div>
-          <h3 style="margin:0 0 0.3rem;font-size:1rem;">Buy any plan except Second Opinion</h3>
+          <h3 style="margin:0 0 0.3rem;font-size:1rem;">Buy Full Package, Pro Retainer or Enterprise</h3>
           <p style="margin:0;color:var(--text-muted);font-size:0.88rem;">Card checkout. No wallet or crypto needed.</p>
         </div>
       </div>
@@ -1357,6 +1357,8 @@ targets.forEach(t => spy.observe(t));
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape') close(); });
 
   window.openAUREVONPayment = function(opts){
+    var payErr = document.getElementById('aurevon-pay-error');
+    if (payErr) { payErr.style.display = 'none'; payErr.textContent = ''; }
     currentTier = opts.tier;
     currentAmount = opts.amount;
     currentMembership = !!opts.isMembership;
