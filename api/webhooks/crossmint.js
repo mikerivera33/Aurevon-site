@@ -23,7 +23,7 @@ import crypto from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
 import {
   updateNftMint, findMemberByEmail, findMintByActionId, findMintByTokenId,
-  findActiveMintByEmailAndTypeWithoutToken, findActiveMintsByEmail, updateDiscordSyncStatus,
+  listActiveMintsByEmailAndTypeWithoutToken, findActiveMintsByEmail, updateDiscordSyncStatus,
 } from '../_lib/db.js';
 import {
   ENTITLEMENT_MAP, resolveEntitlementFromNftType, getRoleId, pickGrantableMint, UNKNOWN_BILLING_FIELDS,
@@ -95,8 +95,9 @@ const emptyToken = (row) => {
  * Find the nft_mints row an event refers to:
  *   1. Crossmint Action ID
  *   2. Token ID === actionId (rows written before the action id had its own column)
- *   3. recipient email + NFT type (from the collection id), active and token-less
+ *   3. recipient email + NFT type (from the collection id): exactly one active token-less row
  *   4. shared/unknown collection: email only, when exactly one active row is token-less
+ * Anything ambiguous returns null (→ unmatched alert) rather than guessing a row.
  */
 async function findMintForEvent(event) {
   const actionId = event?.actionId ?? null;
@@ -110,7 +111,10 @@ async function findMintForEvent(event) {
   const email = data.recipient?.email;
   if (!email) return null;
   const nftType = nftTypeFromCollection(data.collection?.id);
-  if (nftType) return findActiveMintByEmailAndTypeWithoutToken(email, nftType);
+  if (nftType) {
+    const typed = (await listActiveMintsByEmailAndTypeWithoutToken(email, nftType)) ?? [];
+    return typed.length === 1 ? typed[0] : null;
+  }
   const candidates = ((await findActiveMintsByEmail(email)) ?? []).filter(emptyToken);
   return candidates.length === 1 ? candidates[0] : null;
 }

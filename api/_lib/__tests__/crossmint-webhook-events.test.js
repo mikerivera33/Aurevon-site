@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('../db.js', () => ({
   updateNftMint: vi.fn(), findMemberByEmail: vi.fn(), findMintByActionId: vi.fn(), findMintByTokenId: vi.fn(),
-  findActiveMintByEmailAndTypeWithoutToken: vi.fn(), findActiveMintsByEmail: vi.fn(), updateDiscordSyncStatus: vi.fn(),
+  listActiveMintsByEmailAndTypeWithoutToken: vi.fn(), findActiveMintsByEmail: vi.fn(), updateDiscordSyncStatus: vi.fn(),
 }));
 vi.mock('../alert.js', () => ({ sendAlert: vi.fn() }));
 vi.mock('../discord-bot.js', () => ({ syncMemberRoles: vi.fn(), addRoleToMember: vi.fn() }));
@@ -66,7 +66,7 @@ beforeEach(() => {
   process.env.DISCORD_ROLE_PRODUCT_A = 'role_insider';
   db.findMintByActionId.mockResolvedValue(null);
   db.findMintByTokenId.mockResolvedValue(null);
-  db.findActiveMintByEmailAndTypeWithoutToken.mockResolvedValue(null);
+  db.listActiveMintsByEmailAndTypeWithoutToken.mockResolvedValue([]);
   db.findActiveMintsByEmail.mockResolvedValue([]);
   db.findMemberByEmail.mockResolvedValue(null);
   db.updateNftMint.mockResolvedValue({});
@@ -121,17 +121,33 @@ describe('correlation fallbacks', () => {
   });
 
   it('maps a dedicated collection id to its NFT type for the email lookup', async () => {
-    db.findActiveMintByEmailAndTypeWithoutToken.mockResolvedValue(ROW);
+    db.listActiveMintsByEmailAndTypeWithoutToken.mockResolvedValue([ROW]);
     await handleMintSuccess(success());
-    expect(db.findActiveMintByEmailAndTypeWithoutToken).toHaveBeenCalledWith('buyer@example.com', 'Aurevon Insider');
+    expect(db.listActiveMintsByEmailAndTypeWithoutToken).toHaveBeenCalledWith('buyer@example.com', 'Aurevon Insider');
     expect(db.updateNftMint).toHaveBeenCalledWith('row_1', expect.objectContaining({ 'Mint Status': 'Minted' }));
+  });
+
+  it('two token-less rows of the same type → no update, unmatched alert, 200', async () => {
+    db.listActiveMintsByEmailAndTypeWithoutToken.mockResolvedValue([ROW, { ...ROW, id: 'row_2' }]);
+    const res = await deliver(success());
+    expect(res.statusCode).toBe(200);
+    expect(db.updateNftMint).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('crossmint.webhook_unmatched', expect.objectContaining({ actionId: 'act_1' }), expect.anything());
+  });
+
+  it('two token-less rows of the same type on a failed event → no row marked Failed', async () => {
+    db.listActiveMintsByEmailAndTypeWithoutToken.mockResolvedValue([ROW, { ...ROW, id: 'row_2' }]);
+    await handleMintFailure({ type: 'nfts.create.failed', actionId: 'act_1',
+      data: { collection: { id: 'col_insider' }, recipient: { email: 'buyer@example.com' }, error: { message: 'x' } } });
+    expect(db.updateNftMint).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('crossmint.webhook_unmatched', expect.anything(), expect.anything());
   });
 
   it('shared collection: matches by email when exactly one active row has no token', async () => {
     process.env.CROSSMINT_COLLECTION_PRODUCT_B = 'col_insider'; // two NFTs share one collection
     db.findActiveMintsByEmail.mockResolvedValue([ROW, { id: 'row_2', fields: { 'Token ID': '3' } }]);
     await handleMintSuccess(success());
-    expect(db.findActiveMintByEmailAndTypeWithoutToken).not.toHaveBeenCalled();
+    expect(db.listActiveMintsByEmailAndTypeWithoutToken).not.toHaveBeenCalled();
     expect(db.updateNftMint).toHaveBeenCalledWith('row_1', expect.objectContaining({ 'Mint Status': 'Minted' }));
   });
 

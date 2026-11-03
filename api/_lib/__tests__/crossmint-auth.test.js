@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('../db.js', () => ({
   updateNftMint: vi.fn(), findMemberByEmail: vi.fn(), findMintByActionId: vi.fn(), findMintByTokenId: vi.fn(),
-  findActiveMintByEmailAndTypeWithoutToken: vi.fn(), findActiveMintsByEmail: vi.fn(), updateDiscordSyncStatus: vi.fn(),
+  listActiveMintsByEmailAndTypeWithoutToken: vi.fn(), findActiveMintsByEmail: vi.fn(), updateDiscordSyncStatus: vi.fn(),
 }));
 vi.mock('../alert.js', () => ({ sendAlert: vi.fn() }));
 vi.mock('../discord-bot.js', () => ({ syncMemberRoles: vi.fn(), addRoleToMember: vi.fn() }));
@@ -69,6 +69,12 @@ describe('verifyCrossmintSignature (Svix)', () => {
       const h = { ...headers }; delete h[k];
       expect(verifyCrossmintSignature(BODY, h, SECRET)).toBe(false);
     }
+  });
+
+  it('rejects a valid MAC under a non-v1 version tag', () => {
+    const headers = signSvix({ secret: SECRET, id: 'msg_1', timestamp: now(), body: BODY });
+    headers['svix-signature'] = headers['svix-signature'].replace(/^v1,/, 'v2,');
+    expect(verifyCrossmintSignature(BODY, headers, SECRET)).toBe(false);
   });
 
   it('rejects a timestamp outside the 5-minute tolerance', () => {

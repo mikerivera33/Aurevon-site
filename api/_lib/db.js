@@ -333,6 +333,17 @@ export async function findActiveMintByEmailAndTypeWithoutToken(email, nftType) {
     'findActiveMintByEmailAndTypeWithoutToken');
 }
 
+/**
+ * Every active, token-less mint of one type (newest first). Webhook correlation
+ * uses it to act only when exactly one candidate exists.
+ */
+export async function listActiveMintsByEmailAndTypeWithoutToken(email, nftType, maxRecords = 5) {
+  return many('nft_mints',
+    from('nft_mints').eq('email', normEmail(email)).eq('nft_type', nftType).in('mint_status', ACTIVE_MINT)
+      .or('token_id.is.null,token_id.eq.').order('created_at', { ascending: false }).limit(maxRecords),
+    'listActiveMintsByEmailAndTypeWithoutToken');
+}
+
 /** Any mint row (incl. Failed) for an email + type — orphan-payment recovery. */
 export async function findAnyMintByEmailAndType(email, nftType) {
   return one('nft_mints',

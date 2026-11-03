@@ -400,6 +400,17 @@ describe('mint lookups', () => {
     expect(op('or')).toEqual([['or', 'token_id.is.null,token_id.eq.']]);
   });
 
+  it('listActiveMintsByEmailAndTypeWithoutToken: same filters, newest first, limited list', async () => {
+    respond({ data: [], error: null });
+    const rows = await db.listActiveMintsByEmailAndTypeWithoutToken('A@B.co', 'Aurevon Insider');
+    expect(rows).toEqual([]);
+    expect(op('eq')).toEqual([['eq', 'email', 'a@b.co'], ['eq', 'nft_type', 'Aurevon Insider']]);
+    expect(op('in')).toEqual([['in', 'mint_status', ['Minted', 'Sent', 'Queued']]]);
+    expect(op('or')).toEqual([['or', 'token_id.is.null,token_id.eq.']]);
+    expect(op('order')).toEqual([['order', 'created_at', { ascending: false }]]);
+    expect(op('limit')).toEqual([['limit', 5]]);
+  });
+
   it('listFailedMints: Failed under the retry cap, oldest first, default 10', async () => {
     respond({ data: [], error: null }, { data: [], error: null });
     await db.listFailedMints();
