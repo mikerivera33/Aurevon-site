@@ -268,6 +268,27 @@ describe('createPayment (webhook idempotency marker)', () => {
   });
 });
 
+describe('updatePaymentStatus (refund / dispute)', () => {
+  it('updates status by transaction_id and returns the record', async () => {
+    respond({ data: [{ id: 'p1', transaction_id: 'cs_live_1', status: 'Refunded' }], error: null });
+    const rec = await db.updatePaymentStatus('cs_live_1', 'Refunded');
+    expect(rec).toEqual({ id: 'p1', fields: { 'Transaction ID': 'cs_live_1', 'Status': 'Refunded' } });
+    expect(state.calls.at(-1).table).toBe('payments');
+    expect(op('update')).toEqual([['update', { status: 'Refunded' }]]);
+    expect(op('eq')).toEqual([['eq', 'transaction_id', 'cs_live_1']]);
+  });
+
+  it('returns null when no Payments row has that transaction id', async () => {
+    respond({ data: [], error: null });
+    expect(await db.updatePaymentStatus('cs_missing', 'Disputed')).toBeNull();
+  });
+
+  it('throws on a database error', async () => {
+    respond({ data: null, error: { message: 'boom', code: 'XX000' } });
+    await expect(db.updatePaymentStatus('cs_live_1', 'Refunded')).rejects.toThrow(/updatePaymentStatus/);
+  });
+});
+
 describe('upsertMemberByEmail', () => {
   it('upserts on email with the normalized email, ignoring an Email field in the patch', async () => {
     respond({ data: { id: 'u1', email: 'm@example.com', billing_state: 'active' }, error: null });

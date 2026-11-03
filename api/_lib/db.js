@@ -475,6 +475,18 @@ export async function findPaymentByTransactionId(transactionId) {
   return one('payments', from('payments').eq('transaction_id', String(transactionId)), 'findPaymentByTransactionId');
 }
 
+/**
+ * Set Payments.Status by transaction id (Stripe refund / dispute → 'Refunded' | 'Disputed').
+ * Returns the updated record, or null when no row has that transaction id.
+ */
+export async function updatePaymentStatus(transactionId, status) {
+  if (!transactionId) return null;
+  const res = await supabase().from('payments').update(toRow('payments', { 'Status': status }))
+    .eq('transaction_id', String(transactionId)).select();
+  const rows = check(res, 'updatePaymentStatus') ?? [];
+  return toRecord('payments', rows[0] ?? null);
+}
+
 /** Latest Payments row for an email + pass type (retry-mints reuses its id). */
 export async function findLatestPaymentByEmailAndTier(email, tier) {
   return one('payments',

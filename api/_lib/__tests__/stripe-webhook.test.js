@@ -9,7 +9,7 @@
  *   3. Unpaid async checkouts (Afterpay / Cash App / ACH) must not fulfill
  *      on the checkout.session.completed precursor — only after settlement.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 
 // Mock the side-effecting libs. tiers.js stays REAL so TIER_NFT_MAP / getNextSerial
 // exercise the real mapping (getNextSerial reserves from the mocked nextSerial counter;
@@ -24,7 +24,12 @@ vi.mock('../db.js', () => ({
   updateEntitlementState: vi.fn().mockResolvedValue({}),
   // fulfil.js (shared NFT fulfilment):
   findMintByPaymentId: vi.fn().mockResolvedValue(null), updateNftMint: vi.fn().mockResolvedValue({}),
+  // refunds / disputes:
+  updatePaymentStatus: vi.fn().mockResolvedValue(null), findActiveMintsByEmail: vi.fn().mockResolvedValue([]),
 }));
+// Capture waitUntil work so handler tests can await the background pipeline.
+const bg = vi.hoisted(() => ({ pending: [] }));
+vi.mock('@vercel/functions', () => ({ waitUntil: (p) => { bg.pending.push(p); } }));
 vi.mock('../airtable-import.js', () => ({ airtableImportEnabled: vi.fn(() => false), countAirtableMintsByPrefix: vi.fn() }));
 vi.mock('../crossmint.js', () => ({
   mintToEmail: vi.fn().mockResolvedValue({ ok: true, actionId: 'act_test', imageUrl: null }),
@@ -43,11 +48,16 @@ vi.mock('stripe', () => ({
     constructor() {
       this.subscriptions = { update: subscriptionsUpdate, retrieve: subscriptionsRetrieve };
       this.customers = { retrieve: vi.fn() };
+      this.checkout = { sessions: { list: vi.fn().mockResolvedValue({ data: [] }) } };
     }
   },
 }));
 
-import { handleCheckoutSessionCompleted, isSettledCheckout } from '../../webhooks/stripe.js';
+import crypto from 'node:crypto';
+import { Readable } from 'node:stream';
+import handler, {
+  handleCheckoutSessionCompleted, isSettledCheckout, recordCheckoutPayment, verifyStripeSignature, REQUIRED_STRIPE_EVENTS,
+} from '../../webhooks/stripe.js';
 import * as db from '../db.js';
 import * as crossmint from '../crossmint.js';
 import { sendAlert } from '../alert.js';
@@ -241,5 +251,231 @@ describe('Stripe webhook settlement gate (async payment methods)', () => {
 
     expect(db.createPayment).toHaveBeenCalledTimes(1);
     expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('activateMonthlyBilling paid-through date', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    db.createPayment.mockResolvedValue({});
+    db.findPaymentByTransactionId.mockResolvedValue(null);
+    process.env.STRIPE_SECRET_KEY = 'sk_test_x';
+  });
+
+  it('passes expiresAt from the live subscription current_period_end', async () => {
+    const periodEnd = 1893456000;
+    subscriptionsRetrieve.mockResolvedValueOnce({ status: 'active', current_period_end: periodEnd });
+    await handleCheckoutSessionCompleted(session('cs_test_expiry', {
+      mode: 'subscription', subscription: 'sub_exp', amount_total: 2999, metadata: { tier: 'comm_monthly' },
+    }));
+    expect(subscriptionsRetrieve).toHaveBeenCalledWith('sub_exp');
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('buyer@example.com', {
+      entitlementType: 'monthly_membership', status: 'active', billingState: 'active',
+      expiresAt: new Date(periodEnd * 1000).toISOString(),
+    });
+  });
+});
+
+// ── Vercel handler: signature, sync-ack marker, background crash alerts ──────
+
+const SECRET = 'whsec_test_handler';
+
+function sign(body, secret = SECRET, ts = Math.floor(Date.now() / 1000)) {
+  return { ts, v1: crypto.createHmac('sha256', secret).update(`${ts}.${body}`).digest('hex') };
+}
+
+function makeReq(body, sigHeader) {
+  const req = Readable.from([Buffer.from(body)]);
+  req.method = 'POST';
+  req.headers = { 'stripe-signature': sigHeader };
+  return req;
+}
+
+function makeRes() {
+  return {
+    statusCode: 0, body: null,
+    status(c) { this.statusCode = c; return this; },
+    json(b) { this.body = b; return this; },
+  };
+}
+
+async function deliverEvent(event, { header } = {}) {
+  const body = JSON.stringify(event);
+  const { ts, v1 } = sign(body);
+  const res = makeRes();
+  await handler(makeReq(body, header ?? `t=${ts},v1=${v1}`), res);
+  await Promise.all(bg.pending.splice(0));
+  return res;
+}
+
+const checkoutEvent = (s, type = 'checkout.session.completed') => ({ id: `evt_${s.id}`, type, data: { object: s } });
+
+describe('Stripe webhook handler', () => {
+  const SAVED_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    bg.pending.length = 0;
+    process.env.STRIPE_WEBHOOK_SECRET = SECRET;
+    db.createPayment.mockResolvedValue({});
+    db.findPaymentByTransactionId.mockResolvedValue(null);
+    db.findMintByPaymentId.mockResolvedValue(null);
+  });
+  afterAll(() => {
+    if (SAVED_SECRET === undefined) delete process.env.STRIPE_WEBHOOK_SECRET;
+    else process.env.STRIPE_WEBHOOK_SECRET = SAVED_SECRET;
+  });
+
+  it('answers 500 and alerts when STRIPE_WEBHOOK_SECRET is unset', async () => {
+    delete process.env.STRIPE_WEBHOOK_SECRET;
+    const res = makeRes();
+    await handler(makeReq('{}', 't=1,v1=00'), res);
+    expect(res.statusCode).toBe(500);
+    expect(sendAlert).toHaveBeenCalledWith('stripe.webhook_unconfigured', {}, { severity: 'critical', dedupeKey: 'config' });
+  });
+
+  it('rejects a bad signature with 400', async () => {
+    const res = await deliverEvent(checkoutEvent(session('cs_bad_sig')), { header: `t=${Math.floor(Date.now() / 1000)},v1=${'0'.repeat(64)}` });
+    expect(res.statusCode).toBe(400);
+    expect(db.createPayment).not.toHaveBeenCalled();
+  });
+
+  it('accepts a header with two v1 entries when only the second matches (secret rotation)', async () => {
+    const body = JSON.stringify(checkoutEvent(session('cs_two_sigs')));
+    const { ts, v1 } = sign(body);
+    const stale = sign(body, 'whsec_old_secret', ts).v1;
+    expect(() => verifyStripeSignature(body, `t=${ts},v1=${stale},v1=${v1}`, SECRET)).not.toThrow();
+    expect(() => verifyStripeSignature(body, `t=${ts},v1=${v1},v1=${stale}`, SECRET)).not.toThrow();
+    expect(() => verifyStripeSignature(body, `t=${ts},v1=${stale}`, SECRET)).toThrow(/mismatch/);
+
+    const res = makeRes();
+    await handler(makeReq(body, `t=${ts},v1=${stale},v1=${v1}`), res);
+    await Promise.all(bg.pending.splice(0));
+    expect(res.statusCode).toBe(200);
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
+  });
+
+  it('still rejects an expired timestamp even when a v1 entry matches', () => {
+    const body = '{}';
+    const old = Math.floor(Date.now() / 1000) - 600;
+    const { v1 } = sign(body, SECRET, old);
+    expect(() => verifyStripeSignature(body, `t=${old},v1=${v1}`, SECRET)).toThrow(/too old/);
+  });
+
+  it('records the Payments marker BEFORE acking, then fulfils in the background', async () => {
+    const res = await deliverEvent(checkoutEvent(session('cs_sync_ok')));
+    expect(res.statusCode).toBe(200);
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
+    expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('a DB failure on the marker answers 500 (Stripe redelivers) and never mints', async () => {
+    db.createPayment.mockRejectedValueOnce(new Error('Supabase 503'));
+    const res = await deliverEvent(checkoutEvent(session('cs_sync_fail')));
+    expect(res.statusCode).toBe(500);
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(db.createNftMint).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('stripe.payment_marker_failed',
+      expect.objectContaining({ sessionId: 'cs_sync_fail', error: 'Supabase 503' }),
+      { severity: 'critical', dedupeKey: 'cs_sync_fail' });
+  });
+
+  it('a failed idempotency lookup also answers 500 and never mints', async () => {
+    db.findPaymentByTransactionId.mockRejectedValueOnce(new Error('Supabase timeout'));
+    const res = await deliverEvent(checkoutEvent(session('cs_lookup_500')));
+    expect(res.statusCode).toBe(500);
+    expect(db.createPayment).not.toHaveBeenCalled();
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+  });
+
+  it('recordCheckoutPayment throws on a real DB failure but not on DUPLICATE_PAYMENT', async () => {
+    db.createPayment.mockRejectedValueOnce(new Error('Supabase 500'));
+    await expect(recordCheckoutPayment(session('cs_rec_throw'))).rejects.toThrow('Supabase 500');
+    db.createPayment.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'DUPLICATE_PAYMENT' }));
+    await expect(recordCheckoutPayment(session('cs_rec_dup'))).resolves.toMatchObject({ status: 'duplicate', concurrent: true, tier: 'full' });
+    await expect(recordCheckoutPayment(session('cs_rec_ok'))).resolves.toMatchObject({ status: 'recorded', tier: 'full' });
+    await expect(recordCheckoutPayment(session('cs_rec_unpaid', { payment_status: 'unpaid' }))).resolves.toMatchObject({ status: 'skipped' });
+  });
+
+  it('a concurrent DUPLICATE_PAYMENT answers 200 and does not mint', async () => {
+    db.createPayment.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 'DUPLICATE_PAYMENT' }));
+    const res = await deliverEvent(checkoutEvent(session('cs_sync_dup')));
+    expect(res.statusCode).toBe(200);
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(db.createNftMint).not.toHaveBeenCalled();
+    expect(email.sendNftDelivery).not.toHaveBeenCalled();
+  });
+
+  it('a redelivery (Payments row exists, mint row exists) answers 200 and does not mint again', async () => {
+    db.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
+    db.findMintByPaymentId.mockResolvedValueOnce({ id: 'mint_prior', fields: { 'Mint Status': 'Sent', 'Reference': 'INSIDER_001' } });
+    const res = await deliverEvent(checkoutEvent(session('cs_redeliver_done')));
+    expect(res.statusCode).toBe(200);
+    expect(db.createPayment).not.toHaveBeenCalled();
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(email.sendNftDelivery).not.toHaveBeenCalled();
+  });
+
+  it('a redelivery whose first run died before minting self-heals (fulfilNft re-driven)', async () => {
+    db.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
+    const res = await deliverEvent(checkoutEvent(session('cs_redeliver_heal')));
+    expect(res.statusCode).toBe(200);
+    expect(db.createPayment).not.toHaveBeenCalled();
+    expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('a redelivery of a refunded payment is never fulfilled again', async () => {
+    db.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior', fields: { 'Status': 'Refunded' } });
+    const res = await deliverEvent(checkoutEvent(session('cs_redeliver_refunded')));
+    expect(res.statusCode).toBe(200);
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(db.createNftMint).not.toHaveBeenCalled();
+  });
+
+  it('a redelivered no-NFT purchase does not resend the purchase confirmation', async () => {
+    db.findPaymentByTransactionId.mockResolvedValueOnce({ id: 'recPrior' });
+    await deliverEvent(checkoutEvent(session('cs_redeliver_bogo', { amount_total: 29999, metadata: { tier: 'bogo' } })));
+    expect(email.sendPurchaseConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('an unsettled checkout answers 200 with the awaiting-payment alert and no marker', async () => {
+    const res = await deliverEvent(checkoutEvent(session('cs_sync_unpaid', { payment_status: 'unpaid' })));
+    expect(res.statusCode).toBe(200);
+    expect(db.createPayment).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('stripe.checkout_awaiting_payment', expect.objectContaining({ sessionId: 'cs_sync_unpaid' }));
+  });
+
+  it('a crash in background work alerts stripe.pipeline_crashed', async () => {
+    // The renewal write fails, then its own alert throws: the handler rejects
+    // after the 200, which only the waitUntil catch can surface.
+    db.updateEntitlementState.mockRejectedValueOnce(new Error('db down'));
+    sendAlert.mockImplementationOnce(() => { throw new Error('alert sink down'); });
+    const res = await deliverEvent({
+      id: 'evt_crash', type: 'invoice.payment_succeeded',
+      data: { object: { amount_paid: 2999, customer_email: 'm@example.com' } },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(sendAlert).toHaveBeenCalledWith('stripe.pipeline_crashed',
+      { eventId: 'evt_crash', type: 'invoice.payment_succeeded', error: 'alert sink down' },
+      { severity: 'critical', dedupeKey: 'evt_crash' });
+  });
+
+  it('handles every REQUIRED_STRIPE_EVENTS type (none falls through to "Ignoring")', async () => {
+    expect(REQUIRED_STRIPE_EVENTS).toEqual([
+      'checkout.session.completed', 'checkout.session.async_payment_succeeded', 'checkout.session.async_payment_failed',
+      'customer.subscription.updated', 'customer.subscription.deleted', 'invoice.payment_succeeded',
+      'invoice.payment_failed', 'charge.refunded', 'charge.dispute.created',
+    ]);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      for (const type of REQUIRED_STRIPE_EVENTS) {
+        const res = await deliverEvent({ id: `evt_${type}`, type, data: { object: { id: `obj_${type}`, payment_status: 'unpaid', metadata: {} } } });
+        expect(res.statusCode).toBe(200);
+      }
+      expect(log.mock.calls.some(([m]) => String(m).includes('Ignoring event'))).toBe(false);
+      await deliverEvent({ id: 'evt_other', type: 'payout.paid', data: { object: {} } });
+      expect(log.mock.calls.some(([m]) => String(m).includes('Ignoring event type="payout.paid"'))).toBe(true);
+    } finally {
+      log.mockRestore();
+    }
   });
 });

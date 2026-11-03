@@ -17,6 +17,8 @@ vi.mock('../db.js', () => ({
   findMemberByEmail: vi.fn().mockResolvedValue(null), findPaymentByTransactionId: vi.fn(),
   // fulfil.js (shared NFT fulfilment):
   findMintByPaymentId: vi.fn().mockResolvedValue(null), updateNftMint: vi.fn().mockResolvedValue({}),
+  // refunds / disputes:
+  updatePaymentStatus: vi.fn().mockResolvedValue(null), findActiveMintsByEmail: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('../crossmint.js', () => ({ mintToEmail: vi.fn() }));
 vi.mock('../email.js', () => ({ sendNftDelivery: vi.fn(), sendPurchaseConfirmation: vi.fn() }));
@@ -69,6 +71,37 @@ describe('handleInvoicePaymentSucceeded', () => {
     await handleInvoicePaymentSucceeded({
       amount_paid: 149900,
       customer_email: 'retainer@example.com',
+      lines: { data: [{ period: { end: PERIOD_END } }] },
+    });
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+  });
+
+  it('reads the tier from subscription_details metadata before amount inference ($0 promo renewal)', async () => {
+    await handleInvoicePaymentSucceeded({
+      amount_paid: 0,
+      customer_email: 'promo@example.com',
+      subscription_details: { metadata: { tier: 'comm_monthly' } },
+      lines: { data: [{ period: { end: PERIOD_END } }] },
+    });
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('promo@example.com', {
+      entitlementType: 'monthly_membership', status: 'active', expiresAt: PERIOD_END_ISO, billingState: 'active',
+    });
+  });
+
+  it('falls back to the invoice line metadata tier', async () => {
+    await handleInvoicePaymentSucceeded({
+      amount_paid: 2399, // discounted — amount alone infers nothing
+      customer_email: 'line@example.com',
+      lines: { data: [{ metadata: { tier: 'comm_monthly' }, period: { end: PERIOD_END } }] },
+    });
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('line@example.com', expect.objectContaining({ billingState: 'active' }));
+  });
+
+  it('metadata tier for a non-monthly plan wins over a $29.99 amount', async () => {
+    await handleInvoicePaymentSucceeded({
+      amount_paid: 2999,
+      customer_email: 'ret@example.com',
+      subscription_details: { metadata: { tier: 're_retainer' } },
       lines: { data: [{ period: { end: PERIOD_END } }] },
     });
     expect(db.updateEntitlementState).not.toHaveBeenCalled();

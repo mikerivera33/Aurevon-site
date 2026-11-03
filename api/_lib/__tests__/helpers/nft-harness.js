@@ -45,6 +45,12 @@ export function makeFakeDb(store) {
       store.payments.set(p.transactionId, rec);
       return rec;
     }),
+    updatePaymentStatus: vi.fn(async (id, status) => {
+      const rec = store.payments.get(id);
+      if (!rec) return null;
+      rec.fields['Status'] = status;
+      return rec;
+    }),
     listPaymentsSince: vi.fn(async () => []),
     findLatestPaymentByEmailAndTier: vi.fn(async () => null),
     // serials
