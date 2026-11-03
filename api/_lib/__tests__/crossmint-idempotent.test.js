@@ -20,7 +20,7 @@ beforeEach(() => {
   process.env.CROSSMINT_API_KEY = 'ck_test_key';
   process.env.CROSSMINT_COLLECTION_ID = 'col_test';
   vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
-    lastCall = { url, method: opts.method };
+    lastCall = { url, method: opts.method, body: JSON.parse(opts.body) };
     return { ok: true, json: async () => ({ actionId: 'act_123', id: 'nft_1' }) };
   }));
 });
@@ -36,11 +36,15 @@ describe('mintToEmail idempotency', () => {
     expect(res.ok).toBe(true);
     expect(lastCall.method).toBe('PUT');
     expect(lastCall.url).toMatch(/\/collections\/col_test\/nfts\/cs_live_ABC123$/);
+    // Body follows the documented contract: string recipient, no templateId.
+    expect(Object.keys(lastCall.body).sort()).toEqual(['metadata', 'recipient', 'reuploadLinkedFiles', 'sendNotification']);
+    expect(lastCall.body.recipient).toBe('email:buyer@example.com:base');
+    expect(lastCall.body.templateId).toBeUndefined();
   });
 
   it('sanitizes unsafe characters in the idempotency key (Crossmint path-id safety)', async () => {
     await mintToEmail({
-      email: 'b@example.com', nftType: 'x', customerName: 'B',
+      email: 'b@example.com', nftType: 'Aurevon Insider', customerName: 'B',
       templateKey: null, serial: null, collectionName: 'A', tierKey: 'full',
       idempotencyKey: 'pp/txn:99 #weird',
     });
@@ -51,7 +55,7 @@ describe('mintToEmail idempotency', () => {
 
   it('falls back to non-idempotent POST /nfts when no key is supplied', async () => {
     await mintToEmail({
-      email: 'b@example.com', nftType: 'x', customerName: 'B',
+      email: 'b@example.com', nftType: 'Aurevon Insider', customerName: 'B',
       templateKey: null, serial: null, collectionName: 'A', tierKey: 'full',
     });
     expect(lastCall.method).toBe('POST');
@@ -60,7 +64,7 @@ describe('mintToEmail idempotency', () => {
 
   it('a repeat call with the same key hits the same idempotent URL (Crossmint no-ops server-side)', async () => {
     const args = {
-      email: 'b@example.com', nftType: 'x', customerName: 'B',
+      email: 'b@example.com', nftType: 'Aurevon Insider', customerName: 'B',
       templateKey: null, serial: null, collectionName: 'A', tierKey: 'full',
       idempotencyKey: 'cs_live_DUP',
     };

@@ -4,7 +4,7 @@
  * Supports both staging (Base Sepolia) and production (Base mainnet).
  */
 
-import { resolveTemplateId } from './tiers.js';
+import { ENTITLEMENT_MAP, resolveEntitlementFromNftType, buildMintRecipient } from './entitlements.js';
 
 const IS_STAGING = process.env.CROSSMINT_ENV === 'staging';
 const CROSSMINT_BASE_URL = IS_STAGING
@@ -29,115 +29,84 @@ const NFT_ANIMATIONS = {
   CHROME:   'https://gateway.pinata.cloud/ipfs/bafybeiecvoqsrxp27pq43ogp3brqzus53caz3zfbtihibs3w4jfzyqboz4',
 };
 
-/** Map tier serial prefix to on-chain rarity trait value. */
+/** Map pass art key (ENTITLEMENT_MAP serialPrefix) to on-chain rarity trait value. */
 const RARITY_MAP = {
   INSIDER:  'Standard',
   EMBER:    'Exclusive',
-  OBSIDIAN: 'Apex',
+  OBSIDIAN: 'Executive',
   GENESIS:  'Community',
   CHROME:   'Lifetime',
 };
 
+const MINT_TIMEOUT_MS = 12000;
+
 /**
- * Derive the human-readable tier label used in NFT attributes.
- * Covers all tier keys used in checkout.js PRODUCT_CATALOG.
+ * Pass art key (INSIDER | EMBER | OBSIDIAN | GENESIS | CHROME) for one of the five
+ * canonical NFT types, or null when the type is not one of them. Never defaults.
+ * @param {string} nftType e.g. 'Aurevon Ember'
+ * @returns {string|null}
  */
-function tierLabel(tierKey) {
-  const labels = {
-    // RE tiers
-    re_full:         'Full Package',
-    re_bogo:         'BOGO Package',
-    re_single:       'Second Opinion',
-    re_retainer:     'Pro Retainer',
-    re_enterprise:   'Enterprise',
-    // Base aliases (legacy / direct keys)
-    full:            'Full Package',
-    bogo:            'BOGO Package',
-    single:          'Second Opinion',
-    retainer:        'Pro Retainer',
-    enterprise:      'Enterprise',
-    // Community tiers
-    comm_monthly:    'Community Monthly',
-    comm_lifetime:   'Community Lifetime',
-    // Add-ons (no NFT — label for confirmation email)
-    addon_rush:        '12-Hour Rush Delivery',
-    addon_memo:        'Investor Memo Formatting',
-    addon_lender:      'Lender Presentation Package',
-    addon_sensitivity: 'Sensitivity Modeling',
-    addon_portfolio:   'Portfolio Review Bundle',
-    addon_whitelabel:  'White-Label Reports',
-  };
-  return labels[tierKey] || tierKey;
+export function passArtKeyForNft(nftType) {
+  const key = resolveEntitlementFromNftType(nftType);
+  return key ? ENTITLEMENT_MAP[key].serialPrefix : null;
 }
 
 /**
- * Map tier key to pass type (NFT_IMAGES / NFT_ANIMATIONS key).
- * Covers all tier keys used across checkout.js, stripe webhook, and PayPal webhook.
+ * Human-readable access label for an entitlement key (e.g. 'Pro Retainer'), or null.
+ * @param {string} key
+ * @returns {string|null}
  */
-function passType(tierKey) {
-  const map = {
-    // RE tiers → product NFTs
-    re_full:         'INSIDER',
-    re_bogo:         'INSIDER',
-    re_single:       'GENESIS',  // no NFT minted for single; GENESIS used as safe default
-    re_retainer:     'EMBER',
-    re_enterprise:   'OBSIDIAN',
-    // Base aliases
-    full:            'INSIDER',
-    bogo:            'INSIDER',
-    single:          'GENESIS',
-    retainer:        'EMBER',
-    enterprise:      'OBSIDIAN',
-    // Community
-    comm_monthly:    'GENESIS',
-    comm_lifetime:   'CHROME',
-  };
-  return map[tierKey] || 'GENESIS';
+export function accessLabelForEntitlement(key) {
+  return ENTITLEMENT_MAP[key]?.accessLabel ?? null;
 }
 
 /**
- * Mint an NFT to a customer email address via Crossmint API.
- * Called automatically after a successful Stripe or PayPal payment.
+ * Mint one of the five Aurevon NFTs via Crossmint
+ * (POST|PUT {base}/2022-06-09/collections/{collectionId}/nfts[/{idempotencyKey}]).
  *
- * @param {string} email - Customer email (NFT delivered here)
- * @param {string} nftType - Human-readable NFT name (e.g. 'Aurevon Insider')
- * @param {string} customerName - Customer display name
- * @param {string} templateKey - Env var key for Crossmint template ID
- * @param {string} serial - Unique serial number for this pass
- * @param {string} collectionName - Collection name for metadata
- * @param {string} tierKey - Internal tier key
- * @param {string} [idempotencyKey] - Stable per-purchase key (payment transaction id).
- *   When supplied we mint via Crossmint's idempotent PUT
- *   /collections/{id}/nfts/{idempotencyKey}: a repeat call with the SAME key returns
- *   the already-minted NFT instead of minting a second on-chain asset. This is what
- *   makes orphan-recovery / retry-mints safe — if the webhook minted but the database
- *   row write failed, the recovery re-mint reuses this key and is a no-op. Without a
- *   key we fall back to the non-idempotent POST (e.g. ad-hoc manual mints).
- * @returns {Promise<{ok: boolean, actionId?: string, error?: string}>}
+ * The request body carries only fields the documented API accepts:
+ * recipient (string), metadata, sendNotification, reuploadLinkedFiles.
+ * No customer name/email is written into on-chain metadata.
+ *
+ * Legacy caller fields (templateKey, customerName, collectionName, tierKey) are
+ * accepted and ignored; the entitlement is resolved from `nftType`.
+ *
+ * @param {object} opts
+ * @param {string} [opts.email] - Recipient email (custodial wallet), unless walletAddress given
+ * @param {string} opts.nftType - Canonical NFT type (e.g. 'Aurevon Insider')
+ * @param {string} [opts.serial] - Serial number for this pass
+ * @param {string} [opts.idempotencyKey] - Stable per-purchase key (payment transaction id).
+ *   When supplied we mint via the idempotent PUT /collections/{id}/nfts/{key}: a repeat
+ *   call with the SAME key returns the already-minted NFT instead of minting again, which
+ *   makes orphan-recovery / retry-mints safe. Without a key we use the non-idempotent POST.
+ * @param {string|null} [opts.walletAddress] - Deliver to this wallet instead of the email
+ * @param {string|null} [opts.entitlementKey] - Overrides resolution from nftType
+ * @returns {Promise<{ok: boolean, actionId?: string, id?: string, tokenId?: string|null, imageUrl?: string, error?: string}>}
  */
 export async function mintToEmail({
   email,
   nftType,
-  customerName,
-  templateKey,
   serial,
-  collectionName,
-  tierKey,
   idempotencyKey,
-}) {
+  walletAddress = null,
+  entitlementKey = null,
+} = {}) {
+  const key = entitlementKey ?? resolveEntitlementFromNftType(nftType);
+  const cfg = key ? ENTITLEMENT_MAP[key] : null;
+  if (!cfg) throw new Error(`Unknown NFT type: ${nftType}`);
+
   const apiKey = process.env.CROSSMINT_API_KEY;
-  const collectionId = process.env.CROSSMINT_COLLECTION_ID;
-
   if (!apiKey) throw new Error('CROSSMINT_API_KEY not configured');
-  if (!collectionId) throw new Error('CROSSMINT_COLLECTION_ID not configured');
+  const collectionId = process.env[cfg.collectionEnv] || process.env.CROSSMINT_COLLECTION_ID;
+  if (!collectionId) throw new Error(`${cfg.collectionEnv} / CROSSMINT_COLLECTION_ID not configured`);
+  if (!email && !walletAddress) throw new Error('Mint recipient requires an email or walletAddress');
 
-  const templateId = resolveTemplateId(templateKey);
-  const pType = passType(tierKey);
-  const rarity = RARITY_MAP[pType] || 'Standard';
+  const artKey = cfg.serialPrefix;
+  const imageUrl = NFT_IMAGES[artKey];
+  const chainLabel = CROSSMINT_CHAIN === 'base-sepolia' ? 'Base Sepolia' : 'Base Ethereum L2';
 
-  // Idempotent mint when we have a stable per-purchase key. Crossmint restricts the
-  // path id, so sanitize to a safe charset and bound the length; the payment
-  // transaction id (cs_live_… / PayPal txn) stays unique after this transform.
+  // Crossmint restricts the path id, so sanitize to a safe charset and bound the
+  // length; the payment transaction id (cs_live_… / PayPal txn) stays unique.
   const safeKey = idempotencyKey
     ? String(idempotencyKey).replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 100)
     : null;
@@ -147,31 +116,29 @@ export async function mintToEmail({
     : `${CROSSMINT_BASE_URL}/collections/${collectionId}/nfts`;
 
   const body = {
-    recipient: { email },
+    recipient: buildMintRecipient({ email, walletAddress, chain: CROSSMINT_CHAIN }),
     metadata: {
-      name: `Aurevon ${pType} Pass`,
-
-      description: `${tierLabel(tierKey)} membership pass. Aurevon Ventures LLC Systems Capital Infrastructure. On-chain on ${CROSSMINT_CHAIN === 'base-sepolia' ? 'Base Sepolia (testnet)' : 'Base Ethereum L2'}. Serial: ${serial}.`,
-      image: NFT_IMAGES[pType] ?? NFT_IMAGES.GENESIS,
-      animation_url: NFT_ANIMATIONS[pType] ?? NFT_ANIMATIONS.GENESIS,
+      name: `Aurevon ${artKey} Pass`,
+      image: imageUrl,
+      description: `${cfg.accessLabel} membership pass. Aurevon Ventures LLC Systems Capital Infrastructure. On-chain on ${CROSSMINT_CHAIN === 'base-sepolia' ? 'Base Sepolia (testnet)' : 'Base Ethereum L2'}. Serial: ${serial}.`,
+      animation_url: NFT_ANIMATIONS[artKey],
       attributes: [
-        { trait_type: 'Tier',          value: nftType },
-        { trait_type: 'Access Level',  value: tierLabel(tierKey) },
-        { trait_type: 'Category',      value: pType },
-        { trait_type: 'Serial',        value: serial },
-        { trait_type: 'Chain',         value: CROSSMINT_CHAIN === 'base-sepolia' ? 'Base Sepolia' : 'Base Ethereum L2' },
+        { trait_type: 'Tier',          value: cfg.nftType },
+        { trait_type: 'Access Level',  value: cfg.accessLabel },
+        { trait_type: 'Category',      value: artKey },
+        { trait_type: 'Serial',        value: String(serial ?? '') },
+        { trait_type: 'Chain',         value: chainLabel },
+        { trait_type: 'Rarity',        value: RARITY_MAP[artKey] },
+        { trait_type: 'Issuer',        value: 'Aurevon Ventures LLC' },
+        { trait_type: 'Collection',    value: cfg.collectionName },
         { trait_type: 'Status',        value: 'Active Operator' },
-        { trait_type: 'Rarity',        value: rarity },
         { trait_type: 'Verification',  value: 'Crossmint + Stripe' },
         { trait_type: 'Minted',        value: '2026 Genesis Drop' },
-        { trait_type: 'Issuer',        value: 'Aurevon Ventures LLC' },
-        { trait_type: 'Customer',      value: customerName || '' },
-        { trait_type: 'Collection',    value: collectionName || 'Aurevon Genesis Drop 2026' },
       ],
     },
+    sendNotification: false,
+    reuploadLinkedFiles: false,
   };
-
-  if (templateId) body.templateId = templateId;
 
   try {
     const response = await fetch(url, {
@@ -181,19 +148,30 @@ export async function mintToEmail({
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal: globalThis.AbortSignal.timeout(MINT_TIMEOUT_MS),
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      console.error('[crossmint] Mint failed:', data);
-      return { ok: false, error: data?.message || 'Crossmint API error', detail: data };
+      console.error(`[crossmint] Mint failed (${response.status}):`, data?.message || data);
+      return { ok: false, error: data?.message || `Crossmint API error ${response.status}`, detail: data };
     }
 
-    console.log(`[crossmint] Minted NFT to ${email}: actionId=${data.actionId}`);
-    return { ok: true, actionId: data.actionId, id: data.id, imageUrl: NFT_IMAGES[pType] ?? null, data };
+    console.log(`[crossmint] Minted ${artKey} pass: actionId=${data.actionId}`);
+    return {
+      ok: true,
+      actionId: data.actionId,
+      id: data.id,
+      tokenId: data?.onChain?.tokenId ?? null,
+      imageUrl,
+    };
   } catch (err) {
-    console.error('[crossmint] Mint exception:', err.message);
-    return { ok: false, error: err.message };
+    if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+      console.error('[crossmint] Mint timed out');
+      return { ok: false, error: 'Crossmint timeout' };
+    }
+    console.error('[crossmint] Mint exception:', err?.message);
+    return { ok: false, error: err?.message || 'Crossmint request failed' };
   }
 }

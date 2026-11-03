@@ -228,29 +228,31 @@ describe('mayGrantPaidAccess', () => {
 });
 
 describe('buildMintRecipient', () => {
-  it('returns email-based recipient when no wallet', () => {
-    const result = buildMintRecipient({ email: 'user@example.com' });
-    expect(result.email).toBe('user@example.com');
-    expect(result.chain).toBe('base');
+  it('returns an email recipient string (lower-cased, trimmed) when no wallet', () => {
+    expect(buildMintRecipient({ email: ' User@Example.com ' })).toBe('email:user@example.com:base');
   });
 
-  it('returns wallet-based recipient when wallet provided', () => {
-    const result = buildMintRecipient({ email: 'user@example.com', walletAddress: '0xABC' });
-    expect(result.walletAddress).toBe('0xABC');
-    expect(result.chain).toBe('base');
-    expect(result.email).toBeUndefined();
+  it('returns a chain:wallet recipient string when wallet provided', () => {
+    expect(buildMintRecipient({ email: 'user@example.com', walletAddress: '0xABC' })).toBe('base:0xABC');
   });
 
   it('uses custom chain when provided', () => {
-    const result = buildMintRecipient({ email: 'user@example.com', chain: 'ethereum' });
-    expect(result.chain).toBe('ethereum');
+    expect(buildMintRecipient({ email: 'user@example.com', chain: 'ethereum' })).toBe('email:user@example.com:ethereum');
   });
 
   it('uses CROSSMINT_CHAIN env var when set', () => {
     process.env.CROSSMINT_CHAIN = 'polygon';
     const result = buildMintRecipient({ email: 'user@example.com' });
-    expect(result.chain).toBe('polygon');
     delete process.env.CROSSMINT_CHAIN;
+    expect(result).toBe('email:user@example.com:polygon');
+  });
+
+  it('defaults to base-sepolia on staging', () => {
+    const saved = process.env.CROSSMINT_ENV;
+    process.env.CROSSMINT_ENV = 'staging';
+    const result = buildMintRecipient({ email: 'user@example.com' });
+    if (saved === undefined) delete process.env.CROSSMINT_ENV; else process.env.CROSSMINT_ENV = saved;
+    expect(result).toBe('email:user@example.com:base-sepolia');
   });
 });
 

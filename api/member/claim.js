@@ -18,7 +18,7 @@
  *   → Operator-only: returns member entitlement + sync status.
  *
  * POST ?action=mint
- *   body: { recipientEmail, walletAddress?, passType, metadata? }
+ *   body: { recipientEmail | walletAddress, passType (INSIDER|EMBER|OBSIDIAN|GENESIS|CHROME), serial?, transactionId? }
  *   → Mints the correct NFT via Crossmint (absorbed from api/crossmint/mint.js)
  */
 
@@ -26,7 +26,7 @@ import crypto from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
 import { findMemberByEmail, findActiveMintByEmail, findActiveMintsByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listUnlinkedMintsBefore, listPaymentsSince, findLatestPaymentByEmailAndTier, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint, dbConfigured } from '../_lib/db.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
-import { resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess, pickGrantableMint } from '../_lib/entitlements.js';
+import { ENTITLEMENT_MAP, resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess, pickGrantableMint } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
 import { sendDiscordAccessLink } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
@@ -66,17 +66,6 @@ export function validateReconcileSecret(req) {
 
 // ── POST ?action=mint: direct NFT mint via Crossmint ─────────────────────────
 
-const CROSSMINT_API_KEY = process.env.CROSSMINT_API_KEY;
-const CROSSMINT_COLLECTION_ID = process.env.CROSSMINT_COLLECTION_ID;
-
-const TEMPLATE_MAP = {
-  OBSIDIAN: process.env.CROSSMINT_TEMPLATE_OBSIDIAN,
-  EMBER:    process.env.CROSSMINT_TEMPLATE_EMBER,
-  INSIDER:  process.env.CROSSMINT_TEMPLATE_INSIDER,
-  CHROME:   process.env.CROSSMINT_TEMPLATE_CHROME,
-  GENESIS:  process.env.CROSSMINT_TEMPLATE_GENESIS,
-};
-
 async function handleMint(req, res) {
   // Authenticated server-to-server endpoint (Zapier/Make automation — see
   // AUTOMATION_PLAYBOOKS.md, which calls this with Authorization: Bearer
@@ -100,44 +89,32 @@ async function handleMint(req, res) {
   }
   if (!authorized) return res.status(401).json({ error: 'Unauthorized' });
 
-  if (!CROSSMINT_API_KEY) return res.status(503).json({ error: 'Crossmint not configured', hint: 'Add CROSSMINT_API_KEY to Vercel env vars' });
+  if (!process.env.CROSSMINT_API_KEY) return res.status(503).json({ error: 'Crossmint not configured', hint: 'Add CROSSMINT_API_KEY to Vercel env vars' });
 
-  const { recipientEmail, walletAddress, passType, metadata } = req.body || {};
+  const body = req.body || {};
+  const { recipientEmail, walletAddress, passType, serial } = body;
   if (!passType) return res.status(400).json({ error: 'Missing passType' });
   if (!recipientEmail && !walletAddress) return res.status(400).json({ error: 'Provide recipientEmail or walletAddress' });
 
-  const templateId = TEMPLATE_MAP[passType.toUpperCase()];
-  const recipient = walletAddress
-    ? { walletAddress }
-    : { email: recipientEmail };
-
-  const mintPayload = {
-    recipient,
-    metadata: {
-      name: `Aurevon ${passType} Pass`,
-      description: `Official Aurevon ${passType} membership pass. On-chain on Base (ETH L2).`,
-      image: `https://www.aurevonvc.com/nfts/${passType.toLowerCase()}`,
-      attributes: [
-        { trait_type: 'Pass Tier', value: passType },
-        { trait_type: 'Network', value: 'Base' },
-        { trait_type: 'Issuer', value: 'Aurevon Ventures LLC' },
-        ...(metadata?.attributes || [])
-      ]
-    }
-  };
-
-  const url = `https://www.crossmint.com/api/2022-06-09/collections/${CROSSMINT_COLLECTION_ID}/nfts`;
-  if (templateId) mintPayload.templateId = templateId;
+  // passType is a pass art key (INSIDER | EMBER | OBSIDIAN | GENESIS | CHROME) or a
+  // canonical NFT type name; anything else is refused — only the five NFTs mint.
+  const art = String(passType).trim().toUpperCase();
+  const entitlementKey = Object.keys(ENTITLEMENT_MAP).find((k) => ENTITLEMENT_MAP[k].serialPrefix === art)
+    ?? resolveEntitlementFromNftType(String(passType));
+  if (!entitlementKey) return res.status(400).json({ error: 'Unknown passType' });
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'X-API-KEY': CROSSMINT_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify(mintPayload)
+    const { mintToEmail } = await import('../_lib/crossmint.js');
+    const result = await mintToEmail({
+      email: recipientEmail,
+      walletAddress: walletAddress || null,
+      nftType: ENTITLEMENT_MAP[entitlementKey].nftType,
+      entitlementKey,
+      serial: serial ?? null,
+      idempotencyKey: body.transactionId ?? `manual-${crypto.randomUUID()}`,
     });
-    const data = await response.json();
-    if (!response.ok) return res.status(response.status).json({ error: 'Crossmint error', detail: data });
-    return res.status(200).json({ ok: true, actionId: data.actionId, id: data.id, data });
+    if (!result.ok) return res.status(502).json({ error: 'Crossmint error', detail: result.error });
+    return res.status(200).json({ ok: true, actionId: result.actionId, id: result.id, data: result });
   } catch (err) {
     return res.status(500).json({ error: 'Mint failed', message: err.message });
   }

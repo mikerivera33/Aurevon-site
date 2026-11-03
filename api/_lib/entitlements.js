@@ -25,6 +25,7 @@ export const ENTITLEMENT_MAP = {
     ],
     nftType: '001 Genesis',
     serialPrefix: 'GENESIS',
+    accessLabel: 'Community Monthly',
     collectionName: 'Aurevon Genesis Collection',
     discordRoleEnv: 'DISCORD_ROLE_MONTHLY',
     collectionEnv: 'CROSSMINT_COLLECTION_MONTHLY',
@@ -41,6 +42,7 @@ export const ENTITLEMENT_MAP = {
     ],
     nftType: '004 Chrome',
     serialPrefix: 'CHROME',
+    accessLabel: 'Community Lifetime',
     collectionName: 'Aurevon Chrome Collection',
     discordRoleEnv: 'DISCORD_ROLE_LIFETIME',
     collectionEnv: 'CROSSMINT_COLLECTION_LIFETIME',
@@ -58,6 +60,7 @@ export const ENTITLEMENT_MAP = {
     ],
     nftType: 'Aurevon Insider',
     serialPrefix: 'INSIDER',
+    accessLabel: 'Full Package',
     collectionName: 'Aurevon Insider Collection',
     discordRoleEnv: 'DISCORD_ROLE_PRODUCT_A',
     collectionEnv: 'CROSSMINT_COLLECTION_PRODUCT_A',
@@ -75,6 +78,7 @@ export const ENTITLEMENT_MAP = {
     ],
     nftType: 'Aurevon Ember',
     serialPrefix: 'EMBER',
+    accessLabel: 'Pro Retainer',
     collectionName: 'Aurevon Ember Collection',
     discordRoleEnv: 'DISCORD_ROLE_PRODUCT_B',
     collectionEnv: 'CROSSMINT_COLLECTION_PRODUCT_B',
@@ -92,6 +96,7 @@ export const ENTITLEMENT_MAP = {
     ],
     nftType: 'Aurevon Obsidian Executive',
     serialPrefix: 'OBSIDIAN',
+    accessLabel: 'Enterprise',
     collectionName: 'Aurevon Obsidian Collection',
     discordRoleEnv: 'DISCORD_ROLE_PRODUCT_C',
     collectionEnv: 'CROSSMINT_COLLECTION_PRODUCT_C',
@@ -221,15 +226,18 @@ export function mayGrantPaidAccessFromMember(entitlementKey, memberFields) {
 }
 
 /**
- * Build the Crossmint recipient object for a mint call.
+ * Build the Crossmint recipient string for a mint call:
+ * `email:<email>:<chain>` (custodial wallet) or `<chain>:<walletAddress>`.
+ * Chain defaults to CROSSMINT_CHAIN, else base-sepolia on staging, else base.
  *
- * @param {{ email: string, walletAddress?: string|null, chain?: string }} opts
- * @returns {{ email?: string, walletAddress?: string, chain: string }}
+ * @param {{ email?: string|null, walletAddress?: string|null, chain?: string|null }} opts
+ * @returns {string}
  */
-export function buildMintRecipient({ email, walletAddress = null, chain = null }) {
-  const c = chain ?? process.env.CROSSMINT_CHAIN ?? 'base';
-  if (walletAddress) return { walletAddress, chain: c };
-  return { email, chain: c };
+export function buildMintRecipient({ email = null, walletAddress = null, chain = null } = {}) {
+  const c = chain || process.env.CROSSMINT_CHAIN
+    || (process.env.CROSSMINT_ENV === 'staging' ? 'base-sepolia' : 'base');
+  if (walletAddress) return `${c}:${walletAddress}`;
+  return `email:${String(email ?? '').trim().toLowerCase()}:${c}`;
 }
 
 /**
