@@ -14,9 +14,9 @@ no framework and no build step — `framework: null` in `vercel.json` is intenti
   (`outputDirectory: "."`, `cleanUrls: true`).
 - Serverless API: `api/*.js`, ES modules, Node 20.x. Shared business logic lives in
   `api/_lib/` (airtable, crossmint, tiers, entitlements, email, discord-bot, alert).
-- Discord bot: `discord/bot.js` (discord.js v14), deployed to Railway via
-  `railway.json` — the only thing that runs off Vercel. It has its own
-  `discord/package.json`.
+- Discord bot: `discord/bot.js` (discord.js v14) on a Google Compute Engine e2-micro
+  VM, deployed by `deploy/gcp/` + `.github/workflows/deploy-discord-bot.yml` — the
+  only thing that runs off Vercel. It has its own `discord/package.json`.
 - Routing is defined entirely by `vercel.json` rewrites; several endpoints fan out
   through one file via `?action=` query params (`/api/portal/*`, `/api/discord/*`,
   `/api/cron/*`).
@@ -62,8 +62,8 @@ no framework and no build step — `framework: null` in `vercel.json` is intenti
   and live role grant/revoke.
 - `vercel.json` `crons` and `headers` blocks — cron auth and the enforcing CSP are
   load-bearing; CSP source changes can break Stripe/PayPal/Discord/IPFS.
-- `discord/bot.js` — moderates and DMs real members on Railway.
-- `.env` files — never read, write, or commit; secrets stay in Vercel/Railway env.
+- `discord/bot.js` — moderates and DMs real members (Google Cloud VM).
+- `.env` files — never read, write, or commit; secrets stay in Vercel env and Google Secret Manager.
 
 ## How to Handle Uncertainty
 

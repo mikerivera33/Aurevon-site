@@ -1,0 +1,43 @@
+name: Deploy Discord bot
+
+# Pushes to main that touch the bot upload a new bundle to Cloud Storage; the
+# Compute Engine VM installs it within ~2 minutes (see deploy/gcp/README.md).
+# Run it by hand after changing the bot's secret in Secret Manager.
+on:
+  push:
+    branches: [main]
+    paths: ['discord/**', 'deploy/gcp/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # keyless Google auth (workload identity federation)
+
+concurrency:
+  group: deploy-discord-bot
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT: nifty-formula-513621-d4
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax-check the bot
+        run: node --check discord/bot.js
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/682010480418/locations/global/workloadIdentityPools/github/providers/aurevon-site
+          service_account: aurevon-bot-deployer@nifty-formula-513621-d4.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload bundle
+        run: deploy/gcp/deploy.sh "$GITHUB_SHA"
