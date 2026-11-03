@@ -17,8 +17,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const fake = vi.hoisted(() => {
-  const state = { calls: [], results: [], createArgs: [] };
-  const METHODS = ['select', 'insert', 'update', 'upsert', 'eq', 'in', 'like', 'lt', 'gt', 'order', 'limit', 'single'];
+  const state = { calls: [], results: [], createArgs: [], rpcs: [] };
+  const METHODS = ['select', 'insert', 'update', 'upsert', 'eq', 'in', 'like', 'lt', 'gt', 'or', 'order', 'limit', 'single'];
   function builder(table) {
     const q = { table, ops: [] };
     state.calls.push(q);
@@ -34,7 +34,13 @@ const fake = vi.hoisted(() => {
     state,
     createClient: (...args) => {
       state.createArgs.push(args);
-      return { from: (table) => builder(table) };
+      return {
+        from: (table) => builder(table),
+        rpc: (fn, args) => {
+          state.rpcs.push([fn, args]);
+          return Promise.resolve(state.results.length ? state.results.shift() : { data: null, error: null });
+        },
+      };
     },
   };
 });
@@ -56,6 +62,7 @@ beforeEach(() => {
   state.calls.length = 0;
   state.results.length = 0;
   state.createArgs.length = 0;
+  state.rpcs.length = 0;
   process.env = { ...SAVED, SUPABASE_URL: 'https://test.supabase.co', SUPABASE_SECRET_KEY: 'sb_secret_test' };
   delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   delete process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -308,5 +315,162 @@ describe('owner-console helpers', () => {
     expect(op('update')).toEqual([['update', { status: 'Won' }]]);
     expect(op('eq')).toEqual([['eq', 'id', 'l1']]);
     expect(rec).toEqual({ id: 'l1', fields: { Status: 'Won' } });
+  });
+});
+
+// ── NFT pipeline (payment-keyed mints, atomic serials, ops events) ───────────
+
+describe('createNftMint (mint idempotency marker)', () => {
+  const args = {
+    reference: 'INSIDER_007', email: 'Buyer@Example.com', nftType: 'Aurevon Insider', tierSource: 'full',
+    status: 'Queued', sentDate: '2026-11-04T00:00:00Z', entitlementType: 'permanent_pass',
+    paymentTransactionId: 'cs_live_1', crossmintActionId: 'act_1',
+  };
+
+  it('writes payment transaction id, Crossmint action id and entitlement type', async () => {
+    respond({ data: { id: 'm1', reference: 'INSIDER_007', payment_transaction_id: 'cs_live_1' }, error: null });
+    const rec = await db.createNftMint(args);
+    const [[, row]] = op('insert');
+    expect(row).toMatchObject({
+      reference: 'INSIDER_007', email: 'buyer@example.com', payment_transaction_id: 'cs_live_1',
+      crossmint_action_id: 'act_1', entitlement_type: 'permanent_pass', discord_synced: false,
+    });
+    expect(rec.fields['Payment Transaction ID']).toBe('cs_live_1');
+  });
+
+  it('omits payment / action columns when not given', async () => {
+    respond({ data: { id: 'm1' }, error: null });
+    await db.createNftMint({ ...args, paymentTransactionId: undefined, crossmintActionId: '' });
+    const [[, row]] = op('insert');
+    expect(row).not.toHaveProperty('payment_transaction_id');
+    expect(row).not.toHaveProperty('crossmint_action_id');
+  });
+
+  it("maps 23505 on nft_mints_reference_key to 'DUPLICATE_REFERENCE'", async () => {
+    respond({ data: null, error: { message: 'duplicate key value violates unique constraint "nft_mints_reference_key"', code: '23505' } });
+    const err = await db.createNftMint(args).catch((e) => e);
+    expect(err.code).toBe('DUPLICATE_REFERENCE');
+  });
+
+  it("maps 23505 on nft_mints_payment_txn_key to 'DUPLICATE_PAYMENT_MINT'", async () => {
+    respond({ data: null, error: { message: 'duplicate key value violates unique constraint "nft_mints_payment_txn_key"', code: '23505' } });
+    const err = await db.createNftMint(args).catch((e) => e);
+    expect(err.code).toBe('DUPLICATE_PAYMENT_MINT');
+  });
+
+  it('leaves other errors untouched', async () => {
+    respond({ data: null, error: { message: 'boom', code: '23502' } });
+    const err = await db.createNftMint(args).catch((e) => e);
+    expect(err.code).toBe('23502');
+  });
+});
+
+describe('nextSerial', () => {
+  it("calls rpc('next_serial', { p_prefix }) and returns the integer", async () => {
+    respond({ data: 12, error: null });
+    await expect(db.nextSerial('INSIDER')).resolves.toBe(12);
+    expect(state.rpcs).toEqual([['next_serial', { p_prefix: 'INSIDER' }]]);
+  });
+
+  it('throws on an rpc error or a non-integer result', async () => {
+    respond({ data: null, error: { message: 'permission denied for function next_serial', code: '42501' } });
+    await expect(db.nextSerial('EMBER')).rejects.toThrow(/permission denied/);
+    respond({ data: null, error: null });
+    await expect(db.nextSerial('EMBER')).rejects.toThrow(/unexpected result/);
+  });
+});
+
+describe('mint lookups', () => {
+  it('findMintByPaymentId / findMintByActionId filter on their columns; empty id never queries', async () => {
+    await expect(db.findMintByPaymentId('')).resolves.toBeNull();
+    await expect(db.findMintByActionId(null)).resolves.toBeNull();
+    expect(state.calls).toHaveLength(0);
+    respond({ data: [{ id: 'm1', payment_transaction_id: 'txn_1' }], error: null }, { data: [], error: null });
+    await expect(db.findMintByPaymentId('txn_1')).resolves.toEqual({ id: 'm1', fields: { 'Payment Transaction ID': 'txn_1' } });
+    expect(op('eq', 0)).toEqual([['eq', 'payment_transaction_id', 'txn_1']]);
+    await expect(db.findMintByActionId('act_9')).resolves.toBeNull();
+    expect(op('eq', 1)).toEqual([['eq', 'crossmint_action_id', 'act_9']]);
+  });
+
+  it('findActiveMintByEmailAndTypeWithoutToken: active statuses, token id null or empty', async () => {
+    respond({ data: [], error: null });
+    await db.findActiveMintByEmailAndTypeWithoutToken('A@B.co', 'Aurevon Ember');
+    expect(op('eq')).toEqual([['eq', 'email', 'a@b.co'], ['eq', 'nft_type', 'Aurevon Ember']]);
+    expect(op('in')).toEqual([['in', 'mint_status', ['Minted', 'Sent', 'Queued']]]);
+    expect(op('or')).toEqual([['or', 'token_id.is.null,token_id.eq.']]);
+  });
+
+  it('listFailedMints: Failed under the retry cap, oldest first, default 10', async () => {
+    respond({ data: [], error: null }, { data: [], error: null });
+    await db.listFailedMints();
+    expect(op('eq', 0)).toEqual([['eq', 'mint_status', 'Failed']]);
+    expect(op('lt', 0)).toEqual([['lt', 'retry_count', 5]]);
+    expect(op('order', 0)).toEqual([['order', 'created_at', { ascending: true }]]);
+    expect(op('limit', 0)).toEqual([['limit', 10]]);
+    await db.listFailedMints({ maxRecords: 50, maxRetries: 3 });
+    expect(op('lt', 1)).toEqual([['lt', 'retry_count', 3]]);
+    expect(op('limit', 1)).toEqual([['limit', 50]]);
+  });
+
+  it('listUndeliveredMints: Minted/Sent with email_delivered=false, oldest first', async () => {
+    respond({ data: [], error: null });
+    await db.listUndeliveredMints();
+    expect(op('in')).toEqual([['in', 'mint_status', ['Minted', 'Sent']]]);
+    expect(op('eq')).toEqual([['eq', 'email_delivered', false]]);
+    expect(op('order')).toEqual([['order', 'created_at', { ascending: true }]]);
+    expect(op('limit')).toEqual([['limit', 20]]);
+  });
+});
+
+describe('ops health counts', () => {
+  it('countMints filters by status and age (head-only count)', async () => {
+    respond({ data: null, error: null, count: 3 });
+    await expect(db.countMints({ status: 'Queued', olderThanMinutes: 30 })).resolves.toBe(3);
+    expect(op('select')).toEqual([['select', '*', { count: 'exact', head: true }]]);
+    expect(op('eq')).toEqual([['eq', 'mint_status', 'Queued']]);
+    const [[, col, iso]] = op('lt');
+    expect(col).toBe('updated_at');
+    expect(Date.now() - Date.parse(iso)).toBeGreaterThanOrEqual(30 * 60_000 - 1000);
+  });
+
+  it('countPendingDiscordSyncOlderThan and countUndeliveredEmails', async () => {
+    respond({ data: null, error: null, count: 2 }, { data: null, error: null, count: null });
+    await expect(db.countPendingDiscordSyncOlderThan(6)).resolves.toBe(2);
+    expect(state.calls[0].table).toBe('members');
+    expect(op('eq', 0)).toEqual([['eq', 'discord_sync_status', 'pending']]);
+    await expect(db.countUndeliveredEmails()).resolves.toBe(0);
+    expect(op('eq', 1)).toEqual([['eq', 'email_delivered', false]]);
+  });
+
+  it('a count error is thrown', async () => {
+    respond({ data: null, error: { message: 'boom', code: 'XX000' } });
+    await expect(db.countUndeliveredEmails()).rejects.toThrow(/boom/);
+  });
+});
+
+describe('ops events', () => {
+  it('recordOpsEvent inserts into ops_events', async () => {
+    respond({ data: { id: 'e1', event: 'cron.retry', severity: 'warn', dedupe_key: 'k', detail: { n: 1 } }, error: null });
+    const rec = await db.recordOpsEvent({ event: 'cron.retry', severity: 'warn', dedupeKey: 'k', detail: { n: 1 } });
+    expect(state.calls[0].table).toBe('ops_events');
+    expect(op('insert')).toEqual([['insert', { event: 'cron.retry', severity: 'warn', dedupe_key: 'k', detail: { n: 1 } }]]);
+    expect(rec.fields).toEqual({ Event: 'cron.retry', Severity: 'warn', 'Dedupe Key': 'k', Detail: { n: 1 } });
+  });
+
+  it('recordOpsEvent defaults severity to info and requires an event', async () => {
+    respond({ data: { id: 'e1' }, error: null });
+    await db.recordOpsEvent({ event: 'x' });
+    expect(op('insert')).toEqual([['insert', { event: 'x', severity: 'info' }]]);
+    await expect(db.recordOpsEvent({})).rejects.toThrow(/event is required/);
+  });
+
+  it('lastOpsEvent returns the newest row (optionally by dedupe key) or null', async () => {
+    respond({ data: [{ id: 'e2', event: 'alert', dedupe_key: 'k' }], error: null }, { data: [], error: null });
+    await expect(db.lastOpsEvent('alert', { dedupeKey: 'k' })).resolves.toEqual({ id: 'e2', fields: { Event: 'alert', 'Dedupe Key': 'k' } });
+    expect(op('eq', 0)).toEqual([['eq', 'event', 'alert'], ['eq', 'dedupe_key', 'k']]);
+    expect(op('order', 0)).toEqual([['order', 'created_at', { ascending: false }]]);
+    expect(op('limit', 0)).toEqual([['limit', 1]]);
+    await expect(db.lastOpsEvent('alert')).resolves.toBeNull();
+    expect(op('eq', 1)).toEqual([['eq', 'event', 'alert']]);
   });
 });

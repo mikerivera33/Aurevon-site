@@ -71,6 +71,10 @@ export const FIELDS = {
     'Discord Synced At': 'discord_synced_at',
     'Transaction Hash': 'transaction_hash',
     'Wallet Address': 'wallet_address',
+    'Payment Transaction ID': 'payment_transaction_id',
+    'Crossmint Action ID': 'crossmint_action_id',
+    'Revoked At': 'revoked_at',
+    'Last Error': 'last_error',
   },
   customer_auth: {
     'Email': 'email',
@@ -101,13 +105,20 @@ export const FIELDS = {
     'Analyst': 'analyst',
     'Notes': 'notes',
   },
+  // Pipeline health log (crons, alert dedupe). Not readable from the owner consoles.
+  ops_events: {
+    'Event': 'event',
+    'Severity': 'severity',
+    'Dedupe Key': 'dedupe_key',
+    'Detail': 'detail',
+  },
 };
 
 // Columns where '' must become NULL (Postgres rejects '' for these types).
 const NON_TEXT = new Set([
   'active', 'join_date', 'discord_linked_at', 'discord_sync_at', 'entitlement_expires_at',
   'amount', 'purchase_price', 'payment_date', 'mint_date', 'email_delivered', 'retry_count', 'discord_synced',
-  'discord_synced_at', 'token_expires', 'session_active', 'last_login',
+  'discord_synced_at', 'token_expires', 'session_active', 'last_login', 'revoked_at', 'detail',
 ]);
 const EMAIL_COLUMNS = new Set(['email', 'customer_email']);
 
@@ -223,24 +234,64 @@ export async function countNftMintsByPrefix(prefix) {
   return res.count ?? 0;
 }
 
+/**
+ * Atomically reserve the next serial number for a prefix (public.next_serial:
+ * INSERT … ON CONFLICT DO UPDATE last = last + 1). Concurrent webhooks never
+ * get the same number.
+ */
+export async function nextSerial(prefix) {
+  const res = await supabase().rpc('next_serial', { p_prefix: prefix });
+  const n = Number(check(res, 'nextSerial'));
+  if (!Number.isInteger(n) || n < 1) throw new Error(`Supabase nextSerial: unexpected result for ${prefix}`);
+  return n;
+}
+
+/**
+ * Insert an NFT mint row. Two UNIQUE indexes make this the mint idempotency
+ * marker: a serial collision throws err.code === 'DUPLICATE_REFERENCE', and a
+ * second mint for the same payment throws err.code === 'DUPLICATE_PAYMENT_MINT'.
+ */
 export async function createNftMint({
   reference, email, nftType, tierSource, status, sentDate,
   emailDelivered = false, notes = '', mintId = '', retryCount = 0, entitlementType = '',
+  paymentTransactionId, crossmintActionId,
 }) {
-  return insert('nft_mints', {
-    'Reference': reference,
-    'Email': email,
-    'NFT Type': nftType,
-    'Tier Source': tierSource,
-    'Mint Status': status,
-    'Mint Date': sentDate,
-    'Email Delivered': emailDelivered,
-    'Notes': notes,
-    'Token ID': mintId,
-    'Retry Count': retryCount,
-    'Entitlement Type': entitlementType,
-    'Discord Synced': false,
-  });
+  try {
+    return await insert('nft_mints', {
+      'Reference': reference,
+      'Email': email,
+      'NFT Type': nftType,
+      'Tier Source': tierSource,
+      'Mint Status': status,
+      'Mint Date': sentDate,
+      'Email Delivered': emailDelivered,
+      'Notes': notes,
+      'Token ID': mintId,
+      'Retry Count': retryCount,
+      'Entitlement Type': entitlementType,
+      'Discord Synced': false,
+      'Payment Transaction ID': paymentTransactionId ? String(paymentTransactionId) : undefined,
+      'Crossmint Action ID': crossmintActionId || undefined,
+    });
+  } catch (err) {
+    if (err.code === '23505') {
+      if (/nft_mints_payment_txn_key/.test(err.message)) err.code = 'DUPLICATE_PAYMENT_MINT';
+      else if (/nft_mints_reference_key/.test(err.message)) err.code = 'DUPLICATE_REFERENCE';
+    }
+    throw err;
+  }
+}
+
+/** The mint row created for one payment (webhook redelivery / retry dedupe). */
+export async function findMintByPaymentId(transactionId) {
+  if (!transactionId) return null;
+  return one('nft_mints', from('nft_mints').eq('payment_transaction_id', String(transactionId)), 'findMintByPaymentId');
+}
+
+/** The mint row for a Crossmint action (Crossmint webhook correlation). */
+export async function findMintByActionId(actionId) {
+  if (!actionId) return null;
+  return one('nft_mints', from('nft_mints').eq('crossmint_action_id', String(actionId)), 'findMintByActionId');
 }
 
 export async function updateNftMint(recordId, fields) {
@@ -274,6 +325,14 @@ export async function findActiveMintByEmailAndType(email, nftType) {
     'findActiveMintByEmailAndType');
 }
 
+/** Active mint of one type that has no Token ID yet (null or ''). */
+export async function findActiveMintByEmailAndTypeWithoutToken(email, nftType) {
+  return one('nft_mints',
+    from('nft_mints').eq('email', normEmail(email)).eq('nft_type', nftType).in('mint_status', ACTIVE_MINT)
+      .or('token_id.is.null,token_id.eq.').order('created_at', { ascending: false }),
+    'findActiveMintByEmailAndTypeWithoutToken');
+}
+
 /** Any mint row (incl. Failed) for an email + type — orphan-payment recovery. */
 export async function findAnyMintByEmailAndType(email, nftType) {
   return one('nft_mints',
@@ -303,8 +362,73 @@ export async function listUnlinkedMintsBefore(cutoffIso, { maxRecords = 50 } = {
     'listUnlinkedMintsBefore');
 }
 
-export async function listFailedMints({ maxRecords = 50 } = {}) {
-  return many('nft_mints', from('nft_mints').eq('mint_status', 'Failed').limit(maxRecords), 'listFailedMints');
+/** Failed mints still under the retry cap, oldest first. */
+export async function listFailedMints({ maxRecords = 10, maxRetries = 5 } = {}) {
+  return many('nft_mints',
+    from('nft_mints').eq('mint_status', 'Failed').lt('retry_count', maxRetries)
+      .order('created_at', { ascending: true }).limit(maxRecords),
+    'listFailedMints');
+}
+
+/** Minted/Sent mints whose delivery email has not gone out, oldest first. */
+export async function listUndeliveredMints({ maxRecords = 20 } = {}) {
+  return many('nft_mints',
+    from('nft_mints').in('mint_status', ['Minted', 'Sent']).eq('email_delivered', false)
+      .order('created_at', { ascending: true }).limit(maxRecords),
+    'listUndeliveredMints');
+}
+
+// ── Ops health counts ────────────────────────────────────────────────────────
+
+const minutesAgo = (m) => new Date(Date.now() - m * 60_000).toISOString();
+
+async function count(table, query, what) {
+  const res = await query;
+  check(res, what);
+  return res.count ?? 0;
+}
+const head = (table) => supabase().from(table).select('*', { count: 'exact', head: true });
+
+/** Mints in `status` (any status if omitted) not touched for `olderThanMinutes` (if given). */
+export async function countMints({ status, olderThanMinutes } = {}) {
+  let q = head('nft_mints');
+  if (status) q = q.eq('mint_status', status);
+  if (olderThanMinutes !== undefined && olderThanMinutes !== null) q = q.lt('updated_at', minutesAgo(olderThanMinutes));
+  return count('nft_mints', q, 'countMints');
+}
+
+/** Members queued for Discord role sync whose row has not changed for `hours`. */
+export async function countPendingDiscordSyncOlderThan(hours) {
+  return count('members',
+    head('members').eq('discord_sync_status', 'pending').lt('updated_at', minutesAgo(hours * 60)),
+    'countPendingDiscordSyncOlderThan');
+}
+
+/** Minted/Sent mints whose delivery email has not gone out. */
+export async function countUndeliveredEmails() {
+  return count('nft_mints',
+    head('nft_mints').in('mint_status', ['Minted', 'Sent']).eq('email_delivered', false),
+    'countUndeliveredEmails');
+}
+
+// ── Ops events ───────────────────────────────────────────────────────────────
+
+/** Append a pipeline event (cron heartbeat, alert sent, …). */
+export async function recordOpsEvent({ event, severity = 'info', dedupeKey, detail } = {}) {
+  if (!event) throw new Error('recordOpsEvent: event is required');
+  return insert('ops_events', {
+    'Event': event,
+    'Severity': severity,
+    'Dedupe Key': dedupeKey || undefined,
+    'Detail': detail ?? undefined,
+  });
+}
+
+/** Newest ops event of a kind (optionally for one dedupe key), or null. */
+export async function lastOpsEvent(event, { dedupeKey } = {}) {
+  let q = from('ops_events').eq('event', event);
+  if (dedupeKey) q = q.eq('dedupe_key', dedupeKey);
+  return one('ops_events', q.order('created_at', { ascending: false }), 'lastOpsEvent');
 }
 
 // ── Payments ─────────────────────────────────────────────────────────────────

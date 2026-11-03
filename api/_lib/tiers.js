@@ -67,19 +67,24 @@ export function formatSerial(prefix, number) {
 }
 
 /**
- * Return the next serial string for a given prefix by counting existing mint rows.
+ * Reserve the next serial string for a prefix (atomic Postgres counter).
+ *
+ * While the Airtable bridge is on, old Airtable mints may not be copied yet, so
+ * keep reserving until the number is past the Airtable count (bounded).
  */
 export async function getNextSerial(prefix) {
-  const { countNftMintsByPrefix } = await import('./db.js');
-  let count = await countNftMintsByPrefix(prefix);
-  // Until the Airtable bridge has copied old mints, count them too so serials never repeat.
+  const { nextSerial } = await import('./db.js');
+  let n = await nextSerial(prefix);
   const { airtableImportEnabled, countAirtableMintsByPrefix } = await import('./airtable-import.js');
   if (airtableImportEnabled()) {
-    try { count = Math.max(count, await countAirtableMintsByPrefix(prefix)); } catch (err) {
+    let airtableCount = 0;
+    try { airtableCount = await countAirtableMintsByPrefix(prefix); } catch (err) {
       console.error(`[tiers] Airtable serial count failed for ${prefix}: ${err.message}`);
     }
+    for (let i = 0; i < 50 && n <= airtableCount; i++) n = await nextSerial(prefix);
+    if (n <= airtableCount) throw new Error(`Serial for ${prefix} still behind Airtable count after 50 reservations`);
   }
-  return formatSerial(prefix, count + 1);
+  return formatSerial(prefix, n);
 }
 
 /**
