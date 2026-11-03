@@ -128,7 +128,7 @@ export function resolveEntitlementFromSku(sku) {
 }
 
 /**
- * Resolve entitlement from the NFT type string stored in Airtable.
+ * Resolve entitlement from the NFT type string stored on the mint row.
  *
  * @param {string} nftType e.g. "001 Genesis"
  * @returns {EntitlementKey|null}
@@ -205,7 +205,7 @@ export function mayGrantPaidAccess({ entitlementKey, billingState = null, endsAt
 }
 
 /**
- * Convenience wrapper over mayGrantPaidAccess that reads Airtable member fields.
+ * Convenience wrapper over mayGrantPaidAccess that reads member record fields.
  * @param {EntitlementKey|null|undefined} entitlementKey
  * @param {Record<string, unknown>|null|undefined} memberFields
  * @returns {boolean}

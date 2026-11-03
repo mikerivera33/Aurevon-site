@@ -47,7 +47,7 @@ async function lookupPayment(transactionId) {
   try {
     return succeededPayment(await findPaymentByTransactionId(transactionId));
   } catch (err) {
-    // Log the Airtable reason (table / field / auth); the 503 body stays generic.
+    // Log the database reason; the 503 body stays generic.
     console.error(`[intake-verify] Payments lookup failed: ${err.message}`);
     const error = new Error(err.message);
     error.code = 'lookup_failed';

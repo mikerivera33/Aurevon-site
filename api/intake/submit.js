@@ -15,9 +15,13 @@
  */
 
 import { verifyIntakePayment } from '../_lib/intake-verify.js';
-import { createLead } from '../_lib/db.js';
+import { createLead, listLeadsByPaymentToken } from '../_lib/db.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// One payment can cover several deals (BOGO, retainers), but not unlimited ones.
+const MAX_LEADS_PER_PAYMENT_PER_DAY = 20;
+const DAY_MS = 86_400_000;
 
 /** Trimmed string capped at `max` chars; non-strings become ''. */
 export function clean(value, max = 200) {
@@ -71,6 +75,22 @@ export default async function handler(req, res) {
   // The verified tier from Stripe / Payments wins over what the page sent.
   const tier = clean(paid.tier, 60) || clean(body.tier, 60) || clean(body.plan, 60) || clean(body.package, 60);
 
+  const propertyAddress = clean(body.property_address, 300);
+  try {
+    const recent = await listLeadsByPaymentToken(paymentToken, new Date(Date.now() - DAY_MS).toISOString());
+    // Same deal sent twice (double click, retry): already saved.
+    const same = (a) => String(a ?? '').trim().toLowerCase() === propertyAddress.toLowerCase();
+    if (recent.some((r) => same(r.fields?.['Property Address']) && r.fields?.['Email'] === email)) {
+      return res.status(200).json({ ok: true, duplicate: true });
+    }
+    if (recent.length >= MAX_LEADS_PER_PAYMENT_PER_DAY) {
+      return res.status(429).json({ ok: false, error: 'too_many_submissions' });
+    }
+  } catch (err) {
+    console.error(`[intake-submit] duplicate check: ${err.message}`);
+    return res.status(500).json({ ok: false, error: 'submit_failed' });
+  }
+
   try {
     await createLead({
       'Name': name,
@@ -80,7 +100,7 @@ export default async function handler(req, res) {
       'Tier': tier,
       'Source': 'Deal intake',
       'Status': 'New',
-      'Property Address': clean(body.property_address, 300),
+      'Property Address': propertyAddress,
       'Purchase Price': parsePrice(body.purchase_price),
       'Asset Type': clean(body.asset_type, 60),
       'Hold Period': clean(body.hold_period, 60),

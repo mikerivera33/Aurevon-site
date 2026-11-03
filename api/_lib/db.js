@@ -447,6 +447,14 @@ export async function createLead(fields) {
   return insert('leads', fields);
 }
 
+/** Leads written for one payment (session / txn id) since `sinceIso`. */
+export async function listLeadsByPaymentToken(token, sinceIso, { maxRecords = 50 } = {}) {
+  if (!token) return [];
+  return many('leads',
+    from('leads').eq('payment_token', token).gt('created_at', sinceIso).limit(maxRecords),
+    'listLeadsByPaymentToken');
+}
+
 /** Newest-first rows of a table, for the owner consoles (api/admin/data.js). */
 export async function listRecent(table, { limit = 200 } = {}) {
   if (!FIELDS[table]) throw new Error(`Unknown table ${table}`);

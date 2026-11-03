@@ -2,7 +2,7 @@
  * Unified Discord handler — /api/discord?action=auth|callback|sync
  *
  * action=auth&token=xxx     → verify email-ownership token, redirect to Discord OAuth
- * action=callback&code=x    → handle OAuth callback, assign role, write Airtable
+ * action=callback&code=x    → handle OAuth callback, assign role, save the Discord link
  * action=sync  (POST)       → bot-assign role for a member who already has a Discord ID
  *                             Body: { email, secret? }  OR use CRON_SECRET header
  *
@@ -61,8 +61,8 @@ export function timingSafeStrEqual(a, b) {
 // Token = base64url(JSON{e:email, x:expiryMs, n:nonce}) + "." + base64url(HMAC).
 // The MAC is computed over the exact serialized payload bytes so the delimiter can
 // never collide with email contents. Verified timing-safe. Single-use is enforced
-// at the callback (the point of the actual role grant) via an Airtable-stored
-// consumed-nonce — see api/_lib/airtable.js.
+// at the callback (the point of the actual role grant) via a stored
+// consumed-nonce — see markDiscordAuthNonceUsed in api/_lib/db.js.
 //
 // TTL: 7 days. Product decision — a mint-delivery email may sit unread for days;
 // 7d keeps the marketed "click the link in your email" flow working while bounding
@@ -190,7 +190,7 @@ async function handleCallback(req, res) {
   // Single-use (defense-in-depth vs. a leaked/forwarded link being replayed after
   // it was already redeemed). Enforced HERE — at the actual role grant — not at
   // auth, so an aborted OAuth doesn't waste the token. Fails OPEN on lookup error:
-  // the signature already authorizes, and blocking on Airtable downtime would deny
+  // the signature already authorizes, and blocking on database downtime would deny
   // legitimate first-time linking. Limitation: only the most-recently-consumed
   // nonce is stored, so redeeming a newer token does not retroactively invalidate
   // an older still-valid one — but every such token was inbox-delivered, so that
@@ -207,10 +207,10 @@ async function handleCallback(req, res) {
   try { token = await exchangeCode(code); user = await getDiscordUser(token.access_token); }
   catch (e) { return res.status(502).json({ error: 'Discord auth failed', detail: e.message }); }
 
-  // Find this member's active NFT mints in Airtable
+  // Find this member's active NFT mints 
   let mints = [];
   try { mints = await findActiveMintsByEmail(email); }
-  catch (e) { console.error(`[Discord] Airtable lookup failed: ${e.message}`); }
+  catch (e) { console.error(`[Discord] mint lookup failed: ${e.message}`); }
 
   if (!mints.length) {
     return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=no_nft`);
@@ -252,12 +252,12 @@ async function handleCallback(req, res) {
     return res.status(502).json({ error: 'Role assignment failed', detail: e.message });
   }
 
-  // Persist Discord link to Airtable.
+  // Persist the Discord link.
   try {
     await upsertDiscordLink(email, { discordId: user.id, discordUsername: user.username });
     await updateDiscordSyncStatus(email, 'synced');
   } catch (e) {
-    console.error(`[Discord] Airtable update failed: ${e.message}`);
+    console.error(`[Discord] member update failed: ${e.message}`);
   }
 
   // Burn the single-use nonce as a SEPARATE best-effort write (records this token
@@ -301,9 +301,9 @@ async function handleSync(req, res) {
   // Look up member record
   let member;
   try { member = await findMemberByEmail(email); }
-  catch (e) { return res.status(502).json({ error: 'Airtable lookup failed', detail: e.message }); }
+  catch (e) { return res.status(502).json({ error: 'Member lookup failed', detail: e.message }); }
 
-  if (!member) return res.status(404).json({ error: 'Member not found in Airtable' });
+  if (!member) return res.status(404).json({ error: 'Member not found' });
 
   const discordId = member.fields['Discord ID'];
   if (!discordId) return res.status(422).json({ error: 'Member has no linked Discord ID — they must complete OAuth first', link: `${DOMAIN}/member-claim.html` });

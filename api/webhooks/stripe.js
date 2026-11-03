@@ -4,7 +4,7 @@
  * Vercel serverless function (ESM, Node 20+).
  * Handles settled Checkout Sessions (card: checkout.session.completed with
  * payment_status paid; Afterpay/Cash App/ACH: checkout.session.async_payment_succeeded)
- * → mints NFT → updates Airtable → sends email.
+ * → mints NFT → records it → sends email.
  */
 
 import crypto from 'node:crypto';
@@ -155,7 +155,7 @@ export async function handleCheckoutSessionCompleted(session) {
   // timeout). The Payments row written below is the dedup marker: if one already
   // exists for this session, this is a redelivery and we must NOT mint again.
   // If the lookup itself fails we abort rather than risk a blind double-mint —
-  // Stripe (or the reconcile cron) can retry once Airtable is healthy.
+  // Stripe (or the reconcile cron) can retry once the database is healthy.
   try {
         const prior = await findPaymentByTransactionId(sessionId);
         if (prior) {
@@ -325,7 +325,7 @@ export async function handleCheckoutSessionCompleted(session) {
               if (isDuplicate && attempt < 2) {
                         console.warn(`[Stripe] Reference collision on "${ref}" (attempt ${attempt + 1}) — incrementing serial and retrying`);
               } else {
-                        console.error(`[Stripe] Airtable createNftMint failed (attempt ${attempt + 1}): ${err.message}`);
+                        console.error(`[Stripe] createNftMint failed (attempt ${attempt + 1}): ${err.message}`);
                         break;
               }
       }
@@ -511,12 +511,12 @@ export async function handleSubscriptionDeleted(subscription) {
   // Immediately remove Discord role — only for entitlements that allow revocation on cancellation
   const entitlementCfg = entitlementKey ? ENTITLEMENT_MAP[entitlementKey] : null;
 
-  // Mark revoked in Airtable only when this cancellation actually revokes
+  // Mark revoked only when this cancellation actually revokes
   // something; cancelling a permanent-entitlement sub (retainer/enterprise)
   // must not flag the member's other, still-valid Discord access.
   if (entitlementCfg?.revokeOnCancel) {
     await updateDiscordSyncStatus(customerEmail, 'revoked').catch(e => {
-      console.error(`[Stripe] Failed to mark revocation in Airtable: ${e.message}`);
+      console.error(`[Stripe] Failed to mark revocation: ${e.message}`);
     });
   }
   const roleId = entitlementCfg?.revokeOnCancel ? getRoleId(entitlementKey) : null;

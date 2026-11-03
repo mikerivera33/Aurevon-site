@@ -67,7 +67,7 @@ export function formatSerial(prefix, number) {
 }
 
 /**
- * Return the next serial string for a given prefix by querying Airtable.
+ * Return the next serial string for a given prefix by counting existing mint rows.
  */
 export async function getNextSerial(prefix) {
   const { countNftMintsByPrefix } = await import('./db.js');

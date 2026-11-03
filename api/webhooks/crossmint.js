@@ -204,7 +204,7 @@ export default async function handler(req, res) {
 
   // Register the post-ack work with waitUntil so Vercel keeps the function alive
   // until it settles. Fired detached after res.json(), this work would otherwise
-  // be frozen after the response flushes — silently dropping the Airtable update
+  // be frozen after the response flushes — silently dropping the mint row update
   // and Discord role assignment (the durability bug this branch targets).
   if (isSuccess) {
     waitUntil(handleMintSuccess(event).catch((e) =>

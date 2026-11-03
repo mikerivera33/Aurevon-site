@@ -110,7 +110,7 @@ function passType(tierKey) {
  *   When supplied we mint via Crossmint's idempotent PUT
  *   /collections/{id}/nfts/{idempotencyKey}: a repeat call with the SAME key returns
  *   the already-minted NFT instead of minting a second on-chain asset. This is what
- *   makes orphan-recovery / retry-mints safe — if the webhook minted but the Airtable
+ *   makes orphan-recovery / retry-mints safe — if the webhook minted but the database
  *   row write failed, the recovery re-mint reuses this key and is a no-op. Without a
  *   key we fall back to the non-idempotent POST (e.g. ad-hoc manual mints).
  * @returns {Promise<{ok: boolean, actionId?: string, error?: string}>}

@@ -454,7 +454,7 @@ export async function resolveRetryIdempotencyKey({ reference, email, tier, recor
   if (ref.startsWith('PAY_')) return ref.slice('PAY_'.length);
   if (/^cs_(live|test)_/.test(ref)) return ref;
   if (email && tier) {
-    // No .catch: an Airtable error must not fall through to the serial key
+    // No .catch: a database error must not fall through to the serial key
     // (that reopens the double-mint). The caller skips the row this run.
     const payment = await findLatestPaymentByEmailAndTier(email, tier);
     const txnId = payment?.fields?.['Transaction ID'];

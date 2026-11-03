@@ -8,11 +8,12 @@ vi.mock('../intake-verify.js', () => ({
 }));
 vi.mock('../db.js', () => ({
   createLead: vi.fn(),
+  listLeadsByPaymentToken: vi.fn(),
 }));
 
 import handler, { parsePrice, clean } from '../../intake/submit.js';
 import { verifyIntakePayment } from '../intake-verify.js';
-import { createLead } from '../db.js';
+import { createLead, listLeadsByPaymentToken } from '../db.js';
 
 function mockRes() {
   return {
@@ -43,6 +44,7 @@ const baseBody = {
 describe('POST /api/intake/submit', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    listLeadsByPaymentToken.mockResolvedValue([]);
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
@@ -184,5 +186,40 @@ describe('intake submit helpers', () => {
     expect(clean('abcdef', 3)).toBe('abc');
     expect(clean({ a: 1 })).toBe('');
     expect(clean(null)).toBe('');
+  });
+
+  it('treats a repeat of the same deal for the same payment as already saved', async () => {
+    verifyIntakePayment.mockResolvedValueOnce({ ok: true, tier: 'full', method: 'stripe' });
+    listLeadsByPaymentToken.mockResolvedValueOnce([
+      { id: 'l1', fields: { 'Property Address': '123 main st, yeadon, pa 19050', 'Email': 'jane@example.com' } },
+    ]);
+    const res = mockRes();
+    await handler({ method: 'POST', body: baseBody }, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ ok: true, duplicate: true });
+    expect(createLead).not.toHaveBeenCalled();
+  });
+
+  it('caps leads per payment per day', async () => {
+    verifyIntakePayment.mockResolvedValueOnce({ ok: true, tier: 'retainer', method: 'stripe' });
+    listLeadsByPaymentToken.mockResolvedValueOnce(
+      Array.from({ length: 20 }, (_, i) => ({ id: `l${i}`, fields: { 'Property Address': `${i} Other St`, 'Email': 'jane@example.com' } })),
+    );
+    const res = mockRes();
+    await handler({ method: 'POST', body: baseBody }, res);
+    expect(res.statusCode).toBe(429);
+    expect(createLead).not.toHaveBeenCalled();
+  });
+
+  it('a second, different deal on the same payment (BOGO) is saved', async () => {
+    verifyIntakePayment.mockResolvedValueOnce({ ok: true, tier: 'bogo', method: 'stripe' });
+    listLeadsByPaymentToken.mockResolvedValueOnce([
+      { id: 'l1', fields: { 'Property Address': '9 Elm Ave', 'Email': 'jane@example.com' } },
+    ]);
+    createLead.mockResolvedValueOnce({ id: 'uuid-3', fields: {} });
+    const res = mockRes();
+    await handler({ method: 'POST', body: baseBody }, res);
+    expect(res.statusCode).toBe(200);
+    expect(createLead).toHaveBeenCalledTimes(1);
   });
 });
