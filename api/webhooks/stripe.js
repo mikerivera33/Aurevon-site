@@ -4,16 +4,16 @@
  * Vercel serverless function (ESM, Node 20+).
  * Handles settled Checkout Sessions (card: checkout.session.completed with
  * payment_status paid; Afterpay/Cash App/ACH: checkout.session.async_payment_succeeded)
- * → mints NFT → records it → sends email.
+ * → Payments marker → fulfilNft (mint → record → email) or a purchase confirmation.
  */
 
 import crypto from 'node:crypto';
 import Stripe from 'stripe';
 import { waitUntil } from '@vercel/functions';
-import { TIER_NFT_MAP, inferTierFromAmount, getNextSerial, formatSerial } from '../_lib/tiers.js';
-import { mintToEmail } from '../_lib/crossmint.js';
-import { createPayment, createNftMint, updateDiscordSyncStatus, findMemberByEmail, findPaymentByTransactionId, updateEntitlementState } from '../_lib/db.js';
-import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
+import { inferTierFromAmount } from '../_lib/tiers.js';
+import { fulfilNft } from '../_lib/fulfil.js';
+import { createPayment, updateDiscordSyncStatus, findMemberByEmail, findPaymentByTransactionId, updateEntitlementState } from '../_lib/db.js';
+import { sendPurchaseConfirmation } from '../_lib/email.js';
 import { resolveEntitlementFromSku, getRoleId, ENTITLEMENT_MAP } from '../_lib/entitlements.js';
 import { removeRoleFromMember } from '../_lib/discord-bot.js';
 import { sendAlert } from '../_lib/alert.js';
@@ -174,7 +174,7 @@ export async function handleCheckoutSessionCompleted(session) {
         return;
   }
 
-  console.log(`[Stripe] Processing session ${sessionId} for ${customerEmail} amount=${amountTotal}`);
+  console.log(`[Stripe] Processing session ${sessionId} amount=${amountTotal}`);
 
   // 1. Resolve tier — prefer metadata, fall back to amount
   let tier = session.metadata?.tier ?? null;
@@ -189,7 +189,6 @@ export async function handleCheckoutSessionCompleted(session) {
 
   const amount = amountTotal / 100;
     const token = `paid_${tier}_${Date.now()}`;
-    const now = new Date().toISOString();
 
   // 2. Write Payments row — this is the idempotency MARKER and must land before
   //    the irreversible Crossmint mint. If it fails we abort: minting without a
@@ -223,144 +222,17 @@ export async function handleCheckoutSessionCompleted(session) {
 
   await activateMonthlyBilling(session, customerEmail, tier, { redelivery: false });
 
-  // 3. Determine NFT mapping
-  const tierConfig = TIER_NFT_MAP[tier] ?? null;
-    const nftType = tierConfig?.nft ?? null;
-    const templateKey = tierConfig?.template ?? null;
-    const serialPrefix = tierConfig?.serialPrefix ?? null;
-    const collectionName = tierConfig?.collectionName ?? null;
-
-  // 4. No NFT tier — send confirmation only
-  if (!nftType) {
+  // 3. NFT fulfilment (mint → NFT_Mints row → delivery email) or, for tiers
+  //    without an NFT (bogo / single / add-ons), a purchase confirmation.
+  const result = await fulfilNft({ transactionId: sessionId, email: customerEmail, customerName, tier, provider: 'stripe' });
+  if (result.reason === 'no_nft') {
         console.log(`[Stripe] Tier "${tier}" has no NFT. Sending purchase confirmation email.`);
         try {
-                await sendPurchaseConfirmation({ email: customerEmail, customerName, tier });
+                await sendPurchaseConfirmation({ email: customerEmail, customerName, tier, transactionId: sessionId });
         } catch (err) {
                 console.error(`[Stripe] Confirmation email failed: ${err.message}`);
         }
         return;
-  }
-
-  // 5. Get next serial number for this collection
-  let serial = null;
-    if (serialPrefix) {
-          try {
-                  serial = await getNextSerial(serialPrefix);
-                  console.log(`[Stripe] Assigned serial ${serial} for tier "${tier}"`);
-          } catch (err) {
-                  console.error(`[Stripe] getNextSerial failed: ${err.message}. Continuing without serial.`);
-          }
-    }
-
-  // 6. Mint NFT via Crossmint
-  let mintId = null;
-    let imageUrl = null;
-    let mintStatus;
-    let mintNotes = '';
-
-  try {
-        const result = await mintToEmail({
-                email: customerEmail,
-                nftType,
-                customerName,
-                templateKey,
-                serial,
-                collectionName,
-                tierKey: tier,
-                // Idempotency key = Stripe session id. If this mint succeeds but the
-                // NFT_Mints write below fails, orphan-recovery → retry-mints re-calls
-                // Crossmint with THIS SAME key, which returns the existing NFT instead
-                // of minting a second on-chain asset (the double-mint fix).
-                idempotencyKey: sessionId,
-        });
-        if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
-        mintId = result.actionId;
-        imageUrl = result.imageUrl ?? null;
-        mintStatus = 'Sent';
-        console.log(`[Stripe] Mint succeeded: mintId=${mintId}, serial=${serial}`);
-  } catch (err) {
-        mintStatus = 'Failed';
-        mintNotes = `Crossmint error: ${err.message}`;
-        console.error(`[Stripe] Crossmint mint failed: ${err.message}`);
-        await sendAlert('stripe.mint_failed', { sessionId, tier, nftType, error: err.message });
-  }
-
-  // 7. Write NFT_Mints row — use serial as the reference; retry on collision (race condition guard)
-  const reference = serial ?? `MINT_${sessionId.slice(-8)}_${nftType.replace(/\s+/g, '_')}`;
-    let insertedSerial = serial;
-    let mintRowWritten = false;
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-        const ref = attempt === 0 ? reference : (() => {
-                if (!insertedSerial) {
-                        // Null-serial tier (no serialPrefix): append retry index to avoid identical retries
-                        return `${reference}_r${attempt}`;
-                }
-                const parts = insertedSerial.split('_');
-                const prefix = parts[0];
-                const num = parseInt(parts[1] ?? '0', 10) + 1;
-                insertedSerial = formatSerial(prefix, num);
-                return insertedSerial;
-        })();
-
-      try {
-              await createNftMint({
-                        reference: ref,
-                        email: customerEmail,
-                        nftType,
-                        tierSource: tier,
-                        status: mintStatus,
-                        sentDate: now,
-                        emailDelivered: mintStatus === 'Sent',
-                        notes: mintNotes,
-                        mintId: mintId ?? '',
-                        retryCount: 0,
-              });
-              if (!insertedSerial) insertedSerial = ref; // track actual ref for null-serial tiers
-              mintRowWritten = true;
-              console.log(`[Stripe] NFT_Mints record created with reference=${ref}`);
-              break;
-      } catch (err) {
-              const isDuplicate = err.message.includes('422') || err.message.toLowerCase().includes('already exists') || err.message.toLowerCase().includes('duplicate');
-              if (isDuplicate && attempt < 2) {
-                        console.warn(`[Stripe] Reference collision on "${ref}" (attempt ${attempt + 1}) — incrementing serial and retrying`);
-              } else {
-                        console.error(`[Stripe] createNftMint failed (attempt ${attempt + 1}): ${err.message}`);
-                        break;
-              }
-      }
-  }
-
-  // If the on-chain mint SUCCEEDED but no NFT_Mints row landed, this purchase is an
-  // orphan: the mint exists but nothing records it. Orphan-recovery + the idempotent
-  // mint key make it self-heal (no double-mint), but it must NOT be silent — alert so
-  // it's confirmed rather than discovered by a customer complaint.
-  if (!mintRowWritten) {
-        await sendAlert('stripe.mint_row_dropped', { sessionId, tier, nftType, minted: mintStatus === 'Sent' });
-  }
-
-  // 8. Parse edition number from serial for email
-  let edition = null;
-    if (insertedSerial) {
-          const parts = insertedSerial.split('_');
-          if (parts[1]) edition = parseInt(parts[1], 10);
-    }
-
-  // 9. Send branded delivery email (even on mint failure — email with partial info)
-  try {
-        await sendNftDelivery({
-                email: customerEmail,
-                customerName,
-                nftType,
-                mintId: mintId ?? 'pending',
-                nftImageUrl: imageUrl,
-                discordInviteUrl: process.env.DISCORD_INVITE_URL,
-                tier,
-                serial: insertedSerial,
-                edition,
-        });
-  } catch (err) {
-        console.error(`[Stripe] Resend email failed: ${err.message}`);
   }
 
   console.log(`[Stripe] Pipeline complete for session ${sessionId}`);

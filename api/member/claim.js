@@ -18,8 +18,8 @@
  *   → Operator-only: returns member entitlement + sync status.
  *
  * POST ?action=mint
- *   body: { recipientEmail | walletAddress, passType (INSIDER|EMBER|OBSIDIAN|GENESIS|CHROME), serial?, transactionId? }
- *   → Mints the correct NFT via Crossmint (absorbed from api/crossmint/mint.js)
+ *   body: { recipientEmail, walletAddress?, passType (INSIDER|EMBER|OBSIDIAN|GENESIS|CHROME), transactionId?, customerName? }
+ *   → fulfilNft (same as a paid webhook): serial, idempotent Crossmint mint, NFT_Mints row, delivery email
  */
 
 import crypto from 'node:crypto';
@@ -30,6 +30,7 @@ import { ENTITLEMENT_MAP, resolveEntitlementFromNftType, getRoleId, shouldRevoke
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
 import { sendDiscordAccessLink } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
+import { fulfilNft } from '../_lib/fulfil.js';
 import { airtableImportEnabled, importFromAirtable, importHasProblems } from '../_lib/airtable-import.js';
 
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
@@ -66,6 +67,15 @@ export function validateReconcileSecret(req) {
 
 // ── POST ?action=mint: direct NFT mint via Crossmint ─────────────────────────
 
+// Entitlement → the canonical tier key that earns it (fulfilNft takes a tier).
+const MANUAL_MINT_TIER = {
+  product_a_reward: 'full',          // Aurevon Insider
+  product_b_reward: 'retainer',      // Aurevon Ember
+  product_c_reward: 'enterprise',    // Aurevon Obsidian Executive
+  monthly_membership: 'comm_monthly',  // 001 Genesis
+  lifetime_membership: 'comm_lifetime', // 004 Chrome
+};
+
 async function handleMint(req, res) {
   // Authenticated server-to-server endpoint (Zapier/Make automation — see
   // AUTOMATION_PLAYBOOKS.md, which calls this with Authorization: Bearer
@@ -92,7 +102,7 @@ async function handleMint(req, res) {
   if (!process.env.CROSSMINT_API_KEY) return res.status(503).json({ error: 'Crossmint not configured', hint: 'Add CROSSMINT_API_KEY to Vercel env vars' });
 
   const body = req.body || {};
-  const { recipientEmail, walletAddress, passType, serial } = body;
+  const { recipientEmail, walletAddress, passType } = body;
   if (!passType) return res.status(400).json({ error: 'Missing passType' });
   if (!recipientEmail && !walletAddress) return res.status(400).json({ error: 'Provide recipientEmail or walletAddress' });
 
@@ -103,18 +113,23 @@ async function handleMint(req, res) {
     ?? resolveEntitlementFromNftType(String(passType));
   if (!entitlementKey) return res.status(400).json({ error: 'Unknown passType' });
 
+  // Same pipeline as a paid webhook: reserved serial, idempotent mint keyed on
+  // the transaction id, NFT_Mints row, delivery email. A body `serial` is no
+  // longer honoured (serials come from the atomic counter only).
+  if (!recipientEmail) return res.status(400).json({ error: 'recipientEmail is required (the mint is recorded and emailed)' });
   try {
-    const { mintToEmail } = await import('../_lib/crossmint.js');
-    const result = await mintToEmail({
+    const result = await fulfilNft({
+      transactionId: body.transactionId ?? `manual-${crypto.randomUUID()}`,
       email: recipientEmail,
       walletAddress: walletAddress || null,
-      nftType: ENTITLEMENT_MAP[entitlementKey].nftType,
-      entitlementKey,
-      serial: serial ?? null,
-      idempotencyKey: body.transactionId ?? `manual-${crypto.randomUUID()}`,
+      customerName: body.customerName ?? 'Aurevon Member',
+      tier: MANUAL_MINT_TIER[entitlementKey],
+      provider: 'manual',
+      source: 'manual',
     });
-    if (!result.ok) return res.status(502).json({ error: 'Crossmint error', detail: result.error });
-    return res.status(200).json({ ok: true, actionId: result.actionId, id: result.id, data: result });
+    const reply = { ok: result.minted, minted: result.minted, nftType: result.nftType, serial: result.serial ?? null };
+    if (!result.minted) return res.status(502).json({ ...reply, error: 'Crossmint error' });
+    return res.status(200).json(reply);
   } catch (err) {
     return res.status(500).json({ error: 'Mint failed', message: err.message });
   }

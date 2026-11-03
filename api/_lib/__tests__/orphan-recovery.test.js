@@ -18,6 +18,8 @@ vi.mock('../db.js', () => ({
   listOutOfSyncEntitlements: vi.fn(), listFailedMints: vi.fn(), updateDiscordSyncStatus: vi.fn(),
   updateNftMint: vi.fn(),
   findActiveMintsByEmail: vi.fn(), findLatestPaymentByEmailAndTier: vi.fn(), dbConfigured: vi.fn(() => true),
+  // fulfil.js (shared NFT fulfilment):
+  findMintByPaymentId: vi.fn().mockResolvedValue(null),
 }));
 vi.mock('../airtable-import.js', () => ({ importHasProblems: vi.fn(() => false), airtableImportEnabled: vi.fn(() => false), importFromAirtable: vi.fn() }));
 vi.mock('../crossmint.js', () => ({ mintToEmail: vi.fn() }));

@@ -15,6 +15,8 @@ vi.mock('../db.js', () => ({
   // referenced at stripe.js module load:
   createPayment: vi.fn(), createNftMint: vi.fn(), updateDiscordSyncStatus: vi.fn().mockResolvedValue({}),
   findMemberByEmail: vi.fn().mockResolvedValue(null), findPaymentByTransactionId: vi.fn(),
+  // fulfil.js (shared NFT fulfilment):
+  findMintByPaymentId: vi.fn().mockResolvedValue(null), updateNftMint: vi.fn().mockResolvedValue({}),
 }));
 vi.mock('../crossmint.js', () => ({ mintToEmail: vi.fn() }));
 vi.mock('../email.js', () => ({ sendNftDelivery: vi.fn(), sendPurchaseConfirmation: vi.fn() }));

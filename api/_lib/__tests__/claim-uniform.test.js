@@ -19,9 +19,11 @@ vi.mock('../db.js', () => ({
   listOutOfSyncEntitlements: vi.fn(), listFailedMints: vi.fn(), updateDiscordSyncStatus: vi.fn(),
   updateNftMint: vi.fn(), createNftMint: vi.fn(),
   findActiveMintsByEmail: vi.fn(), findLatestPaymentByEmailAndTier: vi.fn(), dbConfigured: vi.fn(() => true),
+  // fulfil.js (shared NFT fulfilment):
+  findMintByPaymentId: vi.fn().mockResolvedValue(null),
 }));
 vi.mock('../airtable-import.js', () => ({ importHasProblems: vi.fn(() => false), airtableImportEnabled: vi.fn(() => false), importFromAirtable: vi.fn() }));
-vi.mock('../email.js', () => ({ sendDiscordAccessLink: vi.fn().mockResolvedValue({ ok: true, id: 'em_1' }) }));
+vi.mock('../email.js', () => ({ sendDiscordAccessLink: vi.fn().mockResolvedValue({ ok: true, id: 'em_1' }), sendNftDelivery: vi.fn() }));
 vi.mock('../discord-bot.js', () => ({ addRoleToMember: vi.fn(), removeRoleFromMember: vi.fn() }));
 vi.mock('../engage.js', () => ({ onDiscordLinkReminder: vi.fn(), onSubscriptionCancelled: vi.fn() }));
 

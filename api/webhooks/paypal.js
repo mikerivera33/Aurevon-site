@@ -5,14 +5,14 @@
  * Verification: re-POST the exact body back to PayPal IPN endpoint with
  * "cmd=_notify-validate" prepended — PayPal responds "VERIFIED" or "INVALID".
  *
- * Same downstream pipeline as Stripe: database → Crossmint → database → Resend.
+ * Same downstream pipeline as Stripe: Payments marker → fulfilNft (Crossmint → NFT_Mints → Resend).
  */
 
 import { waitUntil } from '@vercel/functions';
-import { TIER_NFT_MAP, getNextSerial, formatSerial, inferTierFromAmount } from '../_lib/tiers.js';
-import { mintToEmail } from '../_lib/crossmint.js';
-import { createPayment, createNftMint, findPaymentByTransactionId } from '../_lib/db.js';
-import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
+import { TIER_NFT_MAP, inferTierFromAmount } from '../_lib/tiers.js';
+import { fulfilNft } from '../_lib/fulfil.js';
+import { createPayment, findPaymentByTransactionId } from '../_lib/db.js';
+import { sendPurchaseConfirmation } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
 
 const PAYPAL_IPN_VERIFY_URL_LIVE    = 'https://ipnpb.paypal.com/cgi-bin/webscr';
@@ -132,14 +132,13 @@ export async function handleVerifiedIPN(ipn) {
   const customerName = [ipn.first_name, ipn.last_name].filter(Boolean).join(' ') || 'Aurevon Member';
   const amount = parseFloat(ipn.mc_gross ?? '0');
   const paymentStatus = (ipn.payment_status ?? '').toLowerCase();
-  const now = new Date().toISOString();
 
   if (!customerEmail) {
     console.error(`[PayPal IPN] No payer_email in IPN txnId=${txnId} — aborting pipeline`);
     return;
   }
 
-  console.log(`[PayPal IPN] Processing txnId=${txnId} for ${customerEmail} amount=${amount} status=${paymentStatus}`);
+  console.log(`[PayPal IPN] Processing txnId=${txnId} amount=${amount} status=${paymentStatus}`);
 
   // Only process completed payments
   if (paymentStatus !== 'completed') {
@@ -204,140 +203,17 @@ export async function handleVerifiedIPN(ipn) {
     return;
   }
 
-  const tierConfig = tier ? (TIER_NFT_MAP[tier] ?? null) : null;
-  const nftType = tierConfig?.nft ?? null;
-  const templateKey = tierConfig?.template ?? null;
-  const serialPrefix = tierConfig?.serialPrefix ?? null;
-  const collectionName = tierConfig?.collectionName ?? null;
-
-  // No NFT tier
-  if (!nftType) {
+  // NFT fulfilment (mint → NFT_Mints row → delivery email) or, for tiers
+  // without an NFT, a purchase confirmation.
+  const result = await fulfilNft({ transactionId: txnId, email: customerEmail, customerName, tier: tier ?? 'unknown', provider: 'paypal' });
+  if (result.reason === 'no_nft') {
     console.log(`[PayPal IPN] Tier "${tier}" has no NFT. Sending purchase confirmation.`);
     try {
-      await sendPurchaseConfirmation({ email: customerEmail, customerName, tier: tier ?? 'unknown' });
+      await sendPurchaseConfirmation({ email: customerEmail, customerName, tier: tier ?? 'unknown', transactionId: txnId });
     } catch (err) {
       console.error(`[PayPal IPN] Confirmation email failed: ${err.message}`);
     }
     return;
-  }
-
-  // Get next serial number for this collection
-  let serial = null;
-  if (serialPrefix) {
-    try {
-      serial = await getNextSerial(serialPrefix);
-      console.log(`[PayPal IPN] Assigned serial ${serial} for tier "${tier}"`);
-    } catch (err) {
-      console.error(`[PayPal IPN] getNextSerial failed: ${err.message}. Continuing without serial.`);
-    }
-  }
-
-  // Mint NFT
-  let mintId = null;
-  let imageUrl = null;
-  let mintStatus;
-  let mintNotes = '';
-
-  try {
-    const result = await mintToEmail({
-      email: customerEmail,
-      nftType,
-      customerName,
-      templateKey,
-      serial,
-      collectionName,
-      tierKey: tier,
-      // Idempotency key = PayPal txn_id. If this mint succeeds but the NFT_Mints
-      // write below fails, orphan-recovery → retry-mints re-calls Crossmint with
-      // THIS SAME key, returning the existing NFT instead of double-minting.
-      idempotencyKey: txnId,
-    });
-    if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
-    mintId = result.actionId;
-    imageUrl = result.imageUrl ?? null;
-    mintStatus = 'Sent';
-    console.log(`[PayPal IPN] Mint succeeded: mintId=${mintId}, serial=${serial}`);
-  } catch (err) {
-    mintStatus = 'Failed';
-    mintNotes = `Crossmint error: ${err.message}`;
-    console.error(`[PayPal IPN] Crossmint mint failed: ${err.message}`);
-    await sendAlert('paypal.mint_failed', { txnId, tier, nftType, error: err.message });
-  }
-
-  // Write NFT_Mints row — use serial as reference; retry on collision (race condition guard)
-  const reference = serial ?? `MINT_${txnId.slice(-8)}_${nftType.replace(/\s+/g, '_')}`;
-  let insertedSerial = serial;
-  let mintRowWritten = false;
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const ref = attempt === 0 ? reference : (() => {
-      if (!insertedSerial) {
-        // Null-serial tier (no serialPrefix): append retry index to avoid identical retries
-        return `${reference}_r${attempt}`;
-      }
-      const parts = insertedSerial.split('_');
-      const prefix = parts[0];
-      const num = parseInt(parts[1] ?? '0', 10) + 1;
-      insertedSerial = formatSerial(prefix, num);
-      return insertedSerial;
-    })();
-
-    try {
-      await createNftMint({
-        reference: ref,
-        email: customerEmail,
-        nftType,
-        tierSource: tier,
-        status: mintStatus,
-        sentDate: now,
-        emailDelivered: mintStatus === 'Sent',
-        notes: mintNotes,
-        mintId: mintId ?? '',
-        retryCount: 0,
-      });
-      if (!insertedSerial) insertedSerial = ref; // track actual ref for null-serial tiers
-      mintRowWritten = true;
-      console.log(`[PayPal IPN] NFT_Mints record created with reference=${ref}`);
-      break;
-    } catch (err) {
-      const isDuplicate = err.message.includes('422') || err.message.toLowerCase().includes('already exists') || err.message.toLowerCase().includes('duplicate');
-      if (isDuplicate && attempt < 2) {
-        console.warn(`[PayPal IPN] Reference collision on "${ref}" (attempt ${attempt + 1}) — incrementing serial and retrying`);
-      } else {
-        console.error(`[PayPal IPN] createNftMint failed (attempt ${attempt + 1}): ${err.message}`);
-        break;
-      }
-    }
-  }
-
-  // Minted on-chain but no NFT_Mints row landed → orphan (self-heals via recovery +
-  // idempotent key, but must be visible, not silent).
-  if (!mintRowWritten) {
-    await sendAlert('paypal.mint_row_dropped', { txnId, tier, nftType, minted: mintStatus === 'Sent' });
-  }
-
-  // Parse edition number from serial for email
-  let edition = null;
-  if (insertedSerial) {
-    const parts = insertedSerial.split('_');
-    if (parts[1]) edition = parseInt(parts[1], 10);
-  }
-
-  // Send delivery email
-  try {
-    await sendNftDelivery({
-      email: customerEmail,
-      customerName,
-      nftType,
-      mintId: mintId ?? 'pending',
-      nftImageUrl: imageUrl,
-      discordInviteUrl: process.env.DISCORD_INVITE_URL,
-      tier,
-      serial: insertedSerial,
-      edition,
-    });
-  } catch (err) {
-    console.error(`[PayPal IPN] Resend email failed: ${err.message}`);
   }
 
   console.log(`[PayPal IPN] Pipeline complete for txnId=${txnId}`);
