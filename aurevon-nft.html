@@ -30,48 +30,34 @@ html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-seri
 .nav-links a.home-link{color:var(--o2);}
 
 /* ── HEADER ── */
-.header{text-align:center;padding:60px 24px 40px;position:relative;}
-.header::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:140px;height:3px;background:linear-gradient(90deg,var(--o1),var(--o2),transparent);border-radius:2px;}
-.header h1{font-family:'Archivo Black',sans-serif;font-size:clamp(2rem,5vw,3.4rem);background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.08;margin-bottom:10px;}
-.header .sub{color:var(--muted);font-size:0.82rem;letter-spacing:0.18em;text-transform:uppercase;}
+.header{text-align:center;padding:40px 24px 0;}
+.header h1{font-family:'Archivo Black',sans-serif;font-size:clamp(2rem,5vw,3.4rem);background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.08;margin-bottom:14px;}
+.perks{color:var(--text2);font-size:0.92rem;line-height:1.6;max-width:560px;margin:0 auto;}
 
-/* ── EXPLAINER ── */
-.explainer{max-width:760px;margin:40px auto 0;padding:0 24px;text-align:center;}
-.explainer p{color:var(--text2);font-size:0.92rem;line-height:1.7;}
-.explainer .pill-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:16px;}
-.explainer .pill{background:rgba(30,58,138,0.08);border:1px solid rgba(30,58,138,0.2);border-radius:999px;padding:4px 14px;font-size:0.72rem;color:var(--o2);letter-spacing:0.06em;text-transform:uppercase;}
-
-/* ── GRID ── */
-.collection{max-width:1340px;margin:50px auto 0;padding:0 24px 80px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:28px;}
+/* ── PASS GROUPS ── */
+.group{max-width:1040px;margin:64px auto 0;padding:0 24px;text-align:center;}
+.group:last-of-type{margin-bottom:80px;}
+.group h2{font-family:'Archivo Black',sans-serif;font-size:1.4rem;color:var(--text);margin-bottom:24px;}
+.collection{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,300px));justify-content:center;gap:28px;margin-bottom:28px;text-align:left;}
 @media(max-width:480px){.collection{grid-template-columns:1fr;}}
+.note{font-size:0.82rem;color:var(--muted);margin-bottom:16px;}
 
 /* ── CARD ── */
 .nft-card{background:var(--surface);border:1px solid rgba(255,255,255,0.06);border-radius:18px;overflow:hidden;transition:transform .35s ease,box-shadow .35s ease,border-color .35s ease;display:flex;flex-direction:column;}
 .nft-card:hover{transform:translateY(-5px);box-shadow:0 28px 70px rgba(30,58,138,0.14);border-color:rgba(30,58,138,0.35);}
 .nft-image-wrap{position:relative;width:100%;aspect-ratio:1/1;overflow:hidden;background:#080810;}
 .nft-image-wrap svg,.nft-image-wrap img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;}
-.nft-label{position:absolute;top:14px;left:14px;background:rgba(0,0,0,0.65);backdrop-filter:blur(8px);border:1px solid rgba(30,58,138,0.3);padding:4px 12px;border-radius:999px;font-size:0.63rem;color:var(--o2);letter-spacing:0.12em;text-transform:uppercase;font-weight:600;z-index:2;}
-.nft-edition{position:absolute;top:14px;right:14px;background:rgba(30,58,138,0.15);border:1px solid rgba(30,58,138,0.35);padding:4px 10px;border-radius:8px;font-family:'Archivo Black',sans-serif;font-size:0.72rem;color:var(--o1);z-index:2;}
-.nft-info{padding:18px 20px 20px;display:flex;flex-direction:column;gap:8px;flex:1;}
+.nft-info{padding:18px 20px 20px;display:flex;flex-direction:column;gap:6px;flex:1;}
 .nft-name{font-family:'Archivo Black',sans-serif;font-size:1.1rem;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.nft-tier{display:inline-block;align-self:flex-start;padding:3px 10px;border-radius:6px;border:1px solid;font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;}
-.nft-desc{font-size:0.81rem;color:var(--muted);line-height:1.55;flex:1;}
-.nft-meta{display:flex;justify-content:space-between;align-items:flex-end;padding-top:12px;border-top:1px solid rgba(255,255,255,0.06);margin-top:auto;}
-.meta-label{font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;}
-.meta-val{font-family:'Archivo Black',sans-serif;font-size:0.88rem;color:var(--text);}
-.chain-badge{display:flex;align-items:center;gap:5px;font-size:0.7rem;color:var(--o2);font-weight:600;white-space:nowrap;}
+.nft-desc{font-size:0.85rem;color:var(--text2);}
+.nft-price{font-family:'Archivo Black',sans-serif;font-size:1rem;color:var(--text);margin-bottom:8px;}
+.nft-view-pass-btn{align-self:flex-start;margin-top:auto;padding:8px 16px;background:linear-gradient(135deg,rgba(30,58,138,0.7),rgba(59,130,246,0.5));color:#e0f0ff;font-size:0.75rem;letter-spacing:0.08em;text-decoration:none;border-radius:8px;border:1px solid rgba(100,180,255,0.3);}
+.nft-view-pass-btn:hover{border-color:rgba(100,180,255,0.6);}
 
-/* ── CTA SECTION ── */
-.cta-section{max-width:860px;margin:0 auto 80px;padding:0 24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;}
-@media(max-width:860px){.cta-section{grid-template-columns:1fr 1fr!important;}}
-@media(max-width:560px){.cta-section{grid-template-columns:1fr!important;}}
-.cta-card{background:var(--surface);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:28px 24px;text-align:center;transition:transform .3s,border-color .3s;}
-.cta-card:hover{transform:translateY(-3px);border-color:rgba(30,58,138,0.3);}
-.cta-card h3{font-family:'Archivo Black',sans-serif;font-size:1rem;margin-bottom:8px;color:var(--text);}
-.cta-card p{font-size:0.8rem;color:var(--muted);margin-bottom:18px;line-height:1.5;}
+/* ── ACTIONS ── */
 .cta-btn{display:inline-block;background:linear-gradient(135deg,var(--o1),var(--o2));color:#fff;text-decoration:none;font-family:'Archivo Black',sans-serif;font-size:0.82rem;padding:10px 22px;border-radius:8px;letter-spacing:0.04em;transition:opacity .2s;cursor:pointer;border:none;}
 .cta-btn:hover{opacity:0.88;}
-.cta-btn.ghost{background:transparent;border:1px solid rgba(30,58,138,0.4);color:var(--o1);}
+.cta-btn.ghost{background:transparent;border:1px solid rgba(59,130,246,0.5);color:var(--o2);}
 .cta-btn.ghost:hover{background:rgba(30,58,138,0.08);}
 </style>
 <!-- Vercel Web Analytics -->
@@ -104,151 +90,80 @@ html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-seri
 </nav>
 
     <picture><source srcset="/assets/MAIN%20AUREVON%20HEADER.webp" type="image/webp"><img src="/assets/MAIN AUREVON HEADER.png" alt="Aurevon Labs — A Subsidiary of Aurevon Ventures LLC" onerror="this.style.display='none'" style="display:block;max-width:920px;width:100%;height:auto;margin:0 auto 1.6rem;border-radius:14px;border:1px solid rgba(255,255,255,0.06);"></picture>
-<!-- HEADER -->
-<div class="header">
+<header class="header">
   <h1>Aurevon Labs NFT Collection</h1>
-  <p class="sub">A Subsidiary of Aurevon Ventures LLC · Community + Underwriting Passes · 2026 Genesis Drop</p>
-</div>
+  <p class="perks">Every pass: Discord role, holder benefits, proof of membership. On-chain on Base (ETH L2).</p>
+</header>
 
-<!-- EXPLAINER -->
-<div class="explainer">
-  <p>Three underwriting tier passes are awarded automatically with paid services. Two community passes (Genesis monthly, Chrome lifetime) are sold standalone for users who want network access without underwriting. All NFTs include private Discord role assignment, holder benefits, and proof of membership.</p>
-  <div class="pill-row">
-    <span class="pill">On-Chain · Base (ETH L2)</span>
-    <span class="pill">Discord Roles</span>
-    <span class="pill">Holder Benefits</span>
-    <span class="pill">Proof of Membership</span>
+<section class="group" aria-labelledby="community-passes">
+  <h2 id="community-passes">Community Passes</h2>
+  <div class="collection">
+  <article class="nft-card" style="border-color:rgba(30,58,138,0.4);">
+    <div class="nft-image-wrap">
+      <svg role="img" aria-label="001 Genesis pass" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;"><defs><linearGradient id="g1bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1E3A8A"/><stop offset="100%" stop-color="#162D6E"/></linearGradient></defs><rect x="10" y="10" width="180" height="180" rx="36" fill="url(#g1bg)"/><rect x="12" y="12" width="176" height="176" rx="34" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/><path d="M50 50 L90 50 L90 100 L140 100 L140 150 L50 150 Z" fill="white" opacity="0.95"/><rect x="100" y="50" width="45" height="36" rx="8" fill="white" opacity="0.6"/></svg>
+    </div>
+    <div class="nft-info">
+      <h3 class="nft-name">001 Genesis</h3>
+      <p class="nft-desc">Community Monthly</p>
+      <p class="nft-price">$29.99/mo</p>
+      <a class="nft-view-pass-btn" href="nfts/genesis.html">View Genesis Pass</a>
+    </div>
+  </article>
+  <article class="nft-card" style="border-color:rgba(200,200,210,0.35);">
+    <div class="nft-image-wrap">
+      <svg role="img" aria-label="004 Chrome pass" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;"><defs><linearGradient id="g4bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2a2a2e"/><stop offset="50%" stop-color="#3d3d42"/><stop offset="100%" stop-color="#1e1e22"/></linearGradient><linearGradient id="g4chrome" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e8e8ec"/><stop offset="25%" stop-color="#a8a8b0"/><stop offset="50%" stop-color="#f0f0f4"/><stop offset="75%" stop-color="#888890"/><stop offset="100%" stop-color="#c8c8d0"/></linearGradient></defs><rect x="10" y="10" width="180" height="180" rx="36" fill="url(#g4bg)"/><rect x="12" y="12" width="176" height="176" rx="34" fill="none" stroke="rgba(200,200,210,0.5)" stroke-width="2"/><path d="M50 50 L90 50 L90 100 L140 100 L140 150 L50 150 Z" fill="url(#g4chrome)" opacity="0.9"/><rect x="100" y="50" width="45" height="36" rx="8" fill="url(#g4chrome)" opacity="0.55"/></svg>
+    </div>
+    <div class="nft-info">
+      <h3 class="nft-name">004 Chrome</h3>
+      <p class="nft-desc">Community Lifetime</p>
+      <p class="nft-price">$349.99</p>
+      <a class="nft-view-pass-btn" href="nfts/chrome.html">View Chrome Pass</a>
+    </div>
+  </article>
   </div>
-</div>
+  <a class="cta-btn ghost" href="aurevon-web3.html">Get a Community Pass</a>
+</section>
 
-<!-- GALLERY -->
-<div class="collection">
-
-<div class="nft-card" style="border-color:rgba(30,58,138,0.4);">
-  <div class="nft-image-wrap">
-    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;"><defs><linearGradient id="g1bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1E3A8A"/><stop offset="100%" stop-color="#162D6E"/></linearGradient></defs><rect x="10" y="10" width="180" height="180" rx="36" fill="url(#g1bg)"/><rect x="12" y="12" width="176" height="176" rx="34" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/><path d="M50 50 L90 50 L90 100 L140 100 L140 150 L50 150 Z" fill="white" opacity="0.95"/><rect x="100" y="50" width="45" height="36" rx="8" fill="white" opacity="0.6"/></svg>
-    <span class="nft-label">Aurevon · 001 GENESIS</span>
-    <span class="nft-edition">#001 · Genesis</span>
-  </div>
-  <div class="nft-info">
-    <div class="nft-name">Aurevon Genesis</div>
-    <div class="nft-tier" style="background:rgba(30,58,138,0.12);border-color:rgba(30,58,138,0.25);color:#1E3A8A;">Community</div>
-    <div class="nft-desc">The original. Live Aurevon shield in brand blue. Awarded with the $29.99/mo Community Membership.</div>
-    <div class="nft-meta">
-      <div>
-        <div class="meta-label">Price / Access</div>
-        <div class="meta-val">$29.99 / mo</div>
-      </div>
-      <div class="chain-badge">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#3B82F6" stroke-width="1.2"/><path d="M7 3v3.5l2.5 1.5" stroke="#3B82F6" stroke-width="1.2" stroke-linecap="round"/></svg>
-        On-Chain · Base (ETH L2)
-      </div>
+<section class="group" aria-labelledby="underwriting-passes">
+  <h2 id="underwriting-passes">Underwriting Passes</h2>
+  <div class="collection">
+  <article class="nft-card" style="border-color:rgba(192,192,220,0.4);">
+    <div class="nft-image-wrap">
+      <img src="https://gateway.pinata.cloud/ipfs/bafkreidla5efyue3p23ta6djte7kps4e4aohaxuij7yc2eiundhv3pasty" alt="Aurevon Insider — Tier 1 Underwriting Pass" loading="lazy" style="width:100%;height:auto;display:block;">
     </div>
-  </div>
-</div>
-<div class="nft-card" style="border-color:rgba(200,200,210,0.35);">
-  <div class="nft-image-wrap">
-    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;"><defs><linearGradient id="g4bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2a2a2e"/><stop offset="50%" stop-color="#3d3d42"/><stop offset="100%" stop-color="#1e1e22"/></linearGradient><linearGradient id="g4chrome" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e8e8ec"/><stop offset="25%" stop-color="#a8a8b0"/><stop offset="50%" stop-color="#f0f0f4"/><stop offset="75%" stop-color="#888890"/><stop offset="100%" stop-color="#c8c8d0"/></linearGradient></defs><rect x="10" y="10" width="180" height="180" rx="36" fill="url(#g4bg)"/><rect x="12" y="12" width="176" height="176" rx="34" fill="none" stroke="rgba(200,200,210,0.5)" stroke-width="2"/><path d="M50 50 L90 50 L90 100 L140 100 L140 150 L50 150 Z" fill="url(#g4chrome)" opacity="0.9"/><rect x="100" y="50" width="45" height="36" rx="8" fill="url(#g4chrome)" opacity="0.55"/></svg>
-    <span class="nft-label">Aurevon · 004 CHROME</span>
-    <span class="nft-edition">#004 · Lifetime</span>
-  </div>
-  <div class="nft-info">
-    <div class="nft-name">Aurevon Chrome</div>
-    <div class="nft-tier" style="background:rgba(30,58,138,0.12);border-color:rgba(30,58,138,0.25);color:#c8c8d0;">Community Lifetime</div>
-    <div class="nft-desc">Polished chrome finish. The lifetime member edition — permanent access, never expires.</div>
-    <div class="nft-meta">
-      <div>
-        <div class="meta-label">Price / Access</div>
-        <div class="meta-val">$349.99 lifetime</div>
-      </div>
-      <div class="chain-badge">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#3B82F6" stroke-width="1.2"/><path d="M7 3v3.5l2.5 1.5" stroke="#3B82F6" stroke-width="1.2" stroke-linecap="round"/></svg>
-        On-Chain · Base (ETH L2)
-      </div>
+    <div class="nft-info">
+      <h3 class="nft-name">Aurevon Insider</h3>
+      <p class="nft-desc">Included with Full Package</p>
+      <p class="nft-price">$250</p>
+      <a class="nft-view-pass-btn" href="nfts/insider.html">View Insider Pass</a>
     </div>
-  </div>
-</div>
-<div class="nft-card" style="border-color:rgba(192,192,220,0.4);">
-  <div class="nft-image-wrap">
-    <img src="https://gateway.pinata.cloud/ipfs/bafkreidla5efyue3p23ta6djte7kps4e4aohaxuij7yc2eiundhv3pasty" alt="Aurevon Insider — Tier 1 Underwriting Pass" loading="lazy" style="width:100%;height:auto;display:block;">
-    <span class="nft-label">Aurevon INSIDER</span>
-    <span class="nft-edition">#005 · Tier 1</span>
-  </div>
-  <div class="nft-info">
-    <div class="nft-name">Aurevon INSIDER</div>
-    <div class="nft-tier" style="background:rgba(30,58,138,0.12);border-color:rgba(30,58,138,0.25);color:#c0c0dc;">RE Tier 1</div>
-    <div class="nft-desc">Brushed silver plaque with the Aurevon A emblem. Awarded with every Full Package underwriting purchase.</div>
-    <div class="nft-meta">
-      <div>
-        <div class="meta-label">Price / Access</div>
-        <div class="meta-val">Included with Full Package · $250</div>
-      </div>
-      <div class="chain-badge">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#3B82F6" stroke-width="1.2"/><path d="M7 3v3.5l2.5 1.5" stroke="#3B82F6" stroke-width="1.2" stroke-linecap="round"/></svg>
-        On-Chain · Base (ETH L2)
-      </div>
+  </article>
+  <article class="nft-card" style="border-color:rgba(180,80,30,0.45);">
+    <div class="nft-image-wrap">
+      <img src="https://gateway.pinata.cloud/ipfs/bafkreifon655t7ru5vrcpnnhsodjal3jb323cjubfx7na4fnp22n6tdb54" alt="Aurevon Ember — Tier 2 Underwriting Pass" loading="lazy" style="width:100%;height:auto;display:block;">
     </div>
-  </div>
-</div>
-<div class="nft-card" style="border-color:rgba(180,80,30,0.45);">
-  <div class="nft-image-wrap">
-    <img src="https://gateway.pinata.cloud/ipfs/bafkreifon655t7ru5vrcpnnhsodjal3jb323cjubfx7na4fnp22n6tdb54" alt="Aurevon Ember — Tier 2 Underwriting Pass" loading="lazy" style="width:100%;height:auto;display:block;">
-    <span class="nft-label">Aurevon EMBER</span>
-    <span class="nft-edition">#006 · Tier 2</span>
-  </div>
-  <div class="nft-info">
-    <div class="nft-name">Aurevon EMBER</div>
-    <div class="nft-tier" style="background:rgba(30,58,138,0.12);border-color:rgba(30,58,138,0.25);color:#d4622a;">RE Tier 2</div>
-    <div class="nft-desc">Hammered copper relief with a glowing Aurevon A emblem. Reserved for active Pro Retainer subscribers.</div>
-    <div class="nft-meta">
-      <div>
-        <div class="meta-label">Price / Access</div>
-        <div class="meta-val">Included with Pro Retainer · $1,499/mo</div>
-      </div>
-      <div class="chain-badge">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#3B82F6" stroke-width="1.2"/><path d="M7 3v3.5l2.5 1.5" stroke="#3B82F6" stroke-width="1.2" stroke-linecap="round"/></svg>
-        On-Chain · Base (ETH L2)
-      </div>
+    <div class="nft-info">
+      <h3 class="nft-name">Aurevon Ember</h3>
+      <p class="nft-desc">Included with Pro Retainer</p>
+      <p class="nft-price">$1,499/mo</p>
+      <a class="nft-view-pass-btn" href="nfts/ember.html">View Ember Pass</a>
     </div>
-  </div>
-</div>
-<div class="nft-card" style="border-color:rgba(212,170,60,0.45);">
-  <div class="nft-image-wrap">
-    <img src="https://gateway.pinata.cloud/ipfs/bafkreie7rhy5sibiocfu5cq7hhwf52tdzgesk3brmj753v2xgulannwsy4" alt="Aurevon Obsidian Executive — Tier 3 Underwriting Pass" loading="lazy" style="width:100%;height:auto;display:block;">
-    <span class="nft-label">Aurevon OBSIDIAN EXECUTIVE</span>
-    <span class="nft-edition">#007 · Tier 3</span>
-  </div>
-  <div class="nft-info">
-    <div class="nft-name">Aurevon OBSIDIAN EXECUTIVE</div>
-    <div class="nft-tier" style="background:rgba(30,58,138,0.12);border-color:rgba(30,58,138,0.25);color:#d4aa3c;">RE Tier 3 · Apex</div>
-    <div class="nft-desc">Polished obsidian plaque with 24K gold inlay. The apex Aurevon pass — Enterprise members only.</div>
-    <div class="nft-meta">
-      <div>
-        <div class="meta-label">Price / Access</div>
-        <div class="meta-val">Included with Enterprise · $2,499/mo</div>
-      </div>
-      <div class="chain-badge">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#3B82F6" stroke-width="1.2"/><path d="M7 3v3.5l2.5 1.5" stroke="#3B82F6" stroke-width="1.2" stroke-linecap="round"/></svg>
-        On-Chain · Base (ETH L2)
-      </div>
+  </article>
+  <article class="nft-card" style="border-color:rgba(212,170,60,0.45);">
+    <div class="nft-image-wrap">
+      <img src="https://gateway.pinata.cloud/ipfs/bafkreie7rhy5sibiocfu5cq7hhwf52tdzgesk3brmj753v2xgulannwsy4" alt="Aurevon Obsidian Executive — Tier 3 Underwriting Pass" loading="lazy" style="width:100%;height:auto;display:block;">
     </div>
+    <div class="nft-info">
+      <h3 class="nft-name">Aurevon Obsidian Executive</h3>
+      <p class="nft-desc">Included with Enterprise</p>
+      <p class="nft-price">$2,499/mo</p>
+      <a class="nft-view-pass-btn" href="nfts/obsidian.html">View Obsidian Pass</a>
+    </div>
+  </article>
   </div>
-</div>
-</div>
-
-<!-- CTAs -->
-<div class="cta-section" style="grid-template-columns:repeat(2,1fr);max-width:900px;">
-  <div class="cta-card">
-    <h3>Get an Underwriting Pass</h3>
-    <p>Passes are awarded automatically when you purchase any Aurevon Capital underwriting service — Full Package (Tier 1 Insider), Pro Retainer (Tier 2 Ember), or Enterprise (Tier 3 Obsidian Executive). BOGO and Second Opinion are underwriting-only and do not include an NFT.</p>
-    <a class="cta-btn" href="aurevon-re.html#pricing">View RE Pricing</a>
-  </div>
-  <div class="cta-card">
-    <h3>Get a Community Pass</h3>
-    <p>Genesis ($29.99/mo) and Chrome ($349.99 lifetime) passes are available directly through Aurevon Labs for standalone network access.</p>
-    <a class="cta-btn ghost" href="aurevon-web3.html">Aurevon Labs</a>
-  </div>
-</div>
+  <p class="note">Awarded automatically with the plan. BOGO and Second Opinion don&rsquo;t include an NFT.</p>
+  <a class="cta-btn" href="aurevon-re.html#pricing">View RE Pricing</a>
+</section>
 
 <!-- FOOTER -->
 
@@ -262,7 +177,7 @@ html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-seri
 </style>
 <footer class="aurevon-global-foot">
   <div class="row">
-    <div>© <span id="aurevonYr">2026</span> Aurevon Ventures LLC · Systems. Capital. Infrastructure. · Aurevon RE, Aurevon Labs, and all related entities are owned and operated by Aurevon Ventures LLC.</div>
+    <div>© <span id="aurevonYr">2026</span> Aurevon Ventures LLC</div>
     <div class="links">
       <a href="index.html">Home</a>
       <a href="aurevon-re.html">RE Underwriting</a>
@@ -280,32 +195,6 @@ html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-seri
 </footer>
 
 
-<script>
-// Subtle card entrance animation
-(function(){
-  if(!('IntersectionObserver' in window)) return;
-  var cards = document.querySelectorAll('.nft-card');
-  cards.forEach(function(c){c.style.opacity='0';c.style.transform='translateY(24px)';c.style.transition='opacity .5s ease, transform .5s ease, box-shadow .35s ease, border-color .35s ease';});
-  var io = new IntersectionObserver(function(entries){
-    entries.forEach(function(e){
-      if(e.isIntersecting){e.target.style.opacity='1';e.target.style.transform='translateY(0)';io.unobserve(e.target);}});
-  },{threshold:0.12});
-  cards.forEach(function(c){io.observe(c);});
-})();
-</script>
-<script src="nft-pass-links.js"></script>
-<!-- AUREVON_PASS_INDEX -->
-<!-- Server-rendered crawlable links to each NFT detail page (supplements the JS-injected View XXX Pass buttons) -->
-<nav aria-label="Browse Aurevon NFT pass details" style="max-width:920px;margin:1.5rem auto 0;padding:0 1rem;">
-  <div style="display:flex;gap:0.6rem;flex-wrap:wrap;justify-content:center;font-size:0.78rem;color:#6b6760;text-transform:uppercase;letter-spacing:0.08em;font-family:'DM Sans','Inter',-apple-system,sans-serif;">
-    <span>Pass Details:</span>
-    <a href="/nfts/genesis"  style="color:#b8b3ab;text-decoration:none;">Genesis</a>
-    <a href="/nfts/chrome"   style="color:#b8b3ab;text-decoration:none;">Chrome</a>
-    <a href="/nfts/insider"  style="color:#b8b3ab;text-decoration:none;">Insider</a>
-    <a href="/nfts/ember"    style="color:#b8b3ab;text-decoration:none;">Ember</a>
-    <a href="/nfts/obsidian" style="color:#b8b3ab;text-decoration:none;">Obsidian</a>
-  </div>
-</nav>
 
 <!-- Aurevon shared motion background (ported from labs.aurevonvc.com) -->
 <script src="/motion/ticker.js" defer></script>

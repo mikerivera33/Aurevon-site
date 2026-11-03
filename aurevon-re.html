@@ -101,7 +101,7 @@ window.AUREVON_CONFIG = {
   --glass:rgba(255,255,255,0.05); --glass-b:rgba(255,255,255,0.09);
 }
 *,*::before,*::after{box-sizing:border-box;}
-html{scroll-behavior:smooth;scroll-snap-type:y proximity;scroll-padding-top:60px;}
+html{scroll-behavior:smooth;scroll-padding-top:60px;}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;line-height:1.55;}
 body{overflow-x:hidden;}
 a{color:var(--o2);text-decoration:none;}
@@ -119,22 +119,15 @@ a:hover{color:var(--o1);}
 .nav-links{display:flex;gap:1.6rem;font-size:0.88rem;color:var(--text-2);}
 .nav-links a{color:var(--text-2);}
 .nav-links a:hover{color:var(--o1);}
-.btn-cta{display:inline-flex;align-items:center;gap:0.4rem;padding:0.6rem 1.1rem;border-radius:10px;background:linear-gradient(135deg,var(--o1),var(--o2));color:#0A0A0A;font-family:'Archivo Black',sans-serif;font-size:0.82rem;letter-spacing:0.02em;box-shadow:0 8px 24px rgba(30,58,138,0.28);transition:transform .2s ease, box-shadow .2s ease;cursor:pointer;border:none;}
-.btn-cta:hover{transform:translateY(-1px);box-shadow:0 10px 30px rgba(30,58,138,0.4);color:#0A0A0A;}
+.btn-cta{display:inline-flex;align-items:center;gap:0.4rem;padding:0.6rem 1.1rem;border-radius:10px;background:linear-gradient(135deg,var(--o1),var(--o2));color:#fff;font-family:'Archivo Black',sans-serif;font-size:0.82rem;letter-spacing:0.02em;box-shadow:0 8px 24px rgba(30,58,138,0.28);transition:transform .2s ease, box-shadow .2s ease;cursor:pointer;border:none;}
+.btn-cta:hover{transform:translateY(-1px);box-shadow:0 10px 30px rgba(30,58,138,0.4);color:#fff;}
 .btn-ghost{display:inline-flex;align-items:center;gap:0.4rem;padding:0.6rem 1.1rem;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--text);font-weight:600;font-size:0.85rem;cursor:pointer;transition:background .2s ease;}
 .btn-ghost:hover{background:rgba(255,255,255,0.08);color:var(--text);}
 @media (max-width:760px){.nav-links{display:none;}}
 
 /* generic section — full-page feel */
-section{position:relative;min-height:100vh;padding:clamp(4.5rem,7vw,6rem) 0 clamp(3rem,5vw,5rem);display:flex;flex-direction:column;justify-content:center;scroll-snap-align:start;scroll-snap-stop:normal;}
-section.tight{min-height:auto;padding:clamp(2.5rem,5vw,4rem) 0;}
+section{position:relative;padding:clamp(4rem,8vw,6rem) 0;display:flex;flex-direction:column;justify-content:center;scroll-margin-top:60px;}
 .section-inner{width:100%;}
-
-/* scroll cue */
-.scroll-cue{position:absolute;bottom:1.6rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:0.35rem;color:var(--text-muted);font-size:0.7rem;letter-spacing:0.16em;text-transform:uppercase;pointer-events:none;opacity:0.65;}
-.scroll-cue .dot{width:22px;height:34px;border:1.5px solid rgba(59,130,246,0.45);border-radius:12px;position:relative;}
-.scroll-cue .dot::after{content:'';position:absolute;top:6px;left:50%;transform:translateX(-50%);width:3px;height:6px;background:var(--o2);border-radius:2px;animation:cue 1.8s ease-in-out infinite;}
-@keyframes cue{0%{opacity:0;transform:translate(-50%,-4px);}50%{opacity:1;transform:translate(-50%,4px);}100%{opacity:0;transform:translate(-50%,12px);}}
 
 /* section progress dots (fixed, right side) */
 .section-dots{position:fixed;top:50%;right:18px;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;z-index:60;}
@@ -142,19 +135,14 @@ section.tight{min-height:auto;padding:clamp(2.5rem,5vw,4rem) 0;}
 .section-dots a:hover{transform:scale(1.3);background:rgba(59,130,246,0.5);}
 .section-dots a.active{background:linear-gradient(135deg,var(--o1),var(--o2));transform:scale(1.3);box-shadow:0 0 10px rgba(30,58,138,0.5);}
 @media(max-width:900px){.section-dots{display:none;}}
-.tag{display:inline-block;padding:4px 12px;border-radius:999px;background:rgba(30,58,138,0.12);color:var(--o2);border:1px solid rgba(59,130,246,0.25);font-size:0.72rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:1rem;}
 .h1{font-family:'Archivo Black',sans-serif;font-size:clamp(2.6rem,6vw,4.8rem);line-height:1.04;margin:0 0 1.1rem;letter-spacing:-0.02em;}
 .h2{font-family:'Archivo Black',sans-serif;font-size:clamp(1.8rem,4vw,2.8rem);line-height:1.08;margin:0 0 0.6rem;letter-spacing:-0.01em;}
-.h3{font-family:'Archivo Black',sans-serif;font-size:1.1rem;letter-spacing:0.01em;margin:0 0 0.35rem;}
 .lead{font-size:clamp(0.98rem,1.4vw,1.15rem);color:var(--text-2);max-width:780px;}
 .muted{color:var(--text-muted);font-size:0.82rem;}
-.accent-line{height:3px;background:linear-gradient(90deg,var(--o1),var(--o2),transparent);border-radius:2px;width:90px;margin:0.8rem 0 1.4rem;}
 .hero-gradient{background:linear-gradient(135deg,var(--o1),var(--o2),var(--o1));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.kpi{font-family:'Archivo Black',sans-serif;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
 
 /* cards */
 .card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:1.2rem 1.3rem;}
-.card-accent{background:rgba(30,58,138,0.06);border:1px solid rgba(30,58,138,0.28);border-radius:14px;padding:1.2rem 1.3rem;}
 
 /* background blobs */
 .mesh{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;}
@@ -165,7 +153,7 @@ section.tight{min-height:auto;padding:clamp(2.5rem,5vw,4rem) 0;}
 .noise::before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");background-size:256px 256px;opacity:0.04;mix-blend-mode:overlay;}
 
 /* HERO */
-.hero{overflow:hidden;}
+.hero{overflow:hidden;min-height:100svh;}
 .hero .mesh .blob:nth-child(1){width:560px;height:560px;top:-140px;right:-120px;background:var(--o1);opacity:0.14;animation:float-slow 14s ease-in-out infinite;}
 .hero .mesh .blob:nth-child(2){width:360px;height:360px;bottom:-80px;left:-60px;background:var(--o2);opacity:0.11;animation:float-drift 18s ease-in-out infinite;}
 .hero .mesh .blob:nth-child(3){width:220px;height:220px;top:45%;left:14%;background:var(--o3);opacity:0.08;animation:float-slow 22s ease-in-out infinite reverse;}
@@ -175,54 +163,23 @@ section.tight{min-height:auto;padding:clamp(2.5rem,5vw,4rem) 0;}
 .glow-pulse{animation:glow-pulse 3s ease-in-out infinite;}
 
 .hero-cta{display:flex;gap:0.8rem;flex-wrap:wrap;margin-top:1.6rem;}
-.hero-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0.8rem;margin-top:2rem;max-width:820px;}
-.hero-stat{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.85rem;text-align:center;}
-.hero-stat .kpi{font-size:1.25rem;}
-.hero-stat .lbl{font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-top:0.15rem;}
-@media(max-width:760px){.hero-stats{grid-template-columns:repeat(2,1fr);}}
-
-/* TRUST BAR (embedded in hero) */
-.trustbar{margin-top:2.2rem;padding-top:1.4rem;border-top:1px solid rgba(255,255,255,0.07);}
-.trustbar .inner{display:flex;flex-wrap:wrap;gap:0.9rem 2rem;align-items:center;font-size:0.8rem;color:var(--text-muted);letter-spacing:0.03em;}
-.trustbar b{color:var(--text-2);font-weight:600;margin-right:0.3rem;}
-
-/* OVERVIEW — 3 analyses */
-.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;}
-.trio .card{border-top:3px solid var(--o1);}
-.trio .card:nth-child(2){border-top-color:var(--o2);}
-.trio .card:nth-child(3){border-top-color:var(--o3);}
-.trio .card .h3{color:var(--o1);}
-.trio .card:nth-child(2) .h3{color:var(--o2);}
-.trio .card:nth-child(3) .h3{color:var(--o3);}
-@media(max-width:760px){.trio{grid-template-columns:1fr;}}
 
 /* DELIVERABLES — steps */
 .steps{display:grid;grid-template-columns:1fr 1fr;gap:0.9rem;}
 .step{display:flex;gap:0.8rem;align-items:flex-start;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.85rem 1rem;}
-.step-num{flex:none;width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--o1),var(--o2));color:#0A0A0A;display:flex;align-items:center;justify-content:center;font-family:'Archivo Black',sans-serif;font-size:0.85rem;}
+.step-num{flex:none;width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--o1),var(--o2));color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Archivo Black',sans-serif;font-size:0.85rem;}
 .step-txt{font-size:0.9rem;color:#c8c4bd;line-height:1.5;}
 .step-txt b{color:var(--text);}
 @media(max-width:760px){.steps{grid-template-columns:1fr;}}
 
 /* PRICING */
 .ptiers{display:grid;grid-template-columns:repeat(5,1fr);gap:0.75rem;align-items:stretch;}
-.pay-group{display:flex;flex-direction:column;gap:0.4rem;margin-top:auto;}
-.pay-group .buy{width:100%;justify-content:center;}
-.btn-paypal{display:inline-flex;align-items:center;justify-content:center;gap:0.4rem;padding:0.6rem 1.1rem;border-radius:10px;background:#ffc439;color:#003087;font-weight:700;font-size:0.85rem;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;transition:transform .2s ease, box-shadow .2s ease;}
-.btn-paypal:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(255,196,57,0.3);}
-.btn-paypal .pp{font-family:'Archivo Black',sans-serif;letter-spacing:-0.02em;}
-.btn-paypal .pp i{font-style:normal;color:#009cde;}
-.pay-or{font-size:0.7rem;color:var(--text-muted);text-align:center;letter-spacing:0.12em;text-transform:uppercase;position:relative;padding:0.15rem 0;}
-.pay-or::before,.pay-or::after{content:'';position:absolute;top:50%;width:30%;height:1px;background:rgba(255,255,255,0.08);}
-.pay-or::before{left:0;}
-.pay-or::after{right:0;}
 .ptier{display:flex;flex-direction:column;gap:0.5rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:1.4rem 1.2rem;position:relative;transition:transform .2s ease, border-color .2s ease;}
 .ptier:hover{transform:translateY(-3px);border-color:rgba(30,58,138,0.35);}
 .ptier.popular{background:rgba(30,58,138,0.07);border-color:rgba(30,58,138,0.35);}
-.ptier.popular::before{content:"POPULAR";position:absolute;top:-11px;right:16px;font-size:0.6rem;letter-spacing:0.15em;background:linear-gradient(135deg,var(--o1),var(--o2));color:#0A0A0A;padding:3px 9px;border-radius:999px;font-family:'Archivo Black',sans-serif;white-space:nowrap;}
+.ptier.popular::before{content:"POPULAR";position:absolute;top:-11px;right:16px;font-size:0.6rem;letter-spacing:0.15em;background:linear-gradient(135deg,var(--o1),var(--o2));color:#fff;padding:3px 9px;border-radius:999px;font-family:'Archivo Black',sans-serif;white-space:nowrap;}
 .ptier.popular[data-badge]::before{content:attr(data-badge);}
 .ptier.top-tier{background:linear-gradient(165deg,rgba(59,130,246,0.12),rgba(30,58,138,0.08));border:1px solid rgba(59,130,246,0.45);box-shadow:0 10px 40px -10px rgba(30,58,138,0.35);}
-.ptier.top-tier::before{content:"TOP TIER";position:absolute;top:-11px;right:16px;font-size:0.6rem;letter-spacing:0.15em;background:linear-gradient(135deg,#3B82F6,#1E3A8A);color:#0A0A0A;padding:3px 9px;border-radius:999px;font-family:'Archivo Black',sans-serif;white-space:nowrap;}
 .ptier h3{font-family:'Archivo Black',sans-serif;font-size:1.15rem;margin:0;}
 .ptier .price{font-family:'Archivo Black',sans-serif;font-size:1.6rem;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:0.15rem 0 0;}
 .ptier .price-sub{font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.4rem;}
@@ -234,42 +191,12 @@ section.tight{min-height:auto;padding:clamp(2.5rem,5vw,4rem) 0;}
 @media(max-width:820px){.ptiers{grid-template-columns:repeat(2,1fr);}}
 @media(max-width:520px){.ptiers{grid-template-columns:1fr;}}
 
-/* BUYERS TABLE */
-.buyers{display:grid;grid-template-columns:1.15fr 1fr;gap:1.2rem;}
+/* TABLE */
 table.tbl{width:100%;border-collapse:collapse;font-size:0.88rem;}
 table.tbl th,table.tbl td{text-align:left;padding:0.7rem 0.85rem;border-bottom:1px solid rgba(255,255,255,0.07);color:var(--text-2);vertical-align:top;}
 table.tbl th{color:var(--o2);font-weight:700;letter-spacing:0.06em;font-size:0.74rem;text-transform:uppercase;background:rgba(255,255,255,0.03);}
 table.tbl tr:last-child td{border-bottom:none;}
 table.tbl td strong{color:var(--text);font-weight:600;}
-.addons{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.45rem;}
-.addons li{font-size:0.88rem;color:var(--text-2);position:relative;padding-left:1.1rem;}
-.addons li::before{content:"▸";position:absolute;left:0;top:0;color:var(--o1);}
-@media(max-width:860px){.buyers{grid-template-columns:1fr;}}
-
-/* FORM */
-.form-card{background:rgba(255,255,255,0.04);border:1px solid rgba(30,58,138,0.2);border-radius:18px;padding:clamp(1.4rem,3vw,2.2rem);box-shadow:0 20px 60px rgba(0,0,0,0.4);}
-.form-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0.9rem;}
-.form-row.triple{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);}
-@media(max-width:680px){.form-row,.form-row.triple{grid-template-columns:1fr;}}
-.field{display:flex;flex-direction:column;gap:0.3rem;margin-bottom:0.9rem;min-width:0;}
-.field label{font-size:0.78rem;color:var(--text-2);letter-spacing:0.04em;font-weight:600;}
-.field label .req{color:var(--o1);}
-.field input,.field select,.field textarea{background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:0.75rem 0.9rem;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.92rem;transition:border-color .15s ease, background .15s ease;width:100%;max-width:100%;min-width:0;box-sizing:border-box;}
-.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--o1);background:rgba(30,58,138,0.06);}
-.field textarea{resize:vertical;min-height:100px;}
-.field .hint{font-size:0.74rem;color:var(--text-muted);}
-.file-drop{border:1.5px dashed rgba(255,255,255,0.18);border-radius:12px;padding:1rem;text-align:center;background:rgba(0,0,0,0.2);cursor:pointer;transition:border-color .15s ease, background .15s ease;}
-.file-drop:hover,.file-drop.drag{border-color:var(--o1);background:rgba(30,58,138,0.06);}
-.file-drop input{display:none;}
-.file-list{margin-top:0.5rem;font-size:0.8rem;color:var(--text-2);display:flex;flex-direction:column;gap:0.25rem;}
-.file-list .f{display:flex;justify-content:space-between;gap:0.5rem;background:rgba(255,255,255,0.04);padding:0.35rem 0.6rem;border-radius:8px;}
-.form-footer{display:flex;flex-wrap:wrap;gap:0.8rem;justify-content:space-between;align-items:center;margin-top:0.4rem;}
-.submit-btn{padding:0.95rem 1.6rem;font-size:0.95rem;border-radius:12px;}
-.submit-btn:disabled{opacity:0.6;cursor:not-allowed;}
-.form-status{margin-top:1rem;padding:0.8rem 1rem;border-radius:10px;font-size:0.88rem;display:none;}
-.form-status.ok{display:block;background:rgba(46,204,113,0.12);border:1px solid rgba(46,204,113,0.35);color:#6ae39a;}
-.form-status.err{display:block;background:rgba(30,64,175,0.14);border:1px solid rgba(30,64,175,0.4);color:#ff8a7d;}
-.form-status.info{display:block;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.35);color:var(--o2);}
 
 /* FAQ */
 .faq details{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:0.85rem 1.1rem;margin-bottom:0.6rem;transition:border-color .15s ease;}
@@ -282,7 +209,6 @@ table.tbl td strong{color:var(--text);font-weight:600;}
 
 /* FOOTER */
 footer{padding:2.2rem 0;border-top:1px solid rgba(255,255,255,0.07);color:var(--text-muted);font-size:0.82rem;min-height:auto;scroll-snap-align:none;}
-footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;align-items:center;}
 
 /* Reveal on scroll */
 .reveal{opacity:1;transform:translateY(22px);transition:opacity .6s ease, transform .6s ease;}
@@ -318,22 +244,11 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 /* Tier 3 card — animated gradient border */
 .nft-card:nth-child(3){border:2px solid transparent;background-image:linear-gradient(#0A0A0A,#0A0A0A),linear-gradient(135deg,var(--o1),var(--o2),var(--o3),var(--o1));background-origin:border-box;background-clip:padding-box,border-box;}
 .nft-card:nth-child(3):hover{box-shadow:0 0 30px rgba(30,58,138,0.25),0 24px 70px rgba(30,58,138,0.2);}
-/* Tier 3 badge styling */
-.nft-card:nth-child(3) .nft-label{background:linear-gradient(135deg,rgba(30,58,138,0.3),rgba(59,130,246,0.2));border-color:rgba(59,130,246,0.5);color:#fff;font-weight:700;}
-.nft-card:nth-child(3) .nft-edition{background:linear-gradient(135deg,rgba(30,58,138,0.35),rgba(30,64,175,0.25));border-color:rgba(30,58,138,0.5);color:#fff;}
-.nft-edition{position:absolute;top:8px;right:10px;z-index:3;font-family:'Archivo Black',sans-serif;font-size:0.6rem;color:var(--o2);background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);border:1px solid rgba(30,58,138,0.25);padding:3px 8px;border-radius:6px;letter-spacing:0.06em;}
-.nft-label{position:absolute;top:8px;left:10px;z-index:3;font-size:0.55rem;color:var(--o2);background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);border:1px solid rgba(59,130,246,0.2);padding:3px 8px;border-radius:999px;letter-spacing:0.1em;text-transform:uppercase;font-weight:600;}
 .nft-meta-bar{padding:12px 14px 14px;display:flex;flex-direction:column;gap:4px;}
 .nft-name{font-family:'Archivo Black',sans-serif;font-size:0.85rem;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.2;}
 .nft-sub{font-size:0.7rem;color:var(--text-muted);line-height:1.4;}
 .nft-footer{display:flex;justify-content:space-between;align-items:center;padding:0 14px 12px;border-top:1px solid rgba(255,255,255,0.05);padding-top:10px;margin-top:2px;}
 .nft-price{font-family:'Archivo Black',sans-serif;font-size:0.78rem;color:var(--text);}
-.nft-chain{font-size:0.62rem;color:var(--o2);display:flex;align-items:center;gap:4px;font-weight:600;}
-.nft-traits{display:flex;flex-wrap:wrap;gap:4px;padding:0 14px 10px;}
-.nft-trait{background:rgba(30,58,138,0.08);border:1px solid rgba(30,58,138,0.12);border-radius:4px;padding:2px 6px;font-size:0.55rem;color:var(--o2);letter-spacing:0.03em;}
-
-/* Tier highlight box */
-.tier-highlight{background:rgba(30,58,138,0.05);border:1px solid rgba(30,58,138,0.12);border-radius:10px;padding:10px 14px;margin:0 0 10px;font-size:0.82rem;line-height:1.55;color:var(--text-muted);}
 
 /* Add-on table */
 .addon-tbl{font-size:0.82rem;}
@@ -348,7 +263,6 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 .addon-cart-wrap paypal-add-to-cart-button{display:inline-block;}
 .addon-cart-banner{margin:0 0 1rem;padding:0.85rem 1rem;background:rgba(0,48,135,0.08);border:1px solid rgba(0,48,135,0.25);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
 .addon-cart-banner .ac-txt{font-size:0.86rem;color:var(--text-2);}
-.addon-cart-banner b{color:var(--text);}
 
 /* Community steps */
 .community-steps{display:flex;flex-direction:column;gap:0.8rem;margin-top:0.5rem;}
@@ -366,7 +280,7 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 .promo-box:focus-within{border-color:var(--o1);}
 .promo-box input{flex:1;background:transparent;border:none;padding:0.7rem 1rem;color:var(--text);font-family:inherit;font-size:0.88rem;outline:none;letter-spacing:0.06em;text-transform:uppercase;}
 .promo-box input::placeholder{color:var(--text-muted);text-transform:none;letter-spacing:0;}
-.promo-box button{flex-shrink:0;padding:0.7rem 1.3rem;background:linear-gradient(135deg,var(--o1),var(--o2));color:#0A0A0A;border:none;font-family:'Archivo Black',sans-serif;font-size:0.78rem;cursor:pointer;letter-spacing:0.03em;transition:opacity .2s;}
+.promo-box button{flex-shrink:0;padding:0.7rem 1.3rem;background:linear-gradient(135deg,var(--o1),var(--o2));color:#fff;border:none;font-family:'Archivo Black',sans-serif;font-size:0.78rem;cursor:pointer;letter-spacing:0.03em;transition:opacity .2s;}
 .promo-box button:hover{opacity:0.9;}
 .promo-result{margin-top:0.6rem;font-size:0.82rem;min-height:1.4em;transition:all .3s ease;}
 .promo-result.ok{color:#2ecc71;}
@@ -378,26 +292,6 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 .price .original{text-decoration:line-through;opacity:0.4;font-size:0.75em;margin-right:0.3em;}
 .price .discounted{color:var(--o2);}
 
-/* Testimonials */
-.reviews-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.8rem;}
-@media(max-width:900px){.reviews-grid{grid-template-columns:repeat(2,1fr);}}
-@media(max-width:560px){.reviews-grid{grid-template-columns:1fr;}}
-.review-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:1.3rem 1.2rem 1.1rem;transition:transform .3s ease, border-color .3s ease, box-shadow .3s ease;display:flex;flex-direction:column;gap:0.6rem;}
-.review-card:hover{transform:translateY(-3px);border-color:rgba(30,58,138,0.2);box-shadow:0 16px 40px rgba(0,0,0,0.25);}
-.review-stars{display:flex;gap:2px;font-size:0.85rem;line-height:1;}
-.review-stars span{color:#3B82F6;}
-.review-text{font-size:0.84rem;line-height:1.6;color:#c8c4bd;flex:1;}
-.review-text em{font-style:italic;color:var(--text-muted);}
-.review-author{display:flex;align-items:center;gap:0.65rem;padding-top:0.5rem;border-top:1px solid rgba(255,255,255,0.05);}
-.review-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Archivo Black',sans-serif;font-size:0.78rem;color:#0A0A0A;flex-shrink:0;}
-.review-name{font-family:'Archivo Black',sans-serif;font-size:0.78rem;color:var(--text);line-height:1.2;}
-.review-role{font-size:0.68rem;color:var(--text-muted);line-height:1.3;}
-.review-tier{display:inline-block;font-size:0.58rem;color:var(--o2);background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.15);padding:1px 6px;border-radius:4px;margin-top:2px;letter-spacing:0.04em;font-weight:600;}
-.reviews-summary{display:flex;align-items:center;justify-content:center;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.8rem;}
-.reviews-summary .big-rating{font-family:'Archivo Black',sans-serif;font-size:3rem;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;}
-.reviews-summary .rating-detail{text-align:left;}
-.reviews-summary .stars-large{font-size:1.3rem;color:#3B82F6;letter-spacing:1px;}
-.reviews-summary .count{font-size:0.82rem;color:var(--text-muted);margin-top:2px;}
 </style>
 <!-- Vercel Web Analytics -->
 <!-- Vercel Speed Insights -->
@@ -424,11 +318,9 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
     </a>
     <div class="nav-links">
       <a href="index.html">Home</a>
-      <a href="#overview">Overview</a>
       <a href="#deliverables">Deliverables</a>
       <a href="#pricing">Pricing</a>
       <a href="#community">Community</a>
-      <a href="#reviews">What to Expect</a>
       <a href="#nft">NFTs</a>
       <a href="aurevon-nft.html">NFT Gallery</a>
       <a href="#faq">FAQ</a>
@@ -440,11 +332,9 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 <!-- SECTION DOTS -->
 <nav class="section-dots" aria-label="Section navigation">
   <a href="#top" data-target="top" title="Home"></a>
-  <a href="#overview" data-target="overview" title="Overview"></a>
   <a href="#deliverables" data-target="deliverables" title="Deliverables"></a>
   <a href="#pricing" data-target="pricing" title="Pricing"></a>
   <a href="#community" data-target="community" title="Community"></a>
-  <a href="#reviews" data-target="reviews" title="What to Expect"></a>
   <a href="#nft" data-target="nft" title="NFT Collection"></a>
   <a href="#faq" data-target="faq" title="FAQ"></a>
 </nav>
@@ -453,50 +343,11 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 <section class="hero noise" id="top">
   <div class="mesh"><div class="blob"></div><div class="blob"></div><div class="blob"></div></div>
   <div class="wrap section-inner">
-    <span class="tag reveal">Aurevon Capital · CRE Underwriting</span>
     <h1 class="h1 reveal"><span class="hero-gradient glow-pulse">Decision-ready</span><br>real estate underwriting<br>in 24–48 hours.</h1>
-    <p class="lead reveal">Up to three institutional-style analyses — <b style="color:var(--text);">underwriting, investment breakdown, and full synthesis</b> — delivered in 24–48 hours for individual investors, small firms, and startup sponsors. New customers get 2 Full Package deals for $299.99.</p>
+    <p class="lead reveal">Aurevon Capital underwrites multifamily, small CRE and mixed-use deals for individual investors, small firms, sponsors and brokers. New customers get 2 Full Package deals for $299.99.</p>
     <div class="hero-cta reveal">
       <a href="#pricing" class="btn-cta">See Pricing →</a>
       <a href="#community" class="btn-ghost">Join the Community</a>
-    </div>
-    <div class="hero-stats reveal">
-      <div class="hero-stat"><div class="kpi">24–48h</div><div class="lbl">Standard Delivery</div></div>
-      <div class="hero-stat"><div class="kpi">12h</div><div class="lbl">Rush Available</div></div>
-      <div class="hero-stat"><div class="kpi">Human QC</div><div class="lbl">Every Delivery</div></div>
-      <div class="hero-stat"><div class="kpi">PDF + XLS</div><div class="lbl">Delivered Format</div></div>
-    </div>
-    <div class="trustbar reveal">
-      <div class="inner">
-        <div><b>Built for:</b> Individual investors · Small RE firms · Startup sponsors · Brokers</div>
-        <div><b>Asset focus:</b> Multifamily · Small CRE · Mixed-use</div>
-      </div>
-    </div>
-  </div>
-  <a class="scroll-cue" href="#overview" style="pointer-events:auto;"><span>Scroll</span><span class="dot"></span></a>
-</section>
-
-<!-- OVERVIEW: 3 ANALYSES -->
-<section id="overview" class="noise">
-  <div class="mesh"><div class="blob" style="width:360px;height:360px;top:-80px;left:-60px;background:var(--o1);opacity:0.08;"></div></div>
-  <div class="wrap section-inner">
-    <span class="tag reveal">Service Overview</span>
-    <h2 class="h2 reveal">Three analyses. One decision-ready report.</h2>
-    <div class="accent-line reveal"></div>
-    <p class="lead reveal" style="margin-bottom:1.8rem;">Every engagement ships a standardized deliverable built for operators, sponsors, and lenders who need institutional quality without institutional overhead.</p>
-    <div class="trio">
-      <div class="card reveal">
-        <h3 class="h3">MARKET</h3>
-        <p style="margin:0;color:var(--text-2);font-size:0.92rem;">Submarket conditions, rent trends, demand drivers, vacancy, comparable properties, and local context for the subject asset.</p>
-      </div>
-      <div class="card reveal">
-        <h3 class="h3">DEAL</h3>
-        <p style="margin:0;color:var(--text-2);font-size:0.92rem;">Acquisition assumptions, revenue, expenses, NOI, cap rate, DSCR, leverage, pro forma logic, and scenario testing.</p>
-      </div>
-      <div class="card reveal">
-        <h3 class="h3">RISK</h3>
-        <p style="margin:0;color:var(--text-2);font-size:0.92rem;">Financing risk, lease-up risk, expense inflation, tenant/occupancy risk, and downside cases when assumptions weaken.</p>
-      </div>
     </div>
   </div>
 </section>
@@ -505,76 +356,20 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 <section id="deliverables" class="noise" style="background:linear-gradient(180deg,transparent,rgba(30,58,138,0.03),transparent);">
   <div class="mesh"><div class="blob" style="width:320px;height:320px;top:40%;right:-60px;background:var(--o2);opacity:0.07;"></div></div>
   <div class="wrap section-inner">
-    <span class="tag reveal">Deliverables</span>
-    <h2 class="h2 reveal">What lands in your inbox.</h2>
-    <div class="accent-line reveal"></div>
+    <h2 class="h2 reveal" style="margin-bottom:1.4rem;">What lands in your inbox.</h2>
     <div class="steps">
       <div class="step reveal"><div class="step-num">1</div><div class="step-txt"><b>Executive Snapshot</b> — one page, headline metrics, recommendation.</div></div>
-      <div class="step reveal"><div class="step-num">2</div><div class="step-txt"><b>Market Analysis</b> — submarket, comps, vacancy, demand drivers.</div></div>
-      <div class="step reveal"><div class="step-num">3</div><div class="step-txt"><b>Deal Analysis</b> — assumptions, operating profile, debt logic, projections.</div></div>
-      <div class="step reveal"><div class="step-num">4</div><div class="step-txt"><b>Risk Analysis</b> — downside cases, red flags, sensitivity notes.</div></div>
+      <div class="step reveal"><div class="step-num">2</div><div class="step-txt"><b>Market Analysis</b> — submarket, rent trends, comps, vacancy, demand drivers.</div></div>
+      <div class="step reveal"><div class="step-num">3</div><div class="step-txt"><b>Deal Analysis</b> — assumptions, revenue, expenses, NOI, debt logic, projections.</div></div>
+      <div class="step reveal"><div class="step-num">4</div><div class="step-txt"><b>Risk Analysis</b> — financing, lease-up, expense and occupancy risk; downside cases.</div></div>
       <div class="step reveal"><div class="step-num">5</div><div class="step-txt"><b>Assumptions Appendix</b> — missing data flags, estimated values, sources.</div></div>
-      <div class="step reveal"><div class="step-num">6</div><div class="step-txt"><b>Supporting Worksheet</b> — NOI · cap rate · DSCR · leverage model.</div></div>
+      <div class="step reveal"><div class="step-num">6</div><div class="step-txt"><b>Supporting Worksheet</b> — NOI · cap rate · DSCR · cash-on-cash · leverage model.</div></div>
     </div>
-    <div class="card-accent reveal" style="margin-top:1.2rem;border-left:3px solid var(--o2);">
-      <div style="font-size:0.76rem;color:var(--o2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.3rem;">Quality Control</div>
-      <p style="margin:0;font-size:0.92rem;color:#c8c4bd;">Every report carries labeled assumptions, missing-data flags, base/upside/downside commentary, a plain-English disclaimer, and <strong style="color:var(--text);">human review before delivery</strong>.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ════════════════════════════════════════════════════════════
-     SAMPLE DELIVERABLE  (DRAFT — attach a real redacted sample
-     PDF and point the CTA at it, or keep the mailto request flow)
-     ════════════════════════════════════════════════════════════ -->
-<section id="sample" class="noise">
-  <div class="wrap section-inner">
-    <span class="tag reveal">See Before You Buy</span>
-    <h2 class="h2 reveal">See exactly what you'll get.</h2>
-    <div class="accent-line reveal"></div>
-    <p class="lead reveal">Every engagement ships the same standardized, decision-ready format — an executive snapshot, market and deal analysis, a risk section with labeled assumptions, and a supporting model. Want to see the quality firsthand before you buy? Request a redacted sample and we'll send one over.</p>
-    <div class="card-accent reveal" style="border-left:3px solid var(--o2);display:flex;flex-wrap:wrap;gap:1rem;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-size:0.76rem;color:var(--o2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.3rem;">Redacted Sample Report</div>
-        <p style="margin:0;font-size:0.92rem;color:#c8c4bd;">A full example deliverable on a real (anonymized) multifamily deal — so you know the format, depth, and rigor before your first order.</p>
-      </div>
+    <p class="reveal" style="margin:1.2rem 0 0;font-size:0.92rem;color:#c8c4bd;">Every report carries labeled assumptions, base/upside/downside cases with interest-rate sensitivity, a plain-English disclaimer, and <strong style="color:var(--text);">human review before delivery</strong>.</p>
+    <div class="reveal" style="margin-top:1.4rem;display:flex;flex-wrap:wrap;gap:0.8rem 1rem;align-items:center;">
       <!-- DRAFT: when a sample PDF exists, swap this mailto for a direct link, e.g. href="/assets/aurevon-sample-report.pdf" -->
-      <a class="btn-cta" href="mailto:mike@aurevonvc.com?subject=Sample%20underwriting%20report%20request" style="white-space:nowrap;">Request a Sample →</a>
-    </div>
-  </div>
-</section>
-
-<!-- ════════════════════════════════════════════════════════════
-     FOUNDER + TRUST  (DRAFT — personalize the founder statement,
-     add a real headshot, and confirm the trust copy)
-     ════════════════════════════════════════════════════════════ -->
-<section id="founder" class="noise" style="background:linear-gradient(180deg,transparent,rgba(30,58,138,0.03),transparent);">
-  <div class="wrap section-inner">
-    <span class="tag reveal">Who's Behind Aurevon</span>
-    <h2 class="h2 reveal">Built by an operator — not a content mill.</h2>
-    <div class="accent-line reveal"></div>
-    <!-- DRAFT: replace the statement below with your real bio/background. Keep it specific and true — no invented numbers. -->
-    <div class="card reveal" style="margin-bottom:1.2rem;">
-      <p style="margin:0 0 0.8rem;font-size:0.98rem;color:#d8d4cd;line-height:1.7;">"I built Aurevon Capital because independent operators deserve the same caliber of underwriting that institutional shops keep in-house — without the institutional price tag or the weeks of turnaround. Every report is produced and human-reviewed to the same standard I'd want before putting my own capital at risk."</p>
-      <div style="font-size:0.85rem;color:var(--o2);font-weight:600;">Mike Rivera</div>
-      <div style="font-size:0.78rem;color:var(--text-muted);">Founder, Aurevon Ventures LLC</div>
-    </div>
-    <div class="reveal" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;">
-      <div class="card" style="text-align:left;">
-        <div style="font-size:1.4rem;margin-bottom:0.4rem;">🧠</div>
-        <div style="font-family:'Archivo Black',sans-serif;font-size:0.9rem;color:var(--text);margin-bottom:0.3rem;">Human-Reviewed</div>
-        <p style="margin:0;font-size:0.82rem;color:#b8b3ab;line-height:1.5;">No report ships on autopilot. Every deliverable is checked by a person before it reaches your inbox.</p>
-      </div>
-      <div class="card" style="text-align:left;">
-        <div style="font-size:1.4rem;margin-bottom:0.4rem;">🔒</div>
-        <div style="font-family:'Archivo Black',sans-serif;font-size:0.9rem;color:var(--text);margin-bottom:0.3rem;">Your Data, Handled Carefully</div>
-        <p style="margin:0;font-size:0.82rem;color:#b8b3ab;line-height:1.5;">Documents you upload are used only to produce your analysis, kept confidential, and deleted on request. <a href="privacy.html" style="color:var(--o2);">Privacy Policy</a>.</p>
-      </div>
-      <div class="card" style="text-align:left;">
-        <div style="font-size:1.4rem;margin-bottom:0.4rem;">🤝</div>
-        <div style="font-family:'Archivo Black',sans-serif;font-size:0.9rem;color:var(--text);margin-bottom:0.3rem;">Satisfaction-First</div>
-        <p style="margin:0;font-size:0.82rem;color:#b8b3ab;line-height:1.5;">If a deliverable doesn't match what you ordered, we'll revise it or make it right. <a href="refund.html" style="color:var(--o2);">Refund Policy</a>.</p>
-      </div>
+      <a class="btn-ghost" href="mailto:mike@aurevonvc.com?subject=Sample%20underwriting%20report%20request">Request a Sample →</a>
+      <span style="font-size:0.88rem;color:var(--text-2);">A redacted report on a real multifamily deal.</span>
     </div>
   </div>
 </section>
@@ -583,20 +378,18 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 <section id="pricing" class="noise">
   <div class="mesh"><div class="blob" style="width:420px;height:420px;top:-80px;left:-60px;background:var(--o1);opacity:0.1;"></div><div class="blob" style="width:260px;height:260px;bottom:-40px;right:-30px;background:var(--o2);opacity:0.08;"></div></div>
   <div class="wrap section-inner">
-    <span class="tag reveal">Pricing</span>
-    <h2 class="h2 reveal">Tiered for how you buy.</h2>
-    <p class="lead reveal" style="margin-bottom:1.6rem;">Every tier delivers <b style="color:var(--text);">24–48 hour turnaround</b>. Need it faster? <b style="color:var(--o2);">12-hour rush delivery</b> is a $99 add-on — or included free with Pro Retainer and Enterprise.</p>
+    <h2 class="h2 reveal" style="margin-bottom:1.6rem;">Pricing</h2>
     <div class="ptiers">
 
       <div class="ptier popular reveal" data-badge="NEW CUSTOMERS">
         <h3>First-Timer BOGO</h3>
         <div class="price">$299.99</div>
-        <div class="price-sub">New customers · 2 Full Packages</div>
+        <div class="price-sub">For 2 deals</div>
         <ul>
           <li>New customers only — one-time offer</li>
           <li><strong>Two</strong> Full Package deals (all 3 docs each)</li>
           <li>Save $200+ vs. buying separately</li>
-          <li>Same 24–48h standard turnaround</li>
+          <li>24–48h turnaround</li>
         </ul>
         <button class="btn-cta buy" type="button" onclick="openAUREVONPayment({tier:'bogo', amount:'299.99', label:'First-Timer BOGO', desc:'New customers only · 2 Full Package deals · save $200+', isMembership:false})">Buy Now →</button>
       </div>
@@ -604,15 +397,12 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
       <div class="ptier reveal">
         <h3>Second Opinion</h3>
         <div class="price">$189.99</div>
-        <div class="price-sub">Per deal · 2 documents</div>
-        <div class="tier-highlight reveal">
-          <strong style="color:var(--o2);">What you get:</strong> An <b>XLS/PDF underwriting worksheet</b> with full financials + a <b>5-page PDF investment analysis</b> covering market, deal, and risk. Two documents — the numbers and the narrative.
-        </div>
+        <div class="price-sub">Per deal</div>
         <ul>
-          <li><b>Doc 1:</b> Underwriting worksheet (XLS + PDF)</li>
-          <li><b>Doc 2:</b> 5-page investment analysis &amp; breakdown</li>
+          <li><b>Doc 1:</b> Underwriting worksheet with full financials (XLS + PDF)</li>
+          <li><b>Doc 2:</b> 5-page investment analysis &amp; breakdown (PDF)</li>
           <li>Market, deal &amp; risk review</li>
-          <li>24–48h standard turnaround</li>
+          <li>24–48h turnaround</li>
         </ul>
         <button class="btn-cta buy" type="button" onclick="openAUREVONPayment({tier:'single', amount:'189.99', label:'Second Opinion', desc:'Per deal · 2 documents · no NFT', isMembership:false})">Buy Now →</button>
       </div>
@@ -620,16 +410,13 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
       <div class="ptier reveal">
         <h3>Full Package</h3>
         <div class="price">$250</div>
-        <div class="price-sub">Per deal · all 3 documents · Tier 1 NFT</div>
-        <div class="tier-highlight reveal">
-          <strong style="color:var(--o2);">Everything in Second Opinion, plus:</strong> A <b>synthesis worksheet</b> with equity splits, refi/mortgage payment schedules, 5-year projection outlook, and LP/GP return modeling. The complete decision packet. <b style="color:var(--o2);">+ Aurevon Insider Pass NFT.</b>
-        </div>
+        <div class="price-sub">Per deal</div>
         <ul>
           <li><b>Doc 1:</b> Underwriting worksheet (XLS + PDF)</li>
           <li><b>Doc 2:</b> 5-page investment analysis &amp; breakdown</li>
-          <li><b>Doc 3:</b> Synthesis — equity splits, refi, 5-yr outlook</li>
+          <li><b>Doc 3:</b> Synthesis — equity splits, refi/mortgage schedules, 5-yr outlook, LP/GP returns</li>
           <li>Aurevon Insider Pass — Tier 1 NFT</li>
-          <li>24–48h standard turnaround</li>
+          <li>24–48h turnaround</li>
         </ul>
         <button class="btn-cta buy" type="button" onclick="openAUREVONPayment({tier:'full', amount:'250', label:'Full Package', desc:'Per deal · all 3 documents · Aurevon Insider Pass NFT', isMembership:false})">Buy Now →</button>
       </div>
@@ -637,13 +424,10 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
       <div class="ptier reveal">
         <h3>Pro Retainer</h3>
         <div class="price">$1,499<span style="font-size:0.85rem;color:var(--text-muted);">/mo</span></div>
-        <div class="price-sub">Membership · 6 Full Package deals / mo · Tier 2 NFT</div>
-        <div class="tier-highlight reveal">
-          <strong style="color:var(--o2);">Full Package × 6 each month</strong> — all 3 documents per deal, priority queue, one revision per deal, and direct Slack/email support. <b style="color:var(--o2);">12-hour rush delivery included free. + Tier 2: Aurevon Ember Pass NFT.</b>
-        </div>
         <ul>
           <li>Up to <strong>6 Full Package deals</strong> / month</li>
           <li>All 3 docs per deal (underwriting + analysis + synthesis)</li>
+          <li>Priority queue</li>
           <li><b>12-hour rush delivery included</b></li>
           <li>One revision per deal included</li>
           <li>Direct Slack/email support</li>
@@ -656,12 +440,8 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
       <div class="ptier top-tier reveal">
         <h3>Enterprise</h3>
         <div class="price">$2,499<span style="font-size:0.85rem;color:var(--text-muted);">/mo</span></div>
-        <div class="price-sub">Unlimited · full support · Tier 3 NFT</div>
-        <div class="tier-highlight reveal">
-          <strong style="color:var(--o2);">Unlimited Full Package deals</strong> with a dedicated analyst, same-day rush on every deal, branded white-label outputs, custom formats, and API access. <b style="color:var(--o2);">12-hour rush included on every deal. + Tier 3: Aurevon Obsidian Executive NFT.</b>
-        </div>
         <ul>
-          <li><strong>Unlimited deals</strong> per month</li>
+          <li><strong>Unlimited Full Package deals</strong> per month</li>
           <li>Dedicated analyst + direct line</li>
           <li><b>12-hour rush included on every deal</b></li>
           <li>Branded / white-label outputs</li>
@@ -673,27 +453,24 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
     </div>
     <div class="promo-wrap reveal">
       <div class="promo-box" id="promoBox">
-        <input type="text" id="promoInput" placeholder="Have a promo code?" maxlength="20" autocomplete="off" spellcheck="false">
+        <input type="text" id="promoInput" placeholder="Promo code" aria-label="Promo code" maxlength="20" autocomplete="off" spellcheck="false">
         <button id="promoApply" type="button">Apply</button>
       </div>
       <div class="promo-result" id="promoResult"></div>
     </div>
-    <p class="muted reveal" style="text-align:center;margin-top:1rem;">Secure payments via Stripe &amp; PayPal. After payment, you'll be redirected to submit your deal details.</p>
-    <p class="muted reveal" style="text-align:center;margin-top:0.6rem;max-width:760px;margin-left:auto;margin-right:auto;">Aurevon Capital provides <b style="color:var(--text-muted);">analysis support only — not guaranteed investment advice</b>. Reports are based on client-provided and publicly available information and do not constitute investment, tax, or legal advice or a guarantee of any outcome or return. You remain responsible for your own decisions. See our <a href="terms.html" style="color:var(--o2);text-decoration:underline;">Terms</a> and <a href="refund.html" style="color:var(--o2);text-decoration:underline;">Refund Policy</a>.</p>
+    <p class="muted reveal" style="text-align:center;margin-top:1rem;max-width:760px;margin-left:auto;margin-right:auto;">Aurevon Capital provides <b style="color:var(--text-muted);">analysis support only — not guaranteed investment advice</b>. Reports are based on client-provided and publicly available information and do not constitute investment, tax, or legal advice or a guarantee of any outcome or return. You remain responsible for your own decisions. See our <a href="terms.html" style="color:var(--o2);text-decoration:underline;">Terms</a> and <a href="refund.html" style="color:var(--o2);text-decoration:underline;">Refund Policy</a>.</p>
   </div>
 </section>
 
 <!-- ADD-ONS MATRIX -->
 <section class="noise" style="padding-top:0;">
   <div class="wrap section-inner" style="padding-top:0;">
-    <span class="tag reveal">À La Carte</span>
-    <h2 class="h2 reveal">Add-ons &amp; upgrades.</h2>
-    <p class="lead reveal" style="margin-bottom:1.2rem;">Bolt these onto any tier. All add-ons are per-deal unless noted. Pro Retainer and Enterprise clients get 12-hour rush and white-label included. <b>Pay with card (Stripe) per item, or stack multiple add-ons in your PayPal cart and check out together.</b></p>
+    <h2 class="h2 reveal" style="margin-bottom:1.2rem;">Add-ons</h2>
 
     <!-- PayPal NCP Cart — loaded once for the whole add-ons section -->
     <script src="https://www.paypalobjects.com/ncp/cart/cart.js" data-merchant-id="PPMXBVG74GD22"></script>
     <div class="addon-cart-banner reveal">
-      <div class="ac-txt"><b>Your PayPal cart:</b> click <em>Add to Cart</em> on any add-on below, then check out once.</div>
+      <div class="ac-txt">Per deal unless noted, on any tier. Pay by card per item, or add several to your PayPal cart and check out once.</div>
       <paypal-cart-button data-id="pp-view-cart"></paypal-cart-button>
     </div>
     <script>cartPaypal.Cart({ id: "pp-view-cart" });</script>
@@ -740,16 +517,12 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
           <tr>
             <td><strong>White-Label Reports</strong></td>
             <td class="addon-price">$175<span style="font-size:0.72rem;color:var(--text-muted);"> / deal</span></td>
-            <td>Your branding, your logo, your cover page — delivered as if your team built it. Ideal for brokers &amp; advisors</td>
+            <td>Your branding, logo, and cover page on the report</td>
             <td style="text-align:center;"><span class="incl-badge ent">Ent</span></td>
             <td style="text-align:center;"><div class="addon-cart-wrap"><a class="addon-btn" href="__CHECKOUT__addon_whitelabel" data-orig-text="Card" data-amount="$175">Card</a><paypal-add-to-cart-button data-id="Y4ADTAE7FPDW8"></paypal-add-to-cart-button></div></td>
           </tr>
         </tbody>
       </table>
-    </div>
-    <div class="card reveal" style="margin-top:1rem;border-left:3px solid var(--o1);">
-      <div style="font-size:0.76rem;color:var(--o2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.3rem;">Positioning</div>
-      <p style="margin:0;color:var(--text);font-weight:500;font-size:0.98rem;">Fast, institutional-style underwriting for small real estate teams and serious investors — at a fraction of big-firm pricing.</p>
     </div>
   </div>
 </section>
@@ -758,37 +531,33 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 <section id="community" class="noise" style="background:linear-gradient(180deg,transparent,rgba(30,58,138,0.03),transparent);">
   <div class="mesh"><div class="blob" style="width:380px;height:380px;top:-60px;right:-40px;background:var(--o1);opacity:0.08;"></div></div>
   <div class="wrap section-inner">
-    <span class="tag reveal">Insider Network</span>
-    <h2 class="h2 reveal">Every purchase unlocks a real estate insider network.</h2>
-    <div class="accent-line reveal"></div>
-    <p class="lead reveal" style="margin-bottom:1.6rem;">Every Aurevon client gets a <b style="color:var(--text);">Aurevon Insider NFT</b> — a digital membership card delivered straight to your email. No crypto wallet needed. One click drops you into our private Discord where investors, sponsors, operators, and brokers compare deals, share lenders, and pressure-test assumptions in real time.</p>
+    <h2 class="h2 reveal" style="margin-bottom:1.6rem;">The insider network.</h2>
 
     <div class="community-steps">
       <div class="cstep reveal">
         <div class="cstep-num">1</div>
         <div>
-          <h3 style="margin:0 0 0.3rem;font-size:1rem;">Buy select plans</h3>
-          <p style="margin:0;color:var(--text-muted);font-size:0.88rem;">Pay with your credit card like a normal checkout. No wallet. No crypto. No confusing steps.</p>
+          <h3 style="margin:0 0 0.3rem;font-size:1rem;">Buy any plan except Second Opinion</h3>
+          <p style="margin:0;color:var(--text-muted);font-size:0.88rem;">Card checkout. No wallet or crypto needed.</p>
         </div>
       </div>
       <div class="cstep reveal">
         <div class="cstep-num">2</div>
         <div>
           <h3 style="margin:0 0 0.3rem;font-size:1rem;">Receive your NFT by email</h3>
-          <p style="margin:0;color:var(--text-muted);font-size:0.88rem;">Within minutes, your Aurevon Insider NFT arrives in your inbox. It's your proof of membership — keep it forever.</p>
+          <p style="margin:0;color:var(--text-muted);font-size:0.88rem;">Your membership pass arrives within minutes. It's yours to keep.</p>
         </div>
       </div>
       <div class="cstep reveal">
         <div class="cstep-num">3</div>
         <div>
           <h3 style="margin:0 0 0.3rem;font-size:1rem;">One-click Discord access</h3>
-          <p style="margin:0;color:var(--text-muted);font-size:0.88rem;">Click the link in your email. You're instantly inside the private server with the right role assigned to your tier.</p>
+          <p style="margin:0;color:var(--text-muted);font-size:0.88rem;">The link in your email joins the private server with your tier's role.</p>
         </div>
       </div>
     </div>
 
     <div class="card reveal" style="border-left:3px solid var(--o1);margin-top:1.5rem;">
-      <div style="font-size:0.76rem;color:var(--o2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.55rem;">Inside the Community</div>
       <ul class="community-list">
         <li>Deal-of-the-week teardowns with senior underwriters</li>
         <li>Live Q&amp;A on pricing, financing, and market shifts</li>
@@ -801,66 +570,10 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
   </div>
 </section>
 
-<!-- TESTIMONIALS -->
-<section id="reviews" class="noise" style="background:linear-gradient(180deg,transparent,rgba(30,58,138,0.015),transparent);">
-  <div class="mesh">
-    <div class="blob" style="width:400px;height:400px;top:-80px;right:-60px;background:var(--o2);opacity:0.06;"></div>
-  </div>
-  <div class="wrap section-inner">
-    <span class="tag reveal">What To Expect</span>
-    <h2 class="h2 reveal">What you get in every report.</h2>
-    <div class="accent-line reveal"></div>
-    <p class="lead reveal" style="margin-bottom:0.4rem;">A plain description of the deliverable, its format, and the standard we hold it to — so you know exactly what lands in your inbox.</p>
-
-    <div class="reviews-grid">
-
-      <div class="review-card reveal">
-        <div class="review-name" style="font-size:0.95rem;margin-bottom:0.35rem;">Up to three documents per deal</div>
-        <div class="review-text">Depending on your tier: an underwriting worksheet (XLS + PDF), a five-page investment analysis covering market, deal, and risk, and a synthesis worksheet with equity splits, refinance/mortgage schedules, a five-year outlook, and LP/GP return modeling — formatted to the standard lenders and LPs expect.</div>
-      </div>
-
-      <div class="review-card reveal">
-        <div class="review-name" style="font-size:0.95rem;margin-bottom:0.35rem;">Scenarios, not a single number</div>
-        <div class="review-text">Every analysis carries base, upside, and downside commentary and sensitivity across multiple interest-rate scenarios, plus metrics like cash-on-cash and DSCR — so you can see how a deal behaves under stress, not just at the asking price.</div>
-      </div>
-
-      <div class="review-card reveal">
-        <div class="review-name" style="font-size:0.95rem;margin-bottom:0.35rem;">Labeled assumptions &amp; missing-data flags</div>
-        <div class="review-text">We show our work. Assumptions are labeled, gaps in the information you provide are flagged, and nothing is presented as fact that we could not derive from your documents and publicly available data.</div>
-      </div>
-
-      <div class="review-card reveal">
-        <div class="review-name" style="font-size:0.95rem;margin-bottom:0.35rem;">Human review before delivery</div>
-        <div class="review-text">Every report is reviewed by a person before it reaches you. The goal is a clear, consistent, defensible view of the deal that reads the same from one report to the next — not a black-box score.</div>
-      </div>
-
-      <div class="review-card reveal">
-        <div class="review-name" style="font-size:0.95rem;margin-bottom:0.35rem;">Predictable turnaround</div>
-        <div class="review-text">Standard delivery is 24–48 hours after a complete intake, with an optional 12-hour rush add-on (included free on Pro Retainer and Enterprise). You know when your package will land.</div>
-      </div>
-
-      <div class="review-card reveal">
-        <div class="review-name" style="font-size:0.95rem;margin-bottom:0.35rem;">Decision support — you make the call</div>
-        <div class="review-text">Reports are built to help you make your own decision. Each carries a plain-English disclaimer and is analysis support only — not investment, tax, or legal advice, and not a guarantee of any outcome or return.</div>
-      </div>
-
-    </div><!-- /reviews-grid -->
-
-    <div class="card-accent reveal" style="margin-top:1.4rem;border-left:3px solid var(--o2);display:flex;align-items:center;gap:1rem;">
-      <div style="font-size:1.3rem;">ℹ️</div>
-      <div>
-        <p style="margin:0;font-size:0.88rem;color:#c8c4bd;">The items above describe the format and standard of our deliverables. They are illustrative — not client testimonials, ratings, or outcome guarantees. Aurevon Capital provides analysis support only, not investment advice, and results depend on your deal and your own decisions. Want to see the exact deliverables? <a href="#deliverables" style="color:var(--o2);text-decoration:underline;">View sample outputs →</a></p>
-      </div>
-    </div>
-  </div>
-</section>
-
 <!-- FAQ -->
 <section id="faq" class="faq noise">
   <div class="wrap section-inner">
-    <span class="tag reveal">FAQ</span>
-    <h2 class="h2 reveal">Common questions.</h2>
-    <div class="accent-line reveal"></div>
+    <h2 class="h2 reveal" style="margin-bottom:1.4rem;">FAQ</h2>
     <div class="reveal">
       <details>
         <summary>How fast is turnaround?</summary>
@@ -887,6 +600,14 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
         <p>Yes. White-label reports are a $175/deal add-on — or included free with Enterprise. Your branding, your cover page, delivered as if your team built it.</p>
       </details>
       <details>
+        <summary>What happens to my documents?</summary>
+        <p>Documents you upload are used only to produce your analysis, kept confidential, and deleted on request. See the <a href="privacy.html" style="color:var(--o2);">Privacy Policy</a>.</p>
+      </details>
+      <details>
+        <summary>What if a report doesn't match what I ordered?</summary>
+        <p>We'll revise it or make it right. See the <a href="refund.html" style="color:var(--o2);">Refund Policy</a>.</p>
+      </details>
+      <details>
         <summary>Are Aurevon Capital reports investment advice?</summary>
         <p>No. Reports are analysis support — a structured, reviewed view of the deal. They do not constitute investment, tax, or legal advice. Clients remain responsible for their own decisions.</p>
       </details>
@@ -901,29 +622,22 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
     <div class="blob" style="width:300px;height:300px;bottom:-60px;right:-50px;background:var(--o2);opacity:0.07;"></div>
   </div>
   <div class="wrap section-inner">
-    <span class="tag reveal">Holder Benefits</span>
-    <h2 class="h2 reveal">Your tier. Your shield.</h2>
-    <div class="accent-line reveal"></div>
-    <p class="lead reveal" style="margin-bottom:1rem;">Three tiers — each unlocking a progressively rarer edition of the Aurevon Shield. Your NFT is your membership card, your Discord role, and your proof of access. Upgrade your plan, upgrade your shield.</p>
+    <h2 class="h2 reveal">Membership NFTs</h2>
 
-    <div class="nft-grid" style="grid-template-columns:repeat(3,1fr);">
+    <div class="nft-grid">
 
       <!-- NFT 1: FULL PACKAGE — GENESIS SHIELD -->
       <div class="nft-card reveal">
         <div class="nft-art" id="nftArt1">
           <canvas data-nft="1"></canvas>
-          <div class="nft-label">Full Package</div>
-          <div class="nft-edition">#001</div>
           <img class="shield-img" src="https://gateway.pinata.cloud/ipfs/bafkreidla5efyue3p23ta6djte7kps4e4aohaxuij7yc2eiundhv3pasty" alt="Aurevon Insider — Tier 1" loading="lazy" style="width:100%;height:auto;display:block;">
         </div>
         <div class="nft-meta-bar">
           <div class="nft-name">Aurevon Insider</div>
-          <div class="nft-sub">Tier 1 — the foundation. Brushed silver plaque with the Aurevon A emblem in brand blue. Awarded with every Full Package purchase.</div>
+          <div class="nft-sub">Tier 1 · brushed silver plaque, blue Aurevon A emblem.</div>
         </div>
-        <div class="nft-traits"><span class="nft-trait">Tier 1</span><span class="nft-trait">Full Package</span><span class="nft-trait">Standard Edition</span></div>
         <div class="nft-footer">
           <div class="nft-price">Full Package · $250</div>
-          <div class="nft-chain"><svg width="10" height="10" viewBox="0 0 10 10"><polygon points="5,0 10,5 5,10 0,5" fill="#3B82F6"/></svg>On-Chain</div>
         </div>
       </div>
 
@@ -931,18 +645,14 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
       <div class="nft-card reveal">
         <div class="nft-art" id="nftArt2">
           <canvas data-nft="2"></canvas>
-          <div class="nft-label">Pro Retainer</div>
-          <div class="nft-edition">#002</div>
           <img class="shield-img" src="https://gateway.pinata.cloud/ipfs/bafkreifon655t7ru5vrcpnnhsodjal3jb323cjubfx7na4fnp22n6tdb54" alt="Aurevon Ember — Tier 2" loading="lazy" style="width:100%;height:auto;display:block;">
         </div>
         <div class="nft-meta-bar">
           <div class="nft-name">Aurevon Ember</div>
-          <div class="nft-sub">Tier 2 — fire-forged. Hammered copper relief with a glowing Aurevon A emblem. Reserved for active Pro Retainer subscribers.</div>
+          <div class="nft-sub">Tier 2 · hammered copper relief. For active Pro Retainer subscribers.</div>
         </div>
-        <div class="nft-traits"><span class="nft-trait">Tier 2</span><span class="nft-trait">Pro Retainer</span><span class="nft-trait">Exclusive Edition</span></div>
         <div class="nft-footer">
           <div class="nft-price">Pro Retainer · $1,499/mo</div>
-          <div class="nft-chain"><svg width="10" height="10" viewBox="0 0 10 10"><polygon points="5,0 10,5 5,10 0,5" fill="#3B82F6"/></svg>On-Chain</div>
         </div>
       </div>
 
@@ -950,33 +660,24 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
       <div class="nft-card reveal">
         <div class="nft-art" id="nftArt3">
           <canvas data-nft="3"></canvas>
-          <div class="nft-label">Enterprise</div>
-          <div class="nft-edition">#003</div>
           <img class="shield-img shield-obsidian" src="https://gateway.pinata.cloud/ipfs/bafkreie7rhy5sibiocfu5cq7hhwf52tdzgesk3brmj753v2xgulannwsy4" alt="Aurevon Obsidian Executive — Tier 3" loading="lazy" style="width:100%;height:auto;display:block;">
         </div>
         <div class="nft-meta-bar">
           <div class="nft-name">Aurevon Obsidian Executive</div>
-          <div class="nft-sub">Tier 3 — the apex. Polished obsidian plaque with 24K gold inlay and engraved executive lettering. Reserved for Enterprise members only.</div>
+          <div class="nft-sub">Tier 3 · polished obsidian with 24K gold inlay. Enterprise members only.</div>
         </div>
-        <div class="nft-traits"><span class="nft-trait">Tier 3</span><span class="nft-trait">Enterprise</span><span class="nft-trait">1 of 1</span><span class="nft-trait">Apex Edition</span></div>
         <div class="nft-footer">
           <div class="nft-price">Enterprise · $2,499/mo</div>
-          <div class="nft-chain"><svg width="10" height="10" viewBox="0 0 10 10"><polygon points="5,0 10,5 5,10 0,5" fill="#3B82F6"/></svg>On-Chain</div>
         </div>
       </div>
 
     </div>
 
-    <div class="card-accent reveal" style="margin-top:1.4rem;border-left:3px solid var(--o2);display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
-      <div style="font-size:1.3rem;">⛓️</div>
-      <div style="flex:1;min-width:220px;">
-        <div style="font-size:0.76rem;color:var(--o2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.2rem;">Tier-Locked Access · 2026</div>
-        <p style="margin:0 0 1rem;font-size:0.88rem;color:#c8c4bd;">Each shield carries on-chain provenance and unlocks tier-specific holder benefits across the Aurevon ecosystem. Upgrade your tier, upgrade your shield.</p>
-        <a href="https://discord.gg/2fwFjMEh" target="_blank" rel="noopener" class="discord-btn" style="display:inline-flex;align-items:center;gap:8px;padding:0.6rem 1.3rem;border-radius:10px;background:#5865F2;color:#fff;font-family:'Archivo Black',sans-serif;font-size:0.82rem;text-decoration:none;letter-spacing:0.02em;transition:transform .2s ease, box-shadow .2s ease;box-shadow:0 6px 20px rgba(88,101,242,0.3);">
+    <div class="reveal" style="margin-top:1.4rem;">
+      <a href="https://discord.gg/2fwFjMEh" target="_blank" rel="noopener" class="discord-btn" style="display:inline-flex;align-items:center;gap:8px;padding:0.6rem 1.3rem;border-radius:10px;background:#5865F2;color:#fff;font-family:'Archivo Black',sans-serif;font-size:0.82rem;text-decoration:none;letter-spacing:0.02em;transition:transform .2s ease, box-shadow .2s ease;box-shadow:0 6px 20px rgba(88,101,242,0.3);">
           <svg width="20" height="15" viewBox="0 0 71 55" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z" fill="white"/></svg>
           Join the Aurevon Discord →
         </a>
-      </div>
     </div>
   </div>
 </section>
@@ -992,7 +693,7 @@ footer .finner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1re
 </style>
 <footer class="aurevon-global-foot">
   <div class="row">
-    <div>© <span id="aurevonYr">2026</span> Aurevon Ventures LLC · Systems. Capital. Infrastructure. · Aurevon RE, Aurevon Labs, and all related entities are owned and operated by Aurevon Ventures LLC.</div>
+    <div>© <span id="aurevonYr">2026</span> Aurevon Ventures LLC</div>
     <div class="links">
       <a href="index.html">Home</a>
       <a href="aurevon-re.html">RE Underwriting</a>
@@ -1035,7 +736,7 @@ const CFG = window.AUREVON_CONFIG || {};
 })();
 
 function showPaymentError(msg) {
-  var el = document.getElementById('bkt-pay-error');
+  var el = document.getElementById('aurevon-pay-error');
   if (el) { el.textContent = msg; el.style.display = 'block'; }
   else { console.error('[Payment]', msg); }
 }
@@ -1489,11 +1190,11 @@ targets.forEach(t => spy.observe(t));
         <!-- dynamic content rendered by JS -->
       </div>
       <div class="aurevon-pay-trust">
-        <span>🔒 Encrypted</span>
+        <span>Encrypted</span>
         <span>·</span>
-        <span>📧 Receipt to your email</span>
+        <span>Receipt to your email</span>
         <span>·</span>
-        <span>↻ Auto-redirect after payment</span>
+        <span>Auto-redirect after payment</span>
       </div>
     </div>
   </div>
@@ -1520,11 +1221,11 @@ targets.forEach(t => spy.observe(t));
 .aurevon-pay-tab[hidden]{display:none;}
 .aurevon-pay-tab{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0.6rem 0.4rem;background:transparent;border:none;border-radius:7px;color:#b8b3ab;font-size:0.72rem;font-weight:600;cursor:pointer;transition:background .2s,color .2s;font-family:inherit;}
 .aurevon-pay-tab:hover{background:rgba(255,255,255,0.04);color:#f0ede8;}
-.aurevon-pay-tab.active{background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#0A0A0A;font-weight:700;box-shadow:0 4px 14px rgba(30,58,138,0.35);}
+.aurevon-pay-tab.active{background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#fff;font-weight:700;box-shadow:0 4px 14px rgba(30,58,138,0.35);}
 .aurevon-pay-tab.active svg rect:first-child{filter:brightness(0.9);}
 .aurevon-pay-content{min-height:140px;}
-.aurevon-pay-cta{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0.95rem 1.4rem;border:none;border-radius:10px;font-family:'Archivo Black',sans-serif;font-size:0.95rem;cursor:pointer;text-decoration:none;background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#0A0A0A;box-shadow:0 8px 24px rgba(30,58,138,0.32);transition:transform .2s,box-shadow .2s;letter-spacing:0.02em;margin-top:0.4rem;}
-.aurevon-pay-cta:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(30,58,138,0.45);color:#0A0A0A;}
+.aurevon-pay-cta{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0.95rem 1.4rem;border:none;border-radius:10px;font-family:'Archivo Black',sans-serif;font-size:0.95rem;cursor:pointer;text-decoration:none;background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#fff;box-shadow:0 8px 24px rgba(30,58,138,0.32);transition:transform .2s,box-shadow .2s;letter-spacing:0.02em;margin-top:0.4rem;}
+.aurevon-pay-cta:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(30,58,138,0.45);color:#fff;}
 .aurevon-pay-info{font-size:0.85rem;color:#b8b3ab;line-height:1.6;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.85rem 1rem;margin-bottom:0.7rem;}
 .aurevon-pay-info strong{color:#f0ede8;}
 .aurevon-pay-info .pmlogo{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,rgba(30,58,138,0.1),rgba(59,130,246,0.05));padding:3px 9px;border-radius:6px;margin-bottom:0.55rem;font-weight:700;color:#3B82F6;font-size:0.7rem;letter-spacing:0.06em;text-transform:uppercase;}

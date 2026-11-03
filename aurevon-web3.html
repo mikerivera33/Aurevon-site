@@ -31,50 +31,28 @@ a{color:var(--o2);text-decoration:none;}a:hover{color:var(--o1);}
 .ni{display:flex;align-items:center;justify-content:space-between;padding:0.7rem 0;}
 .nl{display:flex;align-items:center;gap:0.55rem;}.nl svg{border-radius:6px;}
 .nk{display:flex;gap:1.6rem;font-size:0.88rem;color:var(--tx2);}.nk a{color:var(--tx2);}.nk a:hover{color:var(--o1);}
-.btn{display:inline-flex;align-items:center;gap:0.4rem;padding:0.6rem 1.1rem;border-radius:10px;background:linear-gradient(135deg,var(--o1),var(--o2));color:#0A0A0A;font-family:'Archivo Black',sans-serif;font-size:0.82rem;letter-spacing:0.02em;box-shadow:0 8px 24px rgba(30,58,138,0.28);transition:transform .2s,box-shadow .2s;cursor:pointer;border:none;}
-.btn:hover{transform:translateY(-1px);box-shadow:0 10px 30px rgba(30,58,138,0.4);color:#0A0A0A;}
+.btn{display:inline-flex;align-items:center;gap:0.4rem;padding:0.6rem 1.1rem;border-radius:10px;background:linear-gradient(135deg,var(--o1),var(--o2));color:#fff;font-family:'Archivo Black',sans-serif;font-size:0.82rem;letter-spacing:0.02em;box-shadow:0 8px 24px rgba(30,58,138,0.28);transition:transform .2s,box-shadow .2s;cursor:pointer;border:none;}
+.btn:hover{transform:translateY(-1px);box-shadow:0 10px 30px rgba(30,58,138,0.4);color:#fff;}
 .btn-g{display:inline-flex;align-items:center;gap:0.4rem;padding:0.6rem 1.1rem;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--tx);font-weight:600;font-size:0.85rem;cursor:pointer;transition:background .2s;}
 .btn-g:hover{background:rgba(255,255,255,0.08);color:var(--tx);}
 .discord-btn{display:inline-flex;align-items:center;gap:8px;padding:0.7rem 1.4rem;border-radius:10px;background:#5865F2;color:#fff;font-family:'Archivo Black',sans-serif;font-size:0.85rem;box-shadow:0 6px 20px rgba(88,101,242,0.3);transition:transform .2s,box-shadow .2s;}
 .discord-btn:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(88,101,242,0.45);color:#fff;}
 @media(max-width:760px){.nk{display:none;}}
-section{position:relative;min-height:100vh;padding:clamp(4.5rem,7vw,6rem) 0 clamp(3rem,5vw,5rem);display:flex;flex-direction:column;justify-content:center;scroll-margin-top:60px;}
+section{position:relative;padding:clamp(4.5rem,7vw,6rem) 0 clamp(3rem,5vw,5rem);display:flex;flex-direction:column;justify-content:center;scroll-margin-top:60px;}
 section.short{min-height:auto;padding:clamp(2.5rem,5vw,4rem) 0;}
 .si{width:100%;}
-.tag{display:inline-block;background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.2);color:var(--o2);padding:5px 14px;border-radius:999px;font-size:0.72rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.9rem;}
 .h2{font-family:'Archivo Black',sans-serif;font-size:clamp(2rem,5vw,3.2rem);margin:0 0 0.5rem;line-height:1.1;}
-.al{width:80px;height:3px;background:linear-gradient(90deg,var(--o1),var(--o2),transparent);border-radius:2px;margin-bottom:1.2rem;}
-.lead{font-size:clamp(0.95rem,1.5vw,1.15rem);color:var(--tx2);max-width:680px;line-height:1.6;margin:0 0 1.5rem;}
 .mesh{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;}
 .blob{position:absolute;border-radius:50%;filter:blur(80px);animation:fl 12s ease-in-out infinite;}
 @keyframes fl{0%{transform:translate(0,0) scale(1);}50%{transform:translate(-35px,35px) scale(0.92);}100%{transform:translate(0,0) scale(1);}}
 .noise::before{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");background-size:256px;opacity:0.04;mix-blend-mode:overlay;}
 .rv{opacity:1;transform:translateY(0);transition:opacity .6s ease,transform .6s ease;}.rv.in{opacity:1;transform:translateY(0);}
-.hero-shield{width:min(200px,35vw);filter:drop-shadow(0 0 40px rgba(30,58,138,0.3));animation:sf 6s ease-in-out infinite;}
-@keyframes sf{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
-.sc{position:absolute;bottom:1.6rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:0.35rem;color:var(--tm);font-size:0.7rem;letter-spacing:0.16em;text-transform:uppercase;pointer-events:none;opacity:0.65;}
-.sc .d{width:22px;height:34px;border:1.5px solid rgba(59,130,246,0.45);border-radius:12px;position:relative;}
-.sc .d::after{content:'';position:absolute;top:6px;left:50%;transform:translateX(-50%);width:3px;height:6px;background:var(--o2);border-radius:2px;animation:cue 1.8s ease-in-out infinite;}
-@keyframes cue{0%{opacity:0;transform:translate(-50%,-4px);}50%{opacity:1;transform:translate(-50%,4px);}100%{opacity:0;transform:translate(-50%,12px);}}
-.cgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;}
-.ccard{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:1.5rem;transition:transform .3s,border-color .3s;}
-.ccard:hover{transform:translateY(-3px);border-color:rgba(30,58,138,0.2);}
-.ccard .ci{font-size:2rem;margin-bottom:0.5rem;}
-.ccard .ct{font-family:'Archivo Black',sans-serif;font-size:1rem;color:var(--o1);margin-bottom:0.4rem;}
-.ccard p{font-size:0.84rem;color:var(--tx2);margin:0;line-height:1.55;}
 .faq-item{border-bottom:1px solid rgba(255,255,255,0.06);padding:1rem 0;}
 .faq-q{font-family:'Archivo Black',sans-serif;font-size:0.95rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:1rem;}
 .faq-q::after{content:'+';color:var(--o1);font-size:1.3rem;transition:transform .3s;flex-shrink:0;}
 .faq-item.open .faq-q::after{transform:rotate(45deg);}
 .faq-a{max-height:0;overflow:hidden;transition:max-height .4s ease,padding .3s ease;font-size:0.88rem;color:var(--tx2);line-height:1.6;}
 .faq-item.open .faq-a{max-height:600px;padding-top:0.8rem;}
-.tgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;}
-.tcard{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:1.3rem;display:flex;flex-direction:column;gap:0.6rem;}
-.tcard .ts{color:#3B82F6;font-size:0.85rem;}
-.tcard .tt{font-size:0.84rem;color:#c8c4bd;line-height:1.6;flex:1;}
-.tcard .ta{display:flex;align-items:center;gap:0.6rem;padding-top:0.5rem;border-top:1px solid rgba(255,255,255,0.05);}
-.tcard .av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Archivo Black',sans-serif;font-size:0.72rem;color:#0A0A0A;flex-shrink:0;}
-.tcard .an{font-family:'Archivo Black',sans-serif;font-size:0.75rem;}.tcard .ar{font-size:0.65rem;color:var(--tm);}
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;counter-reset:step;}
 @media(max-width:700px){.steps{grid-template-columns:1fr;}}
 .step{counter-increment:step;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:1.5rem;text-align:center;position:relative;}
@@ -85,13 +63,12 @@ section.short{min-height:auto;padding:clamp(2.5rem,5vw,4rem) 0;}
 @media(max-width:700px){.tier-compare{grid-template-columns:1fr;}}
 .tier{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:1.5rem;text-align:center;}
 .tier.featured{border-color:rgba(30,58,138,0.3);background:linear-gradient(180deg,rgba(30,58,138,0.04),rgba(255,255,255,0.03));}
-.tier .tname{font-family:'Archivo Black',sans-serif;font-size:1rem;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:0.3rem;}
+.tier .tname{font-family:'Archivo Black',sans-serif;font-size:1rem;margin-top:0;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:0.3rem;}
 .tier .tprice{font-family:'Archivo Black',sans-serif;font-size:1.5rem;margin-bottom:0.6rem;}
 .tier ul{list-style:none;padding:0;margin:0 0 1rem;text-align:left;font-size:0.82rem;color:var(--tx2);}
 .tier li{padding:0.3rem 0;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;gap:6px;}
 .tier li::before{content:'✓';color:var(--o2);font-weight:700;font-size:0.75rem;}
 footer{padding:2rem 0;border-top:1px solid rgba(255,255,255,0.07);color:var(--tm);font-size:0.8rem;min-height:auto;scroll-snap-align:none;}
-footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;align-items:center;}
 
 /* Community NFT cards */
 .comm-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1.2rem;max-width:800px;margin:0 auto;}
@@ -99,17 +76,15 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 .comm-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:2rem 1.8rem;text-align:center;position:relative;transition:transform .35s,border-color .35s,box-shadow .35s;}
 .comm-card:hover{transform:translateY(-4px);border-color:rgba(30,58,138,0.3);box-shadow:0 20px 50px rgba(30,58,138,0.12);}
 .comm-card.best{border:2px solid rgba(30,58,138,0.35);background:linear-gradient(180deg,rgba(30,58,138,0.05),rgba(255,255,255,0.03));}
-.comm-card .cc-badge{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--o1),var(--o2));color:#0A0A0A;font-family:'Archivo Black',sans-serif;font-size:0.6rem;padding:3px 14px;border-radius:999px;letter-spacing:0.08em;text-transform:uppercase;white-space:nowrap;}
 .comm-card .cc-icon{font-size:2.5rem;margin-bottom:0.6rem;}
-.comm-card .cc-name{font-family:'Archivo Black',sans-serif;font-size:1.15rem;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:0.15rem;}
+.comm-card .cc-name{font-family:'Archivo Black',sans-serif;font-size:1.15rem;margin-top:0;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:0.15rem;}
 .comm-card .cc-price{font-family:'Archivo Black',sans-serif;font-size:2rem;margin-bottom:0.1rem;}
 .comm-card .cc-billing{font-size:0.78rem;color:var(--tm);margin-bottom:1rem;}
 .comm-card .cc-list{list-style:none;padding:0;margin:0 0 1.2rem;text-align:left;}
 .comm-card .cc-list li{padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.82rem;color:var(--tx2);display:flex;align-items:center;gap:7px;}
 .comm-card .cc-list li::before{content:'✓';color:var(--o2);font-weight:700;font-size:0.75rem;flex-shrink:0;}
-.comm-card .cc-note{font-size:0.72rem;color:var(--tm);line-height:1.4;margin-bottom:1rem;font-style:italic;}
 
-.btn-cta{display:inline-flex;align-items:center;justify-content:center;width:100%;padding:0.75rem 1.2rem;border:none;border-radius:10px;background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#0A0A0A;font-family:'Archivo Black',sans-serif;font-size:0.85rem;letter-spacing:0.02em;cursor:pointer;box-shadow:0 8px 24px rgba(30,58,138,0.28);transition:transform .2s,box-shadow .2s;}
+.btn-cta{display:inline-flex;align-items:center;justify-content:center;width:100%;padding:0.75rem 1.2rem;border:none;border-radius:10px;background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#fff;font-family:'Archivo Black',sans-serif;font-size:0.85rem;letter-spacing:0.02em;cursor:pointer;box-shadow:0 8px 24px rgba(30,58,138,0.28);transition:transform .2s,box-shadow .2s;}
 .btn-cta:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(30,58,138,0.4);}
 </style>
 <!-- Vercel Web Analytics -->
@@ -137,12 +112,9 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
     <div class="nk">
       <a href="index.html">Home</a>
       <a href="aurevon-nft.html">NFT Gallery</a>
-      <a href="#what">What are NFTs</a>
-      <a href="#how">How It Works</a>
-      <a href="#tiers">Tiers</a>
       <a href="#community-nft">Community NFT</a>
-      <a href="#use-cases">Use Cases</a>
-      <a href="#reviews">Reviews</a>
+      <a href="#tiers">Tiers</a>
+      <a href="#how">How It Works</a>
       <a href="#faq">FAQ</a>
     </div>
     <a href="https://discord.gg/2fwFjMEh" target="_blank" class="discord-btn" style="font-size:0.78rem;padding:0.5rem 1rem;">Join Discord →</a>
@@ -150,50 +122,69 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 </nav>
 
 <!-- HERO -->
-<section class="noise" id="top" style="text-align:center;">
+<section class="noise" id="top" style="text-align:center;min-height:100vh;">
   <div class="mesh"><div class="blob" style="width:520px;height:520px;top:-120px;right:-100px;background:var(--o1);opacity:0.12;"></div><div class="blob" style="width:320px;height:320px;bottom:-80px;left:-60px;background:var(--o2);opacity:0.09;"></div></div>
   <div class="wrap si">
     <picture><source srcset="/assets/MAIN%20AUREVON%20HEADER.webp" type="image/webp"><img src="/assets/MAIN AUREVON HEADER.png" alt="Aurevon Labs — A Subsidiary of Aurevon Ventures LLC" onerror="this.style.display='none'" class="rv" style="max-width:920px;width:100%;height:auto;border-radius:14px;margin:0 auto 1.2rem;display:block;border:1px solid rgba(255,255,255,0.06);"></picture>
-    <h1 class="rv lt" style="font-size:clamp(2.2rem,5.5vw,3.8rem);margin:0 0 0.6rem;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.05;">Aurevon Labs</h1>
-    <p class="rv" style="color:var(--tm);font-size:0.82rem;letter-spacing:0.25em;text-transform:uppercase;margin:0 0 1.2rem;">A Subsidiary of Aurevon Ventures LLC · NFTs · Community</p>
-    <p class="rv lead" style="margin:0 auto 2rem;text-align:center;max-width:620px;">We're not selling JPEGs. We're building the bridge between blockchain and real-world business. Your Aurevon Shield NFT is your membership card, your access token, and your proof of belonging to a community of operators building the future. <b style="color:var(--tx);">Join through an underwriting package — or get a standalone Community Member NFT starting at $29.99/mo.</b></p>
+    <h1 class="rv lt" style="font-size:clamp(2.2rem,5.5vw,3.8rem);margin:0 0 1.6rem;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.05;">Aurevon Labs</h1>
     <div class="rv" style="display:flex;gap:0.8rem;justify-content:center;flex-wrap:wrap;">
+      <a href="#community-nft" class="btn">Get Community NFT →</a>
       <a href="https://discord.gg/2fwFjMEh" target="_blank" class="discord-btn"><svg width="20" height="15" viewBox="0 0 71 55" fill="none"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z" fill="white"/></svg>Join the Community</a>
       <a href="aurevon-re.html" target="_blank" class="btn-g">Explore Aurevon Capital →</a>
     </div>
   </div>
-  <div class="sc"><div class="d"></div>Scroll</div>
 </section>
 
-<!-- WHAT ARE NFTS -->
-<section class="noise" id="what" style="background:linear-gradient(180deg,transparent,rgba(30,58,138,0.02),transparent);">
-  <div class="wrap si">
-    <span class="tag rv">Web3 101</span>
-    <h2 class="h2 rv">What Are NFTs — Really?</h2>
-    <div class="al rv"></div>
-    <p class="lead rv">Forget the hype. Forget the monkey pictures. Here's what NFTs actually are and why they matter for real-world business.</p>
-    <div class="cgrid">
-      <div class="ccard rv"><div class="ci">🔑</div><div class="ct">Digital Proof of Ownership</div><p>An NFT (Non-Fungible Token) is a unique digital certificate recorded on a blockchain that proves you own something — an asset, a membership, a license. Unlike a screenshot, it can't be faked, duplicated, or revoked without your consent. Think of it as a digital deed to a house, except it works for anything.</p></div>
-      <div class="ccard rv"><div class="ci">🧱</div><div class="ct">Built on Blockchain</div><p>Blockchain is a public ledger that no single entity controls. When your Aurevon Shield is minted on Ethereum, that record exists forever — verifiable by anyone, owned only by you. No middleman. No company can "turn it off." Your membership exists independent of any server, database, or subscription.</p></div>
-      <div class="ccard rv"><div class="ci">🎫</div><div class="ct">More Than Art</div><p>The first wave of NFTs was digital art. The next wave is utility. Aurevon NFTs aren't collectibles — they're access tokens. Holding one unlocks tier-specific Discord channels, priority service, community perks, and a network of operators. The art is the shield. The value is what it unlocks.</p></div>
-      <div class="ccard rv"><div class="ci">💎</div><div class="ct">Scarcity = Value</div><p>"Non-fungible" means one-of-a-kind. A dollar is fungible — any dollar replaces any other dollar. An NFT is unique. Each Aurevon Shield has a tier, an edition number, and a provenance trail. As the community grows, the earliest shields become rarer. First movers are rewarded.</p></div>
-      <div class="ccard rv"><div class="ci">🔄</div><div class="ct">Transferable & Tradeable</div><p>Unlike a gym membership or a SaaS login, your NFT is yours. You can sell it. Gift it. Transfer it. If you cancel your Aurevon subscription, you keep the NFT as a verifiable record of your membership. You own the credential, not just the access.</p></div>
-      <div class="ccard rv"><div class="ci">🌍</div><div class="ct">The Future Is On-Chain</div><p>Real estate deeds, business licenses, concert tickets, insurance claims — all of these will move on-chain within the next decade. Learning to use NFTs now puts you ahead of the curve. Aurevon is your entry point — start with what you already understand (real estate) and bridge into what's next.</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- HOW IT WORKS -->
-<section class="noise" id="how">
+<!-- COMMUNITY MEMBER NFT -->
+<section class="noise" id="community-nft">
+  <div class="mesh"><div class="blob" style="width:400px;height:400px;top:-80px;left:-60px;background:var(--o1);opacity:0.07;"></div></div>
   <div class="wrap si" style="text-align:center;">
-    <span class="tag rv">Getting Started</span>
-    <h2 class="h2 rv">How It Works</h2>
-    <div class="al rv" style="margin-left:auto;margin-right:auto;"></div>
-    <p class="lead rv" style="text-align:center;margin:0 auto 1.5rem;">Three steps. No crypto wallet required to start. No technical knowledge needed.</p>
-    <div class="steps rv">
-      <div class="step"><h3>Purchase Any Tier</h3><p>Buy a Second Opinion, Full Package, Pro Retainer, or Enterprise subscription through Aurevon Capital. Payment via Stripe or PayPal — no crypto needed. After payment confirms, you're redirected to submit your deal.</p></div>
-      <div class="step"><h3>Receive Your Shield NFT</h3><p>Within 24 hours of your first purchase, we mint your tier-specific Aurevon Shield NFT and deliver it to your email. Tier 1 Insider for Full Package, Tier 2 Ember for Pro Retainer, Tier 3 Obsidian for Enterprise. We'll walk you through claiming it.</p></div>
-      <div class="step"><h3>Unlock the Community</h3><p>Connect your wallet (we'll help you set one up) to our Discord. Your NFT auto-assigns your tier role, unlocking exclusive channels: deal flow, lender contacts, market intel, and direct access to the Aurevon team. One click. You're in.</p></div>
+    <h2 class="h2 rv" style="margin-bottom:2rem;">Community Member NFT</h2>
+
+    <div class="comm-grid rv">
+
+      <!-- MONTHLY / 001 GENESIS -->
+      <div class="comm-card">
+        <div class="cc-icon" style="font-size:0;width:80px;height:80px;margin:0 auto 0.7rem;"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;"><defs><linearGradient id="genBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1E3A8A"/><stop offset="100%" stop-color="#162D6E"/></linearGradient></defs><rect x="10" y="10" width="180" height="180" rx="36" fill="url(#genBg)"/><rect x="12" y="12" width="176" height="176" rx="34" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/><path d="M50 50 L90 50 L90 100 L140 100 L140 150 L50 150 Z" fill="white" opacity="0.95"/><rect x="100" y="50" width="45" height="36" rx="8" fill="white" opacity="0.6"/></svg></div>
+        <div class="cc-name" style="font-size:0.75rem;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.25rem;">001 GENESIS</div>
+        <h3 class="cc-name">Community Monthly</h3>
+        <div class="cc-price">$29.99<span style="font-size:0.85rem;color:var(--tm);font-family:'DM Sans',sans-serif;">/mo</span></div>
+        <div class="cc-billing">Cancel anytime</div>
+        <ul class="cc-list">
+          <li>Community Member Shield NFT</li>
+          <li>General Discord access</li>
+          <li>Deal flow & market intel channels</li>
+          <li>Web3 developer & entrepreneur network</li>
+          <li>RE investor & firm networking</li>
+          <li>Monthly market digest</li>
+          <li>Member networking events</li>
+          <li>Aurevon holder badge</li>
+        </ul>
+        <button class="btn-cta" type="button" onclick="openAUREVONPayment({tier:'comm_monthly', amount:'29.99', label:'Community Member · Monthly', desc:'$29.99/mo · 001 Genesis NFT · Discord access · cancel anytime', isMembership:true})">Join for $29.99/mo →</button>
+      </div>
+
+      <!-- LIFETIME / 004 CHROME -->
+      <div class="comm-card best">
+        <div class="cc-icon" style="font-size:0;width:80px;height:80px;margin:0 auto 0.7rem;"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;"><defs><linearGradient id="chrBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2a2a2e"/><stop offset="50%" stop-color="#3d3d42"/><stop offset="100%" stop-color="#1e1e22"/></linearGradient><linearGradient id="chrShield" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e8e8ec"/><stop offset="25%" stop-color="#a8a8b0"/><stop offset="50%" stop-color="#f0f0f4"/><stop offset="75%" stop-color="#888890"/><stop offset="100%" stop-color="#c8c8d0"/></linearGradient></defs><rect x="10" y="10" width="180" height="180" rx="36" fill="url(#chrBg)"/><rect x="12" y="12" width="176" height="176" rx="34" fill="none" stroke="rgba(200,200,210,0.5)" stroke-width="2"/><path d="M50 50 L90 50 L90 100 L140 100 L140 150 L50 150 Z" fill="url(#chrShield)" opacity="0.9"/><rect x="100" y="50" width="45" height="36" rx="8" fill="url(#chrShield)" opacity="0.55"/></svg></div>
+        <div class="cc-name" style="font-size:0.75rem;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.25rem;">004 CHROME</div>
+        <h3 class="cc-name">Community Lifetime</h3>
+        <div class="cc-price">$349.99</div>
+        <div class="cc-billing">One-time payment · Lifetime access</div>
+        <ul class="cc-list">
+          <li>Lifetime Community Shield NFT</li>
+          <li><b style="color:var(--tx);">Everything in Monthly — forever</b></li>
+          <li>Priority lender & vendor contact list</li>
+          <li>Weekly deal review calls</li>
+          <li>Pro-only & Enterprise Discord channels</li>
+          <li>Direct Aurevon team access</li>
+          <li>Early access to new ventures</li>
+          <li>Governance voting rights</li>
+          <li>Annual holder summit invite</li>
+          <li>Lifetime founder recognition</li>
+        </ul>
+        <button class="btn-cta" type="button" onclick="openAUREVONPayment({tier:'comm_lifetime', amount:'349.99', label:'Community Member · Lifetime', desc:'One-time $349.99 · 004 Chrome NFT · permanent Discord access', isMembership:true})">Mint Lifetime $349.99 →</button>
+      </div>
+
     </div>
   </div>
 </section>
@@ -201,13 +192,10 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 <!-- NFT TIERS -->
 <section class="noise" id="tiers" style="background:linear-gradient(180deg,transparent,rgba(30,58,138,0.03),transparent);">
   <div class="wrap si" style="text-align:center;">
-    <span class="tag rv">Shield Tiers</span>
-    <h2 class="h2 rv">Underwriting Package Shields</h2>
-    <div class="al rv" style="margin-left:auto;margin-right:auto;"></div>
-    <p class="rv" style="font-size:0.9rem;color:var(--tx2);margin:0 auto 1.2rem;max-width:560px;">These shields come included with every Aurevon Capital underwriting purchase. Each tier unlocks progressively more community access.</p>
+    <h2 class="h2 rv" style="margin-bottom:2rem;">Underwriting Package Shields</h2>
     <div class="tier-compare rv">
       <div class="tier">
-        <div class="tname">Tier 1 — Genesis</div>
+        <h3 class="tname">Tier 1 — Insider</h3>
         <div class="tprice">Full Package</div>
         <ul>
           <li>General Discord access</li>
@@ -219,8 +207,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
         <a href="aurevon-re.html#pricing" class="btn-g" style="width:100%;justify-content:center;">Get Started →</a>
       </div>
       <div class="tier featured">
-        <div style="font-size:0.6rem;color:var(--o2);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:0.3rem;font-weight:700;">Most Popular</div>
-        <div class="tname">Tier 2 — Ember</div>
+        <h3 class="tname">Tier 2 — Ember</h3>
         <div class="tprice">Pro Retainer</div>
         <ul>
           <li>Everything in Tier 1</li>
@@ -233,7 +220,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
         <a href="aurevon-re.html#pricing" class="btn" style="width:100%;justify-content:center;">Subscribe →</a>
       </div>
       <div class="tier">
-        <div class="tname">Tier 3 — Obsidian</div>
+        <h3 class="tname">Tier 3 — Obsidian Executive</h3>
         <div class="tprice">Enterprise</div>
         <ul>
           <li>Everything in Tier 1 & 2</li>
@@ -250,110 +237,14 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
   </div>
 </section>
 
-<!-- REAL WORLD USE CASES -->
-
-<!-- COMMUNITY MEMBER NFT -->
-<section class="noise" id="community-nft">
-  <div class="mesh"><div class="blob" style="width:400px;height:400px;top:-80px;left:-60px;background:var(--o1);opacity:0.07;"></div></div>
+<!-- HOW IT WORKS -->
+<section class="noise" id="how">
   <div class="wrap si" style="text-align:center;">
-    <span class="tag rv">No Underwriting Required</span>
-    <h2 class="h2 rv">Community Member NFT</h2>
-    <div class="al rv" style="margin-left:auto;margin-right:auto;"></div>
-    <p class="lead rv" style="text-align:center;margin:0 auto 0.8rem;max-width:640px;">Don't need underwriting? No problem. The Community Member NFT gives you full access to the Aurevon Discord — Web3 developers, entrepreneurs, investors, RE firms, and investment groups — without purchasing an underwriting package.</p>
-    <p class="rv" style="font-size:0.88rem;color:var(--tx);margin:0 auto 2rem;max-width:580px;"><b>This is for builders, networkers, and operators who want to be in the room</b> — connecting with deal-makers, sharing resources, and building relationships that compound.</p>
-
-    <div class="comm-grid rv">
-
-      <!-- MONTHLY / 001 GENESIS -->
-      <div class="comm-card">
-        <div class="cc-icon" style="font-size:0;width:80px;height:80px;margin:0 auto 0.7rem;"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;"><defs><linearGradient id="genBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1E3A8A"/><stop offset="100%" stop-color="#162D6E"/></linearGradient></defs><rect x="10" y="10" width="180" height="180" rx="36" fill="url(#genBg)"/><rect x="12" y="12" width="176" height="176" rx="34" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/><path d="M50 50 L90 50 L90 100 L140 100 L140 150 L50 150 Z" fill="white" opacity="0.95"/><rect x="100" y="50" width="45" height="36" rx="8" fill="white" opacity="0.6"/></svg></div>
-        <div class="cc-name" style="font-size:0.75rem;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.25rem;">001 GENESIS</div>
-        <div class="cc-name">Community Monthly</div>
-        <div class="cc-note" style="margin-bottom:0.5rem;margin-top:0;">The original. Live Aurevon Shield in brand blue — the canonical community member NFT.</div>
-        <div class="cc-price">$29.99<span style="font-size:0.85rem;color:var(--tm);font-family:'DM Sans',sans-serif;">/mo</span></div>
-        <div class="cc-billing">Billed monthly · Cancel anytime</div>
-        <ul class="cc-list">
-          <li>Community Member Shield NFT</li>
-          <li>General Discord access</li>
-          <li>Deal flow & market intel channels</li>
-          <li>Web3 developer & entrepreneur network</li>
-          <li>RE investor & firm networking</li>
-          <li>Monthly market digest</li>
-          <li>Member networking events</li>
-          <li>Aurevon holder badge</li>
-        </ul>
-        <div class="cc-note">Same community access as Full Package holders — without the underwriting.</div>
-        <button class="btn-cta" type="button" onclick="openAUREVONPayment({tier:'comm_monthly', amount:'29.99', label:'Community Member · Monthly', desc:'$29.99/mo · 001 Genesis NFT · Discord access · cancel anytime', isMembership:true})">Join for $29.99/mo →</button>
-      </div>
-
-      <!-- LIFETIME / 004 CHROME -->
-      <div class="comm-card best">
-        <div class="cc-badge">Best Value — Save 60%+</div>
-        <div class="cc-icon" style="font-size:0;width:80px;height:80px;margin:0 auto 0.7rem;"><svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;"><defs><linearGradient id="chrBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2a2a2e"/><stop offset="50%" stop-color="#3d3d42"/><stop offset="100%" stop-color="#1e1e22"/></linearGradient><linearGradient id="chrShield" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e8e8ec"/><stop offset="25%" stop-color="#a8a8b0"/><stop offset="50%" stop-color="#f0f0f4"/><stop offset="75%" stop-color="#888890"/><stop offset="100%" stop-color="#c8c8d0"/></linearGradient></defs><rect x="10" y="10" width="180" height="180" rx="36" fill="url(#chrBg)"/><rect x="12" y="12" width="176" height="176" rx="34" fill="none" stroke="rgba(200,200,210,0.5)" stroke-width="2"/><path d="M50 50 L90 50 L90 100 L140 100 L140 150 L50 150 Z" fill="url(#chrShield)" opacity="0.9"/><rect x="100" y="50" width="45" height="36" rx="8" fill="url(#chrShield)" opacity="0.55"/></svg></div>
-        <div class="cc-name" style="font-size:0.75rem;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.25rem;">004 CHROME</div>
-        <div class="cc-name">Community Lifetime</div>
-        <div class="cc-note" style="margin-bottom:0.5rem;margin-top:0;">Polished chrome finish — the lifetime member edition. Permanent access, never expires. 1-of-1 minted per holder.</div>
-        <div class="cc-price">$349.99</div>
-        <div class="cc-billing">One-time payment · Lifetime access · Never pay again</div>
-        <ul class="cc-list">
-          <li>Lifetime Community Shield NFT</li>
-          <li><b style="color:var(--tx);">Everything in Monthly — forever</b></li>
-          <li>Priority lender & vendor contact list</li>
-          <li>Weekly deal review calls</li>
-          <li>Pro-only & Enterprise Discord channels</li>
-          <li>Direct Aurevon team access</li>
-          <li>Early access to new ventures</li>
-          <li>Governance voting rights</li>
-          <li>Annual holder summit invite</li>
-          <li>Lifetime founder recognition</li>
-        </ul>
-        <div class="cc-note">All the community access of an Enterprise holder. One payment. No recurring fees. Ever.</div>
-        <button class="btn-cta" type="button" onclick="openAUREVONPayment({tier:'comm_lifetime', amount:'349.99', label:'Community Member · Lifetime', desc:'One-time $349.99 · 004 Chrome NFT · permanent Discord access', isMembership:true})">Mint Lifetime $349.99 →</button>
-      </div>
-
-    </div>
-
-    <div class="rv" style="margin-top:1.5rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:1.2rem 1.5rem;max-width:700px;margin-left:auto;margin-right:auto;text-align:left;display:flex;gap:1rem;align-items:flex-start;">
-      <div style="font-size:1.5rem;flex-shrink:0;">💡</div>
-      <div>
-        <div style="font-size:0.82rem;color:var(--o2);font-weight:700;margin-bottom:0.2rem;">Already need underwriting?</div>
-        <p style="font-size:0.82rem;color:var(--tx2);margin:0;line-height:1.5;">If you also need deal underwriting, go with a <a href="aurevon-re.html#pricing" target="_blank" style="color:var(--o2);text-decoration:underline;">Aurevon Capital package</a> instead — it includes the NFT and community access <i>plus</i> your underwriting deliverables. The Community Member NFT is specifically designed for those who want the network without the underwriting.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- REAL WORLD USE CASES -->
-<section class="noise" id="use-cases">
-  <div class="wrap si">
-    <span class="tag rv">Beyond the Hype</span>
-    <h2 class="h2 rv">NFTs × Real World: <span style="background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">The Unorthodox Playbook</span></h2>
-    <div class="al rv"></div>
-    <p class="lead rv">Most people think NFTs are about art and speculation. Here's what the smartest operators are actually building — and how Aurevon is leading the charge.</p>
-    <div class="cgrid">
-      <div class="ccard rv"><div class="ci">🏠</div><div class="ct">Tokenized Real Estate Access</div><p>Imagine your LP investment in a syndication represented as an NFT. Instant verification of ownership, transferable without attorney paperwork, and a transparent cap table visible to every investor. Aurevon Capital is the first step — underwriting today, tokenized syndication shares tomorrow.</p></div>
-      <div class="ccard rv"><div class="ci">🎓</div><div class="ct">Credential & Certification NFTs</div><p>Your Aurevon Shield proves you're a vetted operator — not a lurker. In the future, completing Aurevon education modules or closing deals through the platform earns on-chain credentials that lenders, investors, and partners can verify instantly. Think of it as a blockchain resume.</p></div>
-      <div class="ccard rv"><div class="ci">🤝</div><div class="ct">Community Governance</div><p>Tier 3 holders get governance voting rights. Which new market should Aurevon Capital expand into? What features should the SaaS platform prioritize? Your NFT is your vote. One holder, one vote — except higher tiers carry weighted influence. Real stakeholder participation.</p></div>
-      <div class="ccard rv"><div class="ci">🎟️</div><div class="ct">Event & Summit Access</div><p>Annual Aurevon holder summits, regional meetups, and virtual masterclasses — all gated by your NFT. No ticket scalping. No fake credentials. Your shield on your phone is your pass. Scan it, verify it, walk in.</p></div>
-      <div class="ccard rv"><div class="ci">💼</div><div class="ct">B2B Trust Signals</div><p>When a broker sees your Aurevon Obsidian Shield, they know you're a serious operator with institutional-grade underwriting behind every offer. It's a credibility signal that travels with you — on your Twitter profile, your email signature, your pitch deck.</p></div>
-      <div class="ccard rv"><div class="ci">🔮</div><div class="ct">Ahead of the Curve</div><p>The SEC is actively exploring tokenized securities. JPMorgan has a blockchain division. BlackRock tokenized a money market fund. The institutional world is going on-chain whether retail catches up or not. Aurevon holders will already be there — fluent in the language, connected to the network, holding the assets.</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- TESTIMONIALS -->
-<section class="noise" id="reviews" style="background:linear-gradient(180deg,transparent,rgba(30,58,138,0.02),transparent);">
-  <div class="wrap si">
-    <span class="tag rv">Community Voices</span>
-    <h2 class="h2 rv">What Holders Are Saying</h2>
-    <div class="al rv"></div>
-    <div class="tgrid">
-      <div class="tcard rv"><div class="ts">★★★★★</div><div class="tt">I was skeptical about the NFT angle — I'm a numbers guy, not a crypto bro. But the Discord community alone has been worth 10x what I paid. Last week, someone posted a bridge lender doing 80% LTC with no prepayment penalty. I closed on a 28-unit two weeks later. The NFT is just the key. <b>The room behind the door is where the value lives.</b></div><div class="ta"><div class="av" style="background:linear-gradient(135deg,#1E3A8A,#3B82F6);">MR</div><div><div class="an">Marcus R.</div><div class="ar">Tier 2 — Ember Pass Holder</div></div></div></div>
-      <div class="tcard rv"><div class="ts">★★★★★</div><div class="tt">The way Aurevon combines Web3 with real estate is something I haven't seen anywhere else. It's not gimmicky — the NFT genuinely functions as a membership card with real utility. I've used the priority lender list three times and <b>saved over $12K in origination fees</b> on my last deal alone.</div><div class="ta"><div class="av" style="background:linear-gradient(135deg,#3B82F6,#1E40AF);">TP</div><div><div class="an">Tanya P.</div><div class="ar">Tier 1 — Genesis Pass Holder</div></div></div></div>
-      <div class="tcard rv"><div class="ts">★★★★★</div><div class="tt">I bought the Enterprise tier partly for the underwriting, partly because I wanted to see how a real company integrates NFTs into operations. I'm a tech founder and what Aurevon is building is exactly where business is headed — <b>on-chain credentials, community-gated access, and tokenized proof of relationship</b>. This is the template.</div><div class="ta"><div class="av" style="background:linear-gradient(135deg,#1E40AF,#1E3A8A);">JK</div><div><div class="an">Jason K.</div><div class="ar">Tier 3 — Obsidian Shield Holder</div></div></div></div>
-      <div class="tcard rv"><div class="ts">★★★★★</div><div class="tt">My wife thought I was crazy when I said "I bought an NFT for a real estate underwriting service." Three months later she's in the Discord too, networking with other women operators, and just submitted her first solo deal through Aurevon Capital. Now she wants the Ember shield. <b>This community converts skeptics.</b></div><div class="ta"><div class="av" style="background:linear-gradient(135deg,#1E3A8A,#1E40AF);">DW</div><div><div class="an">Derek W.</div><div class="ar">Tier 1 — Genesis Pass Holder</div></div></div></div>
-      <div class="tcard rv"><div class="ts">★★★★★</div><div class="tt">As a commercial broker, I needed a credibility signal for institutional investors. Having the Aurevon Obsidian Shield on my LinkedIn profile + the white-label underwriting packages has <b>doubled my inbound deal flow</b>. Investors see the shield and know I'm backed by institutional-grade infrastructure.</div><div class="ta"><div class="av" style="background:linear-gradient(135deg,#3B82F6,#1E3A8A);">RS</div><div><div class="an">Rafael S.</div><div class="ar">Tier 3 — Obsidian Shield Holder</div></div></div></div>
-      <div class="tcard rv"><div class="ts">★★★★★</div><div class="tt">I've been in crypto since 2017. Most NFT projects are vaporware. Aurevon is different because there's a real business behind it — real revenue, real services, real customers. The NFT isn't the product; <b>the product is the underwriting service, and the NFT is the loyalty program</b>. That's exactly how Web3 should work.</div><div class="ta"><div class="av" style="background:linear-gradient(135deg,#1E40AF,#3B82F6);">AK</div><div><div class="an">Alex K.</div><div class="ar">Tier 2 — Ember Pass Holder</div></div></div></div>
+    <h2 class="h2 rv" style="margin-bottom:2rem;">How It Works</h2>
+    <div class="steps rv">
+      <div class="step"><h3>Buy a Package</h3><p>Full Package, Pro Retainer, or Enterprise from Aurevon Capital. Pay by card or PayPal — no crypto needed. Then submit your deal.</p></div>
+      <div class="step"><h3>Receive Your Shield NFT</h3><p>Within 24 hours of your first purchase we mint your tier's Shield and email it to you, with claim instructions.</p></div>
+      <div class="step"><h3>Unlock the Community</h3><p>Connect your wallet to Discord (we'll help you set one up). Your NFT assigns your tier role and opens its channels.</p></div>
     </div>
   </div>
 </section>
@@ -361,46 +252,26 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 <!-- FAQ -->
 <section class="noise" id="faq">
   <div class="wrap si">
-    <span class="tag rv">Questions</span>
-    <h2 class="h2 rv">Frequently Asked Questions</h2>
-    <div class="al rv"></div>
+    <h2 class="h2 rv" style="margin-bottom:1rem;">Frequently Asked Questions</h2>
     <div class="rv">
-      <div class="faq-item"><div class="faq-q">Do I need a crypto wallet to use Aurevon services?</div><div class="faq-a">No. You can purchase any Aurevon Capital tier with a regular credit card via Stripe or PayPal. The NFT is a bonus that comes with your purchase. When you're ready to claim it, we'll walk you through setting up a free wallet (takes 2 minutes). The underwriting service works independently of the NFT.</div></div>
-      <div class="faq-item"><div class="faq-q">What blockchain are Aurevon NFTs on?</div><div class="faq-a">Aurevon Shields are minted on Base (ERC-721), Coinbase's Ethereum L2 — giving you Ethereum-grade security at near-zero gas fees (~$0.01 per mint). Base is fully secured by Ethereum mainnet, interoperable with all major wallets and marketplaces (OpenSea, Blur, etc.), and used by Coinbase, Aerodrome, and hundreds of institutional projects. Your NFT is a real on-chain asset backed by the most established smart contract ecosystem.</div></div>
+      <div class="faq-item"><div class="faq-q">Do I need a crypto wallet to use Aurevon services?</div><div class="faq-a">No. You can purchase any Aurevon Capital tier with a regular credit card via Stripe or PayPal. The NFT comes with your purchase; when you're ready to claim it, we'll walk you through setting up a free wallet (about 2 minutes). The underwriting service works independently of the NFT.</div></div>
+      <div class="faq-item"><div class="faq-q">What blockchain are Aurevon NFTs on?</div><div class="faq-a">Base (ERC-721), Coinbase's Ethereum L2: Ethereum-grade security at near-zero gas fees (~$0.01 per mint). It works with all major wallets and marketplaces (OpenSea, Blur, etc.).</div></div>
       <div class="faq-item"><div class="faq-q">What happens if I cancel my subscription?</div><div class="faq-a">You keep your NFT. It's yours forever — it lives in your wallet, not on our servers. However, your Discord tier role will be downgraded to match your active subscription level. If you resubscribe later, your role is restored instantly based on your NFT + active plan.</div></div>
       <div class="faq-item"><div class="faq-q">Can I sell or transfer my NFT?</div><div class="faq-a">Yes. Your Aurevon Shield is a standard ERC-721 token. You can sell it on OpenSea, transfer it to another wallet, or gift it. The new holder receives the NFT and its associated community access. However, service-tier benefits (like monthly deal allocations) are tied to your account, not the NFT alone.</div></div>
-      <div class="faq-item"><div class="faq-q">How is this different from a regular membership?</div><div class="faq-a">Three ways: (1) You own it — no company can revoke your NFT. (2) It's verifiable — anyone can confirm you're a real Aurevon holder on-chain. (3) It's durable — it stays in your wallet as a credential you control even if you pause your membership. A regular membership has none of these properties.</div></div>
+      <div class="faq-item"><div class="faq-q">How is this different from a regular membership?</div><div class="faq-a">You own it — no company can revoke your NFT. It's verifiable — anyone can confirm you're an Aurevon holder on-chain. And it stays in your wallet as a credential you control, even if you pause your membership.</div></div>
       <div class="faq-item"><div class="faq-q">Is this a security or investment?</div><div class="faq-a">No. Aurevon NFTs are utility tokens — access passes to community features and service perks. They are not securities, do not represent equity in any company, and do not carry any expectation of profit. Any secondary market value is determined by open market dynamics, not by Aurevon.</div></div>
-      <div class="faq-item"><div class="faq-q">What if I don't understand blockchain at all?</div><div class="faq-a">Perfect. That's exactly who Aurevon Labs is for. We built this to be the entry point for business operators — people who understand real estate, not Solidity. We handle the minting. We walk you through the wallet. You show up, do deals, and participate in the community. The blockchain part is invisible unless you want to learn more.</div></div>
-      <div class="faq-item"><div class="faq-q">What's the difference between the Community Member NFT and the underwriting NFTs?</div><div class="faq-a">The Community Member NFT ($29.99/mo or $349.99 lifetime) gives you full Discord access and networking — the same community that underwriting clients get — but without any underwriting services. It's built for Web3 developers, entrepreneurs, investors, and anyone who wants to network and build in the Aurevon ecosystem without needing deal analysis. If you also need underwriting, purchase a Aurevon Capital package instead — it includes both the community access and the underwriting deliverables.</div></div>
+      <div class="faq-item"><div class="faq-q">What if I don't understand blockchain at all?</div><div class="faq-a">That's who Aurevon Labs is for. We handle the minting and walk you through the wallet; the blockchain part stays invisible unless you want to learn more.</div></div>
+      <div class="faq-item"><div class="faq-q">What's the difference between the Community Member NFT and the underwriting NFTs?</div><div class="faq-a">The Community Member NFT ($29.99/mo or $349.99 lifetime) gives you full Discord access and networking — the same community that underwriting clients get — but without any underwriting services. If you also need underwriting, purchase an <a href="aurevon-re.html#pricing">Aurevon Capital package</a> instead — it includes both the community access and the underwriting deliverables.</div></div>
     </div>
   </div>
 </section>
-
 
 <!-- NFT COLLECTION LINK -->
-<section class="noise short" id="nft-collection" style="text-align:center;min-height:auto;padding:2rem 0;">
+<section class="noise short" id="nft-collection" style="text-align:center;padding:2rem 0 4rem;">
   <div class="wrap si">
     <div class="rv" style="background:rgba(255,255,255,0.03);border:1px solid rgba(30,58,138,0.18);border-radius:16px;padding:1.5rem 2rem;max-width:700px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem;">
-      <div style="text-align:left;">
-        <div style="font-size:0.7rem;color:#3B82F6;text-transform:uppercase;letter-spacing:0.12em;font-weight:700;margin-bottom:0.3rem;">Full NFT Collection</div>
-        <div style="font-family:'Archivo Black',sans-serif;font-size:1.05rem;color:#f0ede8;margin-bottom:0.3rem;">Browse All Aurevon Shields</div>
-        <div style="font-size:0.82rem;color:#b8b3ab;">View every edition — Genesis, Chrome, Obsidian, Diamond, and more.</div>
-      </div>
+      <h2 style="font-family:'Archivo Black',sans-serif;font-size:1.05rem;color:#f0ede8;margin:0;text-align:left;">Browse All Aurevon Shields</h2>
       <a href="aurevon-nft.html" class="btn" style="white-space:nowrap;">View NFT Gallery →</a>
-    </div>
-  </div>
-</section>
-
-<!-- CTA -->
-<section class="noise short" style="text-align:center;min-height:50vh;">
-  <div class="wrap si">
-    <h2 class="rv lt" style="font-size:clamp(2rem,5vw,3.5rem);margin:0 0 1rem;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.05;">Ready to Get Ahead<br>of the Curve?</h2>
-    <p class="rv lead" style="margin:0 auto 1.5rem;text-align:center;">Start with a Aurevon Capital tier for underwriting + community, or grab a standalone Community Member NFT to join the network. The future is being built right now — first movers always win.</p>
-    <div class="rv" style="display:flex;gap:0.8rem;justify-content:center;flex-wrap:wrap;">
-      <a href="#community-nft" class="btn">Get Community NFT →</a>
-      <a href="aurevon-re.html#pricing" target="_blank" class="btn-g">Underwriting + NFT →</a>
-      <a href="https://discord.gg/2fwFjMEh" target="_blank" class="discord-btn"><svg width="18" height="14" viewBox="0 0 71 55" fill="none"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z" fill="white"/></svg>Join Discord</a>
     </div>
   </div>
 </section>
@@ -415,7 +286,7 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 </style>
 <footer class="aurevon-global-foot">
   <div class="row">
-    <div>© <span id="aurevonYr">2026</span> Aurevon Ventures LLC · Systems. Capital. Infrastructure. · Aurevon RE, Aurevon Labs, and all related entities are owned and operated by Aurevon Ventures LLC.</div>
+    <div>© <span id="aurevonYr">2026</span> Aurevon Ventures LLC</div>
     <div class="links">
       <a href="index.html">Home</a>
       <a href="aurevon-re.html">RE Underwriting</a>
@@ -566,11 +437,11 @@ document.querySelectorAll('[data-pay]').forEach(btn => {
 .aurevon-pay-tab[hidden]{display:none;}
 .aurevon-pay-tab{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0.6rem 0.4rem;background:transparent;border:none;border-radius:7px;color:#b8b3ab;font-size:0.72rem;font-weight:600;cursor:pointer;transition:background .2s,color .2s;font-family:inherit;}
 .aurevon-pay-tab:hover{background:rgba(255,255,255,0.04);color:#f0ede8;}
-.aurevon-pay-tab.active{background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#0A0A0A;font-weight:700;box-shadow:0 4px 14px rgba(30,58,138,0.35);}
+.aurevon-pay-tab.active{background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#fff;font-weight:700;box-shadow:0 4px 14px rgba(30,58,138,0.35);}
 .aurevon-pay-tab.active svg rect:first-child{filter:brightness(0.9);}
 .aurevon-pay-content{min-height:140px;}
-.aurevon-pay-cta{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0.95rem 1.4rem;border:none;border-radius:10px;font-family:'Archivo Black',sans-serif;font-size:0.95rem;cursor:pointer;text-decoration:none;background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#0A0A0A;box-shadow:0 8px 24px rgba(30,58,138,0.32);transition:transform .2s,box-shadow .2s;letter-spacing:0.02em;margin-top:0.4rem;}
-.aurevon-pay-cta:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(30,58,138,0.45);color:#0A0A0A;}
+.aurevon-pay-cta{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0.95rem 1.4rem;border:none;border-radius:10px;font-family:'Archivo Black',sans-serif;font-size:0.95rem;cursor:pointer;text-decoration:none;background:linear-gradient(135deg,#1E3A8A,#3B82F6);color:#fff;box-shadow:0 8px 24px rgba(30,58,138,0.32);transition:transform .2s,box-shadow .2s;letter-spacing:0.02em;margin-top:0.4rem;}
+.aurevon-pay-cta:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(30,58,138,0.45);color:#fff;}
 .aurevon-pay-info{font-size:0.85rem;color:#b8b3ab;line-height:1.6;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:0.85rem 1rem;margin-bottom:0.7rem;}
 .aurevon-pay-info strong{color:#f0ede8;}
 .aurevon-pay-info .pmlogo{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,rgba(30,58,138,0.1),rgba(59,130,246,0.05));padding:3px 9px;border-radius:6px;margin-bottom:0.55rem;font-weight:700;color:#3B82F6;font-size:0.7rem;letter-spacing:0.06em;text-transform:uppercase;}

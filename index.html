@@ -45,119 +45,66 @@ window.AUREVON_LINKS = {
 };
 </script>
 <style>
-:root{--bg:#0A0A0A;--bg2:#050510;--sf:#111827;--tx:#f0ede8;--tx2:#b8b3ab;--tm:#6b6760;--o1:#1E3A8A;--o2:#3B82F6;--o3:#1E40AF;--gl:rgba(255,255,255,0.05);--gb:rgba(255,255,255,0.09);}
+:root{--bg:#0A0A0A;--tx:#f0ede8;--tx2:#b8b3ab;--tm:#6b6760;--o1:#1E3A8A;--o2:#3B82F6;--line:rgba(255,255,255,0.08);}
 *,*::before,*::after{box-sizing:border-box;}
-html{scroll-behavior:smooth;scroll-padding-top:60px;}
+html{scroll-behavior:smooth;scroll-padding-top:64px;}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;line-height:1.55;}
 body{overflow-x:hidden;}
-a{color:var(--o2);text-decoration:none;}a:hover{color:var(--o1);}
+a{color:var(--o2);text-decoration:none;}a:hover{color:var(--tx);}
+p{margin:0;}
 .lt{font-family:'Archivo Black',sans-serif;letter-spacing:-0.02em;}
 .wrap{max-width:1180px;margin:0 auto;padding:0 clamp(1rem,4vw,2rem);}
 
-/* NAV */
-.nav{position:fixed;top:0;left:0;right:0;z-index:80;background:rgba(12,12,14,0.72);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,0.06);}
-.ni{display:flex;align-items:center;justify-content:space-between;padding:0.7rem 0;}
+.nav{position:fixed;top:0;left:0;right:0;z-index:80;background:rgba(12,12,14,0.72);backdrop-filter:blur(14px);border-bottom:1px solid var(--line);}
+.ni{display:flex;align-items:center;justify-content:space-between;padding-top:0.7rem;padding-bottom:0.7rem;}
 .nl{display:flex;align-items:center;gap:0.55rem;}
-.nk{display:flex;gap:1.6rem;font-size:0.88rem;color:var(--tx2);}
-.nk a{color:var(--tx2);}.nk a:hover{color:var(--o1);}
-.btn{display:inline-flex;align-items:center;gap:0.4rem;padding:0.6rem 1.1rem;border-radius:10px;background:linear-gradient(135deg,var(--o1),var(--o2));color:#0A0A0A;font-family:'Archivo Black',sans-serif;font-size:0.82rem;letter-spacing:0.02em;box-shadow:0 8px 24px rgba(30,58,138,0.28);transition:transform .2s,box-shadow .2s;cursor:pointer;border:none;}
-.nl svg,.nl img{border-radius:6px;width:auto;height:32px;object-fit:contain;}
-.btn-g{display:inline-flex;align-items:center;gap:0.4rem;padding:0.6rem 1.1rem;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--tx);font-weight:600;font-size:0.85rem;cursor:pointer;transition:background .2s;}
-.btn-g:hover{background:rgba(255,255,255,0.08);color:var(--tx);}
+.nk{display:flex;gap:1.6rem;font-size:0.9rem;}
+.nk a{color:var(--tx2);}.nk a:hover{color:var(--tx);}
 @media(max-width:760px){.nk{display:none;}}
+.btn{display:inline-flex;align-items:center;padding:0.65rem 1.15rem;border-radius:10px;background:linear-gradient(135deg,var(--o1),var(--o2));color:#fff;font-weight:600;font-size:0.9rem;transition:filter .2s;}
+.btn:hover{color:#fff;filter:brightness(1.15);}
+.btn-g{display:inline-flex;align-items:center;padding:0.65rem 1.15rem;border-radius:10px;border:1px solid var(--line);color:var(--tx);font-weight:600;font-size:0.9rem;transition:background .2s;}
+.btn-g:hover{background:rgba(255,255,255,0.06);color:var(--tx);}
 
-/* Sections */
-section{position:relative;min-height:100vh;padding:clamp(4.5rem,7vw,6rem) 0 clamp(3rem,5vw,5rem);display:flex;flex-direction:column;justify-content:center;scroll-margin-top:60px;}
-section.short{min-height:auto;padding:clamp(2.5rem,5vw,4rem) 0;}
-.si{width:100%;}
-.tag{display:inline-block;background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.2);color:var(--o2);padding:5px 14px;border-radius:999px;font-size:0.72rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.9rem;}
-.h2{font-family:'Archivo Black',sans-serif;font-size:clamp(2rem,5vw,3.2rem);margin:0 0 0.5rem;line-height:1.1;}
-.al{width:80px;height:3px;background:linear-gradient(90deg,var(--o1),var(--o2),transparent);border-radius:2px;margin-bottom:1.2rem;}
-.lead{font-size:clamp(0.95rem,1.5vw,1.15rem);color:var(--tx2);max-width:680px;line-height:1.6;margin:0 0 1.5rem;}
+section{position:relative;padding:clamp(4rem,9vw,7rem) 0;scroll-margin-top:64px;}
+.h2{font-family:'Archivo Black',sans-serif;font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.1;margin:0 0 1.5rem;}
 
-/* Mesh & noise */
-.mesh{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;}
-.blob{position:absolute;border-radius:50%;filter:blur(80px);animation:fl 12s ease-in-out infinite;}
-.blob:nth-child(2){animation:fl2 16s ease-in-out infinite;}
-@keyframes fl{0%{transform:translate(0,0) scale(1);}50%{transform:translate(-35px,35px) scale(0.92);}100%{transform:translate(0,0) scale(1);}}
-@keyframes fl2{0%{transform:translate(0,0) scale(1);}50%{transform:translate(45px,-45px) scale(1.1);}100%{transform:translate(0,0) scale(1);}}
-.noise::before{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");background-size:256px;opacity:0.04;mix-blend-mode:overlay;}
-
-/* Hero shield */
-.hero-shield{display:none}.aurevon-hero-wrap{width:min(340px,35vw);height:auto;filter:drop-shadow(0 0 40px rgba(30,58,138,0.35)) drop-shadow(0 0 80px rgba(30,58,138,0.12));animation:shield-float 6s ease-in-out infinite;}
+.hero{min-height:100svh;display:flex;align-items:center;text-align:center;}
+.hero .wrap{display:flex;flex-direction:column;align-items:center;gap:1.75rem;}
+.aurevon-hero-wrap{width:min(340px,70vw);animation:shield-float 6s ease-in-out infinite;}
 @keyframes shield-float{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
+@media(prefers-reduced-motion:reduce){.aurevon-hero-wrap{animation:none;}}
+.hero h1{font-size:clamp(1.6rem,4vw,2.6rem);line-height:1.15;max-width:22ch;margin:0;}
+.actions{display:flex;gap:0.75rem;flex-wrap:wrap;justify-content:center;}
 
-/* Scroll cue */
-.sc{position:absolute;bottom:1.6rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:0.35rem;color:var(--tm);font-size:0.7rem;letter-spacing:0.16em;text-transform:uppercase;pointer-events:none;opacity:0.65;}
-.sc .d{width:22px;height:34px;border:1.5px solid rgba(59,130,246,0.45);border-radius:12px;position:relative;}
-.sc .d::after{content:'';position:absolute;top:6px;left:50%;transform:translateX(-50%);width:3px;height:6px;background:var(--o2);border-radius:2px;animation:cue 1.8s ease-in-out infinite;}
-@keyframes cue{0%{opacity:0;transform:translate(-50%,-4px);}50%{opacity:1;transform:translate(-50%,4px);}100%{opacity:0;transform:translate(-50%,12px);}}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;}
+.vcard{display:flex;flex-direction:column;gap:0.5rem;padding:1.5rem;border-radius:16px;background:rgba(255,255,255,0.03);border:1px solid var(--line);color:var(--tx);transition:border-color .25s,transform .25s;}
+a.vcard:hover{color:var(--tx);border-color:rgba(59,130,246,0.45);transform:translateY(-3px);}
+.vcard.featured{border-color:rgba(59,130,246,0.3);}
+.vcard.off{opacity:0.7;}
+.vtitle{font-family:'Archivo Black',sans-serif;font-size:1.15rem;display:flex;align-items:center;gap:0.6rem;}
+a.vcard .vtitle::after{content:'↗';margin-left:auto;font-family:'DM Sans',sans-serif;color:var(--tm);transition:color .25s;}
+a.vcard:hover .vtitle::after{color:var(--o2);}
+.vhook{color:var(--tx2);}
+.vsub{font-size:0.85rem;color:var(--tm);display:flex;align-items:center;gap:0.5rem;}
+.vstatus{font-family:'DM Sans',sans-serif;font-size:0.68rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--o2);border:1px solid rgba(59,130,246,0.3);border-radius:6px;padding:2px 7px;}
+.legal{font-size:0.72rem;line-height:1.5;color:var(--tm);margin-top:1.25rem;max-width:900px;}
 
-/* Reveal */
-.rv{opacity:1;transform:translateY(0);transition:opacity .6s ease,transform .6s ease;}.rv.in{opacity:1;transform:translateY(0);}
+#story p{max-width:640px;font-size:clamp(1rem,1.6vw,1.2rem);color:var(--tx2);line-height:1.65;}
+#story p+p{margin-top:1rem;}
 
-/* Venture cards — CTR-optimized */
-.vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;margin-top:1rem;}
-.vcard{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:1.5rem;transition:transform .35s ease,border-color .35s ease,box-shadow .35s ease;cursor:pointer;text-decoration:none;color:var(--tx);display:flex;flex-direction:column;gap:0.5rem;position:relative;overflow:hidden;}
-.vcard:hover{transform:translateY(-5px);border-color:rgba(30,58,138,0.35);box-shadow:0 20px 50px rgba(30,58,138,0.12);color:var(--tx);}
-.vcard.featured{border-color:rgba(30,58,138,0.2);background:linear-gradient(180deg,rgba(30,58,138,0.04),rgba(255,255,255,0.03));}
-.vcard .vtop{display:flex;align-items:center;justify-content:space-between;}
-.vcard .icon{font-size:1.8rem;}
-.vcard .vstatus{display:inline-flex;align-items:center;gap:4px;font-size:0.62rem;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;padding:3px 9px;border-radius:6px;}
-.vstatus.live{background:rgba(46,204,113,0.12);color:#2ecc71;border:1px solid rgba(46,204,113,0.2);}
-.vstatus.coming{background:rgba(59,130,246,0.1);color:var(--o2);border:1px solid rgba(59,130,246,0.2);}
-.vstatus.dev{background:rgba(255,255,255,0.05);color:var(--tm);border:1px solid rgba(255,255,255,0.08);}
-.vcard .vtitle{font-family:'Archivo Black',sans-serif;font-size:1.15rem;background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.vcard .vhook{font-size:0.95rem;color:var(--tx);font-weight:600;line-height:1.3;margin:0.1rem 0;}
-.vcard .vdesc{font-size:0.82rem;color:var(--tx2);line-height:1.5;flex:1;}
-.vcard .vcta{display:inline-flex;align-items:center;gap:6px;font-family:'Archivo Black',sans-serif;font-size:0.75rem;color:var(--o1);letter-spacing:0.04em;margin-top:0.3rem;opacity:0.8;transition:opacity .3s,transform .3s;}
-.vcard:hover .vcta{opacity:1;transform:translateX(4px);}
+.contact{display:flex;flex-wrap:wrap;gap:1.5rem;margin-bottom:1.25rem;}
+.contact a{color:var(--tx);font-weight:600;}
+.sgrid{display:flex;flex-wrap:wrap;gap:0.6rem;}
+.sbtn{padding:0.6rem 1rem;border-radius:10px;border:1px solid var(--line);color:var(--tx);font-weight:600;font-size:0.88rem;transition:border-color .2s;}
+.sbtn:hover{color:var(--tx);border-color:rgba(59,130,246,0.45);}
+.sbtn.discord{background:#5865F2;border-color:#5865F2;color:#fff;}
 
-/* Origin cards */
-.ogrid{display:grid;grid-template-columns:repeat(2,1fr);gap:0.8rem;}
-@media(max-width:640px){.ogrid{grid-template-columns:1fr;}}
-.ocard{border-left:3px solid;padding:0.9rem 1.1rem;border-radius:0 12px 12px 0;background:rgba(255,255,255,0.04);}
-
-/* Values inline */
-.val-row{display:grid;grid-template-columns:repeat(6,1fr);gap:0.6rem;margin-top:1.2rem;}
-@media(max-width:900px){.val-row{grid-template-columns:repeat(3,1fr);}}
-@media(max-width:500px){.val-row{grid-template-columns:repeat(2,1fr);}}
-.val{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:0.8rem 0.6rem;text-align:center;}
-.val .vi{font-size:1.4rem;margin-bottom:0.25rem;}
-.val .vt{font-family:'Archivo Black',sans-serif;font-size:0.68rem;color:var(--o1);margin-bottom:0.15rem;}
-.val p{font-size:0.62rem;color:var(--tm);margin:0;line-height:1.3;}
-
-/* Org chart */
-.org-chart{margin-top:1.5rem;}
-.org-top{text-align:center;margin-bottom:0;}
-.org-box{display:inline-block;background:rgba(30,58,138,0.08);border:3px solid var(--o1);border-radius:14px;padding:0.8rem 2rem;text-align:center;position:relative;}
-.org-box .ob-title{font-family:'Archivo Black',sans-serif;font-size:1rem;color:var(--o1);}
-.org-box .ob-sub{font-size:0.72rem;color:var(--tm);}
-.org-line{width:3px;height:30px;background:linear-gradient(180deg,var(--o1),var(--o2));margin:0 auto;}
-.org-branch{display:flex;justify-content:center;gap:0;position:relative;flex-wrap:wrap;}
-.org-branch::before{content:'';position:absolute;top:0;left:12%;right:12%;height:3px;background:linear-gradient(90deg,var(--o1),var(--o2),var(--o1));z-index:1;border-radius:2px;}
-.org-child{flex:1;min-width:130px;max-width:170px;text-align:center;position:relative;}
-.org-child::before{content:'';display:block;width:3px;height:20px;background:var(--o1);margin:0 auto;opacity:0.7;}
-.org-child .oc-box{background:rgba(255,255,255,0.04);border:1.5px solid rgba(255,255,255,0.12);border-radius:10px;padding:0.6rem 0.5rem;transition:border-color .3s,box-shadow .3s;}
-.org-child .oc-box:hover{border-color:rgba(30,58,138,0.3);box-shadow:0 8px 20px rgba(30,58,138,0.08);}
-.org-child .oc-title{font-family:'Archivo Black',sans-serif;font-size:0.7rem;color:var(--o2);}
-.org-child .oc-sub{font-size:0.58rem;color:var(--tm);}
-.org-child .oc-status{font-size:0.55rem;margin-top:3px;font-weight:700;letter-spacing:0.06em;}
-
-/* Social grid */
-.sgrid{display:flex;flex-wrap:wrap;gap:0.7rem;margin-top:1rem;}
-.sbtn{display:flex;align-items:center;gap:0.5rem;padding:0.6rem 1rem;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:var(--tx);font-weight:600;font-size:0.82rem;transition:transform .25s,border-color .25s,box-shadow .25s;text-decoration:none;}
-.sbtn:hover{transform:translateY(-2px);border-color:rgba(30,58,138,0.3);box-shadow:0 8px 24px rgba(0,0,0,0.2);color:var(--tx);}
-
-/* Section dots */
-.dots{position:fixed;top:50%;right:18px;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;z-index:60;}
-.dots a{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.18);transition:background .2s,transform .2s;display:block;}
-.dots a.active{background:var(--o1);transform:scale(1.4);}
-@media(max-width:760px){.dots{right:10px;}}
-
-/* Footer */
-footer{padding:2rem 0;border-top:1px solid rgba(255,255,255,0.07);color:var(--tm);font-size:0.8rem;min-height:auto;scroll-snap-align:none;}
-footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;align-items:center;}
+.aurevon-global-foot{padding:1.6rem 1rem;border-top:1px solid var(--line);background:#050510;color:var(--tm);font-size:0.8rem;}
+.aurevon-global-foot .row{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;}
+.aurevon-global-foot .links{display:flex;gap:1.2rem;flex-wrap:wrap;}
+.aurevon-global-foot a{color:var(--tx2);}
+.aurevon-global-foot a:hover{color:var(--tx);}
 </style>
 <!-- Vercel Web Analytics -->
 <!-- Vercel Speed Insights -->
@@ -175,387 +122,125 @@ footer .fi{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;al
 </head>
 <body>
 
-<!-- NAV -->
 <nav class="nav">
   <div class="wrap ni">
-    <a href="#top" class="nl">
-      <img src="assets/aurevon_logo_nav.png" alt="Aurevon Logo" style="height:32px;border-radius:4px;object-fit:contain;">
+    <a href="#top" class="nl" aria-label="Aurevon home">
+      <img src="assets/aurevon_logo_nav.png" alt="" style="height:32px;border-radius:4px;object-fit:contain;">
       <span class="lt" style="font-size:1.1rem;color:var(--tx);">Aurevon</span>
     </a>
     <div class="nk">
-      <a href="#top">Home</a>
-      <a href="#ventures">Services</a>
-      <a href="#story">Our Story</a>
-      <a href="#structure">Structure</a>
-      <a href="#connect">Connect</a>
+      <a href="#services">Services</a>
+      <a href="#story">Story</a>
+      <a href="#contact">Contact</a>
     </div>
-    <a href="aurevon-re.html" class="btn">Get Underwriting →</a>
+    <a href="aurevon-re.html" class="btn">Get underwriting</a>
   </div>
 </nav>
 
-<!-- DOTS -->
-<nav class="dots" aria-label="Sections">
-  <a href="#top" data-t="top" title="Home"></a>
-  <a href="#ventures" data-t="ventures" title="Services"></a>
-  <a href="#story" data-t="story" title="Our Story"></a>
-  <a href="#structure" data-t="structure" title="Structure"></a>
-  <a href="#connect" data-t="connect" title="Connect"></a>
-</nav>
-
-<!-- ═══════════════════════════════════════════ -->
-<!-- PAGE 1: HERO                               -->
-<!-- ═══════════════════════════════════════════ -->
-<section class="noise" id="top" style="text-align:center;">
-  <div class="mesh">
-    <div class="blob" style="width:520px;height:520px;top:-120px;right:-100px;background:var(--o1);opacity:0.12;"></div>
-    <div class="blob" style="width:320px;height:320px;bottom:-80px;left:-60px;background:var(--o2);opacity:0.09;"></div>
-    <div class="blob" style="width:220px;height:220px;top:45%;left:12%;background:var(--o3);opacity:0.07;"></div>
-  </div>
-  <div class="wrap si">
-    <div class="rv aurevon-hero-wrap" style="margin:0 auto 1.2rem;display:flex;justify-content:center;">
+<main>
+<section id="top" class="hero">
+  <div class="wrap">
+    <div class="aurevon-hero-wrap">
       <img src="assets/Aurevon LOGO1.jpg" alt="Aurevon Ventures LLC" style="max-width:520px;width:100%;height:auto;filter:drop-shadow(0 0 50px rgba(30,58,138,0.35));" onerror="this.onerror=null;this.src='assets/aurevon_shield_logo_1k.png';this.style.maxWidth='340px';">
     </div>
-    <h1 class="rv lt" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">Aurevon Ventures LLC — Systems. Capital. Infrastructure.</h1>
-    <p class="rv" style="color:var(--tm);font-size:0.82rem;letter-spacing:0.25em;text-transform:uppercase;margin:0 0 1.2rem;">Holdings · Ventures · Community</p>
-    <p class="rv lead" style="margin:0 auto 2rem;max-width:580px;text-align:center;">Institutional-grade tools for independent operators — at a fraction of the cost. Real estate underwriting, investment strategy, Web3 access, and more. <b style="color:var(--tx);">One ecosystem. Six sectors. A real operating edge.</b></p>
-    <div class="rv" style="display:flex;gap:0.8rem;justify-content:center;flex-wrap:wrap;">
-      <a href="aurevon-re.html" class="btn">Get Your Deal Underwritten →</a>
-      <a href="#ventures" class="btn-g">Explore All Services</a>
+    <h1 class="lt">Institutional-grade tools for independent operators.</h1>
+    <div class="actions">
+      <a href="aurevon-re.html" class="btn">Get your deal underwritten</a>
+      <a href="#services" class="btn-g">Services</a>
     </div>
   </div>
-  <div class="sc"><div class="d"></div>Scroll</div>
 </section>
 
-<!-- ═══════════════════════════════════════════ -->
-<!-- PAGE 2: CONCIERGE DIRECTORY (moved up)     -->
-<!-- ═══════════════════════════════════════════ -->
-<section class="noise" id="ventures" style="background:linear-gradient(180deg,transparent,rgba(30,58,138,0.03),transparent);">
-  <div class="mesh">
-    <div class="blob" style="width:450px;height:450px;top:-100px;left:-80px;background:var(--o1);opacity:0.08;"></div>
-    <div class="blob" style="width:300px;height:300px;bottom:-60px;right:-50px;background:var(--o2);opacity:0.06;"></div>
-  </div>
-  <div class="wrap si">
-    <span class="tag rv">What We Do</span>
-    <h2 class="h2 rv">Choose Your Service</h2>
-    <div class="al rv"></div>
-    <p class="lead rv">Every tool below was built to solve a real problem for operators, investors, and advisors. Tap any live service to get started — no sales calls, no gatekeeping.</p>
-
+<section id="services">
+  <div class="wrap">
+    <h2 class="h2">Services</h2>
     <div class="vgrid">
 
-      <!-- Aurevon Capital — Underwriting (+ Investments sub-branch) — PRIMARY CTA -->
-      <a href="aurevon-re.html" class="vcard featured rv" target="_blank" rel="noopener">
-        <div class="vtop"><div class="icon">🏢</div><div class="vstatus live">● Live Now</div></div>
-        <div class="vtitle">Aurevon Capital — Underwriting</div>
-        <div class="vhook">Get your deal underwritten in 24–48 hours.</div>
-        <div class="vdesc">Upload your OM, rent roll, and T-12 — receive an institutional-grade underwriting worksheet, a 5-page investment analysis, and a synthesis document with equity splits, refi schedules, and a 5-year outlook. Full Package $250/deal; lighter Second-Opinion reviews start at $189.99.</div>
-        <div style="margin-top:0.3rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:0.55rem 0.75rem;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.2rem;">
-            <span style="font-size:0.72rem;font-weight:700;color:var(--tx2);">📈 Aurevon Capital Investments</span>
-            <span class="vstatus coming" style="font-size:0.5rem;padding:2px 6px;">◐ Coming 2026</span>
-          </div>
-          <p style="font-size:0.68rem;color:var(--tm);margin:0;line-height:1.5;">A soon-to-be-connected sub-branch of underwriting — a full-service CRE acquisition arm buying, owning, renovating, selling, and consulting across commercial real estate. Underwriting clients get first look at acquisition & consulting deal flow as it comes online.</p>
-        </div>
-        <div class="vcta">Start Your First Deal → <span style="font-size:1rem;">↗</span></div>
+      <a href="aurevon-re.html" class="vcard featured" target="_blank" rel="noopener">
+        <div class="vtitle">Aurevon Capital</div>
+        <p class="vhook">Your deal underwritten in 24–48 hours. From $189.99.</p>
+        <p class="vsub">Aurevon Capital Investments <span class="vstatus">2026</span></p>
       </a>
 
-      <!-- Aurevon Labs — NFT & Community (merged with the former standalone NFT Collection card) -->
-      <a href="aurevon-web3.html" class="vcard rv" target="_blank" rel="noopener">
-        <div class="vtop"><div class="icon">⛓️</div><div class="vstatus live">● Live Now</div></div>
-        <div class="vtitle">Aurevon Labs — NFT & Community</div>
-        <div class="vhook">Your membership card is on the blockchain.</div>
-        <div class="vdesc">Every paying customer receives a tier-locked Shield NFT — your proof of access, your Discord role, and your key to exclusive channels, deal flow, and lender contacts. Browse the full lineup: Community passes (Genesis monthly, Chrome lifetime) and Underwriting tier passes (Insider, Ember, Obsidian Executive).</div>
-        <div class="vcta">See How It Works & View the Passes → <span style="font-size:1rem;">↗</span></div>
+      <a href="aurevon-web3.html" class="vcard" target="_blank" rel="noopener">
+        <div class="vtitle">Aurevon Labs</div>
+        <p class="vhook">NFT membership passes and the Aurevon community.</p>
       </a>
 
-      <!-- Aurevon Labs — ForgeAi (live vertical, forge.aurevonvc.com) -->
-      <a href="https://forge.aurevonvc.com" class="vcard rv" target="_blank" rel="noopener">
-        <div class="vtop"><div class="icon">🤖</div><div class="vstatus live">● Live Now</div></div>
-        <div class="vtitle">Aurevon Labs — ForgeAi</div>
-        <div class="vhook">AI prompt packs, autonomous Prompt Loops, and Claude agent kits.</div>
-        <div class="vdesc">ForgeAi is the Aurevon Labs autonomous storefront: field-tested prompt packs, ready-to-deploy Claude agent kits, and Prompt Loops — complete workflows that plan, act, and check their own work. Try any prompt free in the ForgeAi Studio; instant download after checkout.</div>
-        <div class="vcta">Enter the Forge → <span style="font-size:1rem;">↗</span></div>
+      <a href="https://forge.aurevonvc.com" class="vcard" target="_blank" rel="noopener">
+        <div class="vtitle">ForgeAi</div>
+        <p class="vhook">AI prompt packs, Prompt Loops and Claude agent kits.</p>
       </a>
 
-      <!-- UTILITY LOCKER -->
-      <div class="vcard rv" style="cursor:default;">
-        <div class="vtop"><div class="icon">⚾</div><div class="vstatus coming">◐ Coming 2026</div></div>
-        <div class="vtitle">Aurevon Gear — Sports Gear</div>
-        <div class="vhook">Premium gear for athletes who play every position.</div>
-        <div class="vdesc">Catcher-inspired baseball equipment, training apparel, and accessories. Built for the utility player — the athlete who refuses to be boxed into one position. DTC + wholesale.</div>
+      <a href="https://interlude.aurevonvc.com" class="vcard" target="_blank" rel="noopener">
+        <div class="vtitle">Aurevon Interlude <span class="vstatus">Preview</span></div>
+        <p class="vhook">Advertise in the AI wait. Get paid to prompt.</p>
+      </a>
+
+      <div class="vcard off">
+        <div class="vtitle">Aurevon Gear <span class="vstatus">2026</span></div>
+        <p class="vhook">Baseball gear for athletes who play every position.</p>
       </div>
 
-      <!-- Aurevon Interlude (live vertical, interlude.aurevonvc.com) -->
-      <a href="https://interlude.aurevonvc.com" class="vcard rv" target="_blank" rel="noopener">
-        <div class="vtop"><div class="icon">⏳</div><div class="vstatus dev">◐ Private Preview</div></div>
-        <div class="vtitle">Aurevon Interlude — Attention Network</div>
-        <div class="vhook">Advertise in the AI wait. Get paid to prompt.</div>
-        <div class="vdesc">An idle-attention ad network for AI tools: brands buy the seconds users spend waiting on ChatGPT, Claude, Perplexity, Gemini and more, while the people prompting earn a share of every impression. Auction marketplace for advertisers, wallet and payouts for earners.</div>
-        <div class="vcta">Enter Interlude → <span style="font-size:1rem;">↗</span></div>
-      </a>
+      <div class="vcard off">
+        <div class="vtitle">Financial Planning* <span class="vstatus">Soon</span></div>
+        <p class="vhook">Wealth, retirement, insurance and benefits planning.</p>
 
-      <!-- PERSONAL FINANCIAL PLANNING -->
-      <div class="vcard rv" style="cursor:default;">
-        <div class="vtop"><div class="icon">🛡️</div><div class="vstatus coming">◐ Coming Soon</div></div>
-        <div class="vtitle">Financial Planning Services</div>
-        <div class="vhook">Comprehensive personal financial planning — coming soon.</div>
-        <div class="vdesc">A future sponsored service offering personal wealth management, retirement planning, life & disability insurance, employer/group benefits packages, education savings & planning, annuities, and support services. Designed to help operators protect and grow what they build.</div>
-        <div style="margin-top:0.5rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:0.6rem 0.8rem;">
-          <p style="font-size:0.62rem;color:var(--tm);margin:0;line-height:1.5;"><b style="color:var(--tx2);">IMPORTANT DISCLAIMER:</b> Financial Planning Services are <b>not provided by Aurevon Ventures LLC</b>. This is a promotional listing for a potential future sponsored service offered by an independent, licensed financial professional. Aurevon Ventures LLC is not a financial advisor, broker-dealer, or insurance company. Aurevon does not provide financial, investment, tax, or insurance advice. Any financial planning services, if and when available, will be delivered solely by appropriately licensed and registered professionals. All financial decisions are your own responsibility. This listing does not constitute an offer, solicitation, or recommendation of any financial product or service.</p>
-        </div>
       </div>
-
-
-      <!-- Operator Hub is owner-only — reachable at /operator, not surfaced publicly -->
 
     </div>
+    <p class="legal">* Financial Planning Services are <b>not provided by Aurevon Ventures LLC</b>. This is a promotional listing for a potential future sponsored service offered by an independent, licensed financial professional. Aurevon Ventures LLC is not a financial advisor, broker-dealer, or insurance company. Aurevon does not provide financial, investment, tax, or insurance advice. Any financial planning services, if and when available, will be delivered solely by appropriately licensed and registered professionals. All financial decisions are your own responsibility. This listing does not constitute an offer, solicitation, or recommendation of any financial product or service.</p>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════ -->
-<!-- PAGE 3: STORY + VALUES (combined)          -->
-<!-- ═══════════════════════════════════════════ -->
-<section class="noise" id="story" style="background:linear-gradient(180deg,transparent,rgba(30,58,138,0.02),transparent);">
-  <div class="mesh">
-    <div class="blob" style="width:380px;height:380px;top:-80px;right:-60px;background:var(--o1);opacity:0.07;"></div>
-  </div>
-  <div class="wrap si">
-    <span class="tag rv">Who We Are</span>
-    <h2 class="h2 rv">The Story & DNA Behind <span style="background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Aurevon</span></h2>
-    <div class="al rv"></div>
-    <p class="lead rv">The name comes from the most cerebral, gritty position in baseball — the catcher. The one who blocks every pitch, reads every batter, controls every game. In Web3, a block is the foundational unit of everything. In business, Aurevon means locked in and immovable.</p>
-
-    <div class="ogrid rv">
-      <div class="ocard" style="border-color:var(--o1);">
-        <div style="font-size:1.3rem;margin-bottom:0.25rem;">🧤</div>
-        <div style="font-size:0.75rem;color:var(--o2);text-transform:uppercase;letter-spacing:0.1em;font-weight:600;margin-bottom:0.2rem;">The Catcher</div>
-        <p style="font-size:0.85rem;color:var(--tx2);margin:0;line-height:1.5;">Blocks every pitch — stops threats before they score. That DNA lives in this brand. Every venture, every product, every decision is built to stop everything that gets in the way.</p>
-      </div>
-      <div class="ocard" style="border-color:var(--o2);">
-        <div style="font-size:1.3rem;margin-bottom:0.25rem;">⛓️</div>
-        <div style="font-size:0.75rem;color:var(--o2);text-transform:uppercase;letter-spacing:0.1em;font-weight:600;margin-bottom:0.2rem;">The Block</div>
-        <p style="font-size:0.85rem;color:var(--tx2);margin:0;line-height:1.5;">In blockchain, a block is the foundational unit of truth. On the field, blocking the plate means nothing gets past you. In business — locked in and immovable. That's the through-line.</p>
-      </div>
-      <div class="ocard" style="border-color:var(--o3);">
-        <div style="font-size:1.3rem;margin-bottom:0.25rem;">🔧</div>
-        <div style="font-size:0.75rem;color:var(--o2);text-transform:uppercase;letter-spacing:0.1em;font-weight:600;margin-bottom:0.2rem;">The Utility Player</div>
-        <p style="font-size:0.85rem;color:var(--tx2);margin:0;line-height:1.5;">Plays every position. Knows every system. Aurevon is the brand for operators who refuse to be boxed into one lane — multi-vertical, multi-discipline, multi-income.</p>
-      </div>
-      <div class="ocard" style="border-color:var(--o1);">
-        <div style="font-size:1.3rem;margin-bottom:0.25rem;">🌐</div>
-        <div style="font-size:0.75rem;color:var(--o2);text-transform:uppercase;letter-spacing:0.1em;font-weight:600;margin-bottom:0.2rem;">The Community</div>
-        <p style="font-size:0.85rem;color:var(--tx2);margin:0;line-height:1.5;">Every great team needs a dugout. Aurevon is the home base — where builders, operators, and innovators lock in together. The NFTs are your membership card. Discord is the clubhouse.</p>
-      </div>
-    </div>
-
-    <!-- VALUES — Compact inline row -->
-    <div style="margin-top:1.8rem;text-align:center;" class="rv">
-      <div style="font-size:0.7rem;color:var(--o2);text-transform:uppercase;letter-spacing:0.15em;font-weight:700;margin-bottom:0.8rem;">Brand DNA — Six Attributes. Zero Compromise.</div>
-      <div class="val-row">
-        <div class="val"><div class="vi">🪨</div><div class="vt">GRITTY</div><p>Raw. Earned. No shortcuts.</p></div>
-        <div class="val"><div class="vi">💪</div><div class="vt">HARDWORKING</div><p>Sweat equity brand.</p></div>
-        <div class="val"><div class="vi">⚡</div><div class="vt">INNOVATIVE</div><p>Old problems, new tools.</p></div>
-        <div class="val"><div class="vi">🤝</div><div class="vt">COMMUNITY</div><p>Not solo. A movement.</p></div>
-        <div class="val"><div class="vi">🔒</div><div class="vt">TRUSTWORTHY</div><p>Transparent. No bait.</p></div>
-        <div class="val"><div class="vi">♾️</div><div class="vt">SCALABLE</div><p>Systems that compound.</p></div>
-      </div>
-    </div>
-
-    <!-- Mission callout -->
-    <div class="rv" style="margin-top:1.5rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:1.5rem;display:flex;gap:1.2rem;align-items:flex-start;">
-      <div style="font-size:2rem;">🎯</div>
-      <div style="flex:1;">
-        <div class="lt" style="font-size:0.95rem;color:var(--o1);margin-bottom:0.3rem;">Our Mission</div>
-        <p style="font-size:0.88rem;color:var(--tx2);margin:0;line-height:1.6;">Aurevon exists to arm independent operators with the same tools, intelligence, and infrastructure that institutional players take for granted — at a fraction of the cost. The future belongs to operators who think across verticals, move faster than the market, and build systems that compound.</p>
-      </div>
-    </div>
+<section id="story">
+  <div class="wrap">
+    <h2 class="h2">Story</h2>
+    <p>The name comes from the catcher — the player who blocks every pitch, reads every batter and controls the game. In Web3, a block is the foundational unit of truth. In business, Aurevon means locked in.</p>
+    <p>Aurevon gives independent operators the tools, intelligence and infrastructure institutions take for granted, at a fraction of the cost.</p>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════ -->
-<!-- PAGE 4: CORPORATE STRUCTURE DIAGRAM        -->
-<!-- ═══════════════════════════════════════════ -->
-<section class="noise" id="structure">
-  <div class="wrap si" style="text-align:center;">
-    <span class="tag rv">Architecture</span>
-    <h2 class="h2 rv">How Aurevon Is Built</h2>
-    <div class="al rv" style="margin-left:auto;margin-right:auto;"></div>
-    <p class="lead rv" style="text-align:center;margin:0 auto 1rem;">Six operating verticals under one brand. Each venture feeds the next — compounding revenue, shared community, unified infrastructure.</p>
-
-    <!-- ORG CHART — Simplified, bold connections -->
-    <div class="org-chart rv">
-      <!-- Central hub -->
-      <div class="org-top">
-        <div class="org-box" style="border-width:3px;padding:1rem 2.5rem;">
-          <div class="ob-title" style="font-size:1.15rem;">Aurevon</div>
-          <div class="ob-sub" style="font-size:0.78rem;">Multi-Vertical Ecosystem</div>
-        </div>
-      </div>
-      <div class="org-line" style="height:28px;width:3px;"></div>
-
-      <!-- Branch line + children -->
-      <div class="org-branch">
-        <div class="org-child">
-          <div class="oc-box">
-            <div class="oc-title">Aurevon Capital</div>
-            <div class="oc-sub">Underwriting · Investments (2026)</div>
-            <div class="oc-status" style="color:#2ecc71;">● LIVE</div>
-          </div>
-        </div>
-        <div class="org-child">
-          <div class="oc-box">
-            <div class="oc-title">Aurevon Labs</div>
-            <div class="oc-sub">NFT & Community</div>
-            <div class="oc-status" style="color:#2ecc71;">● LIVE</div>
-          </div>
-        </div>
-        <div class="org-child">
-          <div class="oc-box">
-            <div class="oc-title">ForgeAi</div>
-            <div class="oc-sub">Aurevon Labs · AI Agents</div>
-            <div class="oc-status" style="color:#2ecc71;">● LIVE</div>
-          </div>
-        </div>
-        <div class="org-child">
-          <div class="oc-box">
-            <div class="oc-title">Aurevon Gear</div>
-            <div class="oc-sub">Sports Gear DTC</div>
-            <div class="oc-status" style="color:var(--o2);">◐ 2026</div>
-          </div>
-        </div>
-        <div class="org-child">
-          <div class="oc-box">
-            <div class="oc-title">Aurevon Interlude</div>
-            <div class="oc-sub">Attention Network</div>
-            <div class="oc-status" style="color:var(--tm);">◐ Preview</div>
-          </div>
-        </div>
-        <div class="org-child">
-          <div class="oc-box" style="border-color:rgba(59,130,246,0.2);">
-            <div class="oc-title">Financial Planning</div>
-            <div class="oc-sub">Sponsored Service*</div>
-            <div class="oc-status" style="color:var(--o2);">◐ Coming Soon</div>
-          </div>
-        </div>
-      </div>
-      <div style="text-align:center;margin-top:0.8rem;font-size:0.58rem;color:var(--tm);">*Financial Planning Services are not provided by Aurevon — see disclaimer above.</div>
-    </div>
-
-    <!-- Revenue flow explanation -->
-    <div class="rv" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:2rem;text-align:left;">
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:1.1rem;">
-        <div style="font-size:1.2rem;margin-bottom:0.3rem;">🔄</div>
-        <div class="lt" style="font-size:0.82rem;color:var(--o1);margin-bottom:0.25rem;">Revenue Flywheel</div>
-        <p style="font-size:0.78rem;color:var(--tx2);margin:0;line-height:1.45;">RE underwriting clients become acquisition consulting clients. Community members discover investment opportunities. ForgeAi users become Interlude advertisers. Every vertical feeds the next.</p>
-      </div>
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:1.1rem;">
-        <div style="font-size:1.2rem;margin-bottom:0.3rem;">🛡️</div>
-        <div class="lt" style="font-size:0.82rem;color:var(--o1);margin-bottom:0.25rem;">Shared Infrastructure</div>
-        <p style="font-size:0.78rem;color:var(--tx2);margin:0;line-height:1.45;">One brand. One community. One NFT system. Five verticals share the same customer base, tech stack, and operational playbook. Lower cost, higher margin.</p>
-      </div>
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:1.1rem;">
-        <div style="font-size:1.2rem;margin-bottom:0.3rem;">📈</div>
-        <div class="lt" style="font-size:0.82rem;color:var(--o1);margin-bottom:0.25rem;">Compounding Moat</div>
-        <p style="font-size:0.78rem;color:var(--tx2);margin:0;line-height:1.45;">Every new vertical makes the existing ones stickier. A customer using 3+ Aurevon services has near-zero churn. The ecosystem is the product.</p>
-      </div>
-    </div>
-
-    <div class="rv lt" style="margin-top:2rem;font-size:clamp(1.8rem,4.5vw,3rem);background:linear-gradient(135deg,var(--o1),var(--o2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">SYSTEMS. CAPITAL.<br>INFRASTRUCTURE.</div>
-  </div>
-</section>
-
-<!-- ═══════════════════════════════════════════ -->
-<!-- PAGE 5: CONNECT                            -->
-<!-- ═══════════════════════════════════════════ -->
-<section class="noise" id="connect">
-  <div class="wrap si" style="text-align:center;">
-    <span class="tag rv">Stay Connected</span>
-    <h2 class="h2 rv">Join the Movement</h2>
-    <div class="al rv" style="margin-left:auto;margin-right:auto;"></div>
-    <p class="lead rv" style="margin:0 auto 1.5rem;text-align:center;">Follow Aurevon across platforms. Join the Discord. Be first to know when new ventures go live.</p>
-    <p class="rv" style="text-align:center;color:var(--tx2);font-size:0.9rem;margin:0 0 1.4rem;">📞 <a href="tel:+18566938249" style="color:var(--tx);font-weight:600;">(856) 693-8249</a> &nbsp;·&nbsp; ✉️ <a href="mailto:mike@aurevonvc.com" style="color:var(--tx);font-weight:600;">mike@aurevonvc.com</a> &nbsp;·&nbsp; 𝕏 <a href="https://x.com/AurevonLabs" target="_blank" rel="noopener" style="color:var(--tx);font-weight:600;">@AurevonLabs</a></p>
-
-    <div class="sgrid rv" style="justify-content:center;">
-      <a href="https://discord.gg/2fwFjMEh" target="_blank" rel="noopener" class="sbtn" style="background:#5865F2;border-color:#5865F2;color:#fff;">
-        <svg width="20" height="15" viewBox="0 0 71 55" fill="none"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z" fill="white"/></svg>
-        Discord
-      </a>
-      <a href="https://x.com/AurevonLabs" target="_blank" rel="noopener" class="sbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>X / Twitter</a>
-      <a href="https://instagram.com/aurevon.vc" target="_blank" rel="noopener" class="sbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>Instagram</a>
-      <a href="https://linkedin.com/company/aurevon" target="_blank" rel="noopener" class="sbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 2h-17A1.5 1.5 0 002 3.5v17A1.5 1.5 0 003.5 22h17a1.5 1.5 0 001.5-1.5v-17A1.5 1.5 0 0020.5 2zM8 19H5v-9h3zM6.5 8.25A1.75 1.75 0 118.3 6.5a1.78 1.78 0 01-1.8 1.75zM19 19h-3v-4.74c0-1.42-.6-1.93-1.38-1.93A1.74 1.74 0 0013 14.19V19h-3v-9h2.9v1.3a3.11 3.11 0 012.7-1.4c1.55 0 3.36.86 3.36 3.66z"/></svg>LinkedIn</a>
-      <a href="https://tiktok.com/@aurevon.vc" target="_blank" rel="noopener" class="sbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9a6.33 6.33 0 00-.79-.05A6.34 6.34 0 003.15 15.3a6.34 6.34 0 0010.86 4.46V13a8.16 8.16 0 005.58 2.19V11.7a4.83 4.83 0 01-3.77-1.24V6.69z"/></svg>TikTok</a>
-      <a href="https://youtube.com/@aurevon.vc" target="_blank" rel="noopener" class="sbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>YouTube <span style="font-size:0.62rem;color:var(--tm);font-weight:600;">(Coming Soon)</span></a>
+<section id="contact">
+  <div class="wrap">
+    <h2 class="h2">Contact</h2>
+    <p class="contact"><a href="tel:+18566938249">(856) 693-8249</a><a href="mailto:mike@aurevonvc.com">mike@aurevonvc.com</a></p>
+    <div class="sgrid">
+      <a href="https://discord.gg/2fwFjMEh" target="_blank" rel="noopener" class="sbtn discord">Discord</a>
+      <a href="https://x.com/AurevonLabs" target="_blank" rel="noopener" class="sbtn">X</a>
+      <a href="https://instagram.com/aurevon.vc" target="_blank" rel="noopener" class="sbtn">Instagram</a>
+      <a href="https://linkedin.com/company/aurevon" target="_blank" rel="noopener" class="sbtn">LinkedIn</a>
+      <a href="https://tiktok.com/@aurevon.vc" target="_blank" rel="noopener" class="sbtn">TikTok</a>
     </div>
   </div>
 </section>
+</main>
 
-<!-- FOOTER -->
-<style>
-.aurevon-global-foot{margin-top:0;padding:1.6rem 1rem;border-top:1px solid rgba(255,255,255,0.07);background:#050510;color:#6b6760;font-size:0.78rem;font-family:'DM Sans',sans-serif;}
-.aurevon-global-foot .row{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;align-items:center;}
-.aurevon-global-foot .links{display:flex;gap:1.2rem;flex-wrap:wrap;}
-.aurevon-global-foot a{color:#b8b3ab;text-decoration:none;transition:color .2s;}
-.aurevon-global-foot a:hover{color:#1E3A8A;}
-.aurevon-global-foot .social{display:flex;gap:.8rem;align-items:center;}
-</style>
 <footer class="aurevon-global-foot">
   <div class="row">
-    <div>© <span id="aurevonYr">2026</span> Aurevon Ventures LLC · Systems. Capital. Infrastructure. · Aurevon RE, Aurevon Labs, and all related entities are owned and operated by Aurevon Ventures LLC.</div>
-    <div class="links">
-      <a href="index.html">Home</a>
+    <div>© <span id="aurevonYr">2026</span> Aurevon Ventures LLC</div>
+    <nav class="links" aria-label="Footer">
       <a href="aurevon-re.html">RE Underwriting</a>
       <a href="aurevon-web3.html">Web3</a>
       <a href="aurevon-nft.html">NFTs</a>
+      <a href="merch.html">Merch</a>
+      <a href="portal.html">My Dashboard</a>
       <a href="privacy.html">Privacy</a>
       <a href="terms.html">Terms</a>
       <a href="refund.html">Refunds</a>
-      <a href="portal.html">My Dashboard</a>
-      <a href="merch.html">Merch</a>
-    </div>
-    <div class="social"><a href="https://x.com/AurevonLabs" target="_blank" rel="noopener" title="X / Twitter"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a><a href="https://discord.gg/2fwFjMEh" target="_blank" rel="noopener" title="Discord"><svg width="16" height="14" viewBox="0 0 71 55" fill="currentColor"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.1a58.8 58.8 0 0017.7 9a.2.2 0 00.3-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.6.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1A58.6 58.6 0 0070.4 45.6v-.1c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1h0zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1z"/></svg></a></div>
+    </nav>
   </div>
-  <script>(function(){var y=document.getElementById("aurevonYr");if(y)y.textContent=new Date().getFullYear();})();</script>
 </footer>
 
 <script>
-const _yrEl = document.getElementById('yr') || document.getElementById('bktYr'); if (_yrEl) _yrEl.textContent = new Date().getFullYear();
+document.getElementById('aurevonYr').textContent = new Date().getFullYear();
 const L = window.AUREVON_LINKS || {};
-document.querySelectorAll('.vcard[href]').forEach(c => {
-  const h = c.getAttribute('href');
-  if(h === 'aurevon-re.html' && L.RE) c.href = L.RE;
-  if(h === 'aurevon-web3.html' && L.WEB3) c.href = L.WEB3;
-  if(h === 'aurevon-nft.html' && L.NFT_COLLECTION) c.href = L.NFT_COLLECTION;
-  if(h === 'operator.html' && L.OPERATOR) c.href = L.OPERATOR;
-});
+const remap = { 'aurevon-re.html': L.RE, 'aurevon-web3.html': L.WEB3, 'aurevon-nft.html': L.NFT_COLLECTION };
+document.querySelectorAll('.vcard[href]').forEach(c => { const to = remap[c.getAttribute('href')]; if (to) c.href = to; });
+const social = { discord: L.DISCORD, 'x.com': L.TWITTER, instagram: L.INSTAGRAM, linkedin: L.LINKEDIN, tiktok: L.TIKTOK };
 document.querySelectorAll('.sbtn[href]').forEach(b => {
-  const h = b.getAttribute('href');
-  if(h.includes('discord') && L.DISCORD) b.href = L.DISCORD;
-  if(h.includes('twitter') && L.TWITTER) b.href = L.TWITTER;
-  if(h.includes('instagram') && L.INSTAGRAM) b.href = L.INSTAGRAM;
-  if(h.includes('linkedin') && L.LINKEDIN) b.href = L.LINKEDIN;
-  if(h.includes('tiktok') && L.TIKTOK) b.href = L.TIKTOK;
-  if(h.includes('youtube') && L.YOUTUBE) b.href = L.YOUTUBE;
+  for (const k in social) if (social[k] && b.getAttribute('href').includes(k)) b.href = social[k];
 });
-const io = new IntersectionObserver(e => {
-  e.forEach(x => { if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target);}});
-},{threshold:0.12});
-document.querySelectorAll('.rv').forEach(el => io.observe(el));
-const dots = document.querySelectorAll('.dots a');
-const secs = [];
-dots.forEach(d => {
-  const t = d.getAttribute('data-t');
-  const el = document.getElementById(t);
-  if(el) secs.push({dot:d, el:el});
-});
-const spy = new IntersectionObserver(e => {
-  e.forEach(x => {
-    if(x.isIntersecting){
-      dots.forEach(d => d.classList.remove('active'));
-      const found = secs.find(s => s.el === x.target);
-      if(found) found.dot.classList.add('active');
-    }
-  });
-},{threshold:0.3});
-secs.forEach(s => spy.observe(s.el));
 </script>
 <!-- Aurevon shared motion background (ported from labs.aurevonvc.com) -->
 <script src="/motion/ticker.js" defer></script>

@@ -242,13 +242,6 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
       margin-bottom: 10px;
       font-family: 'Archivo Black', sans-serif;
     }
-    .login-card .login-sub {
-      font-size: 14px;
-      color: var(--text-sec);
-      text-align: center;
-      line-height: 1.6;
-      margin-bottom: 36px;
-    }
     .input-wrap {
       position: relative;
       margin-bottom: 16px;
@@ -305,15 +298,6 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
       border: 1px solid rgba(248,113,113,0.2);
       color: var(--red);
     }
-    .login-footer {
-      margin-top: 28px;
-      text-align: center;
-      font-size: 12px;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
-    .login-footer svg { vertical-align: middle; margin-right: 4px; }
-
     /* ─── PORTAL SHELL ─── */
     #portal-shell { display: flex; flex-direction: column; min-height: 100vh; }
 
@@ -944,11 +928,10 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
         <span class="brand-name">Aurevon</span>
       </div>
       <h1>Your Aurevon Dashboard</h1>
-      <p class="login-sub">Enter the email you used to purchase. We'll send you a secure login link — no password needed.</p>
 
       <div id="login-form-wrap">
         <div class="input-wrap">
-          <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email" aria-label="Email address" autofocus />
+          <input type="email" id="login-email" placeholder="Purchase email" autocomplete="email" aria-label="Email address" autofocus />
         </div>
         <button class="login-btn" id="send-link-btn" onclick="sendLoginLink()">
           Send Login Link →
@@ -956,11 +939,6 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
       </div>
 
       <div id="login-msg" class="login-msg hidden"></div>
-
-      <div class="login-footer">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        Aurevon uses secure email magic links. No passwords to remember.
-      </div>
     </div>
   </div>
 

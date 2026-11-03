@@ -60,6 +60,10 @@ Source of truth: `api/stripe/checkout.js PRODUCT_CATALOG` + `api/_lib/tiers.js _
 
 The two are bridged by a Proxy + alias map in `tiers.js` so webhook handlers can read `metadata.tier = "re_full"` and get the correct entitlement. **This is intentional.** Don't "unify" the keys without understanding the checkout↔webhook split.
 
+## Page design rule (Nov 2026 simplicity pass)
+
+Headings, facts, actions. No eyebrow labels, taglines, intro paragraphs under headings, "Live Now" badges, decorative emoji, or helper text that explains the obvious. If a section only makes sense with extra copy, fix the layout or the heading instead. Keep verbatim: prices, what's included, legal/disclaimer text, form labels, JS-referenced ids. Footer is `© <year> Aurevon Ventures LLC` + links. Text on blue gradient buttons is white (contrast). Only hero sections are full-height. Owner-only notes (Printify setup, merch margins) live in `docs/merch-printify.md`, not in public HTML.
+
 ## Archive index — code that's been removed but kept for re-activation
 
 | What | Where | Why archived | How to re-activate |
