@@ -390,12 +390,18 @@ export async function listFailedMints({ maxRecords = 10, maxRetries = 5 } = {}) 
     'listFailedMints');
 }
 
-/** Minted/Sent mints whose delivery email has not gone out, oldest first. */
-export async function listUndeliveredMints({ maxRecords = 20 } = {}) {
-  return many('nft_mints',
-    from('nft_mints').in('mint_status', ['Minted', 'Sent']).eq('email_delivered', false)
-      .order('created_at', { ascending: true }).limit(maxRecords),
-    'listUndeliveredMints');
+/**
+ * Minted/Sent mints whose delivery email has not gone out, oldest first. Only
+ * rows tied to a payment (the pipeline that tracks delivery), and with
+ * `createdBefore` only rows older than it (a live run may still be sending).
+ * Filtering here, not in the caller, keeps rows the caller can never send from
+ * filling the window ahead of ones it can.
+ */
+export async function listUndeliveredMints({ maxRecords = 20, createdBefore } = {}) {
+  let q = from('nft_mints').in('mint_status', ['Minted', 'Sent']).eq('email_delivered', false)
+    .not('payment_transaction_id', 'is', null);
+  if (createdBefore) q = q.lt('created_at', new Date(createdBefore).toISOString());
+  return many('nft_mints', q.order('created_at', { ascending: true }).limit(maxRecords), 'listUndeliveredMints');
 }
 
 // ── Ops health counts ────────────────────────────────────────────────────────

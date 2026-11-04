@@ -664,7 +664,7 @@ export async function handleRetryMints() {
 
   const stats = {
     retried: 0, minted: 0, failed: 0, gaveUp: 0, delivered: 0, remaining: 0,
-    skippedLookupErrors: 0, legacySkipped: 0, reversed: 0, emailFailed: 0,
+    skippedLookupErrors: 0, legacySkipped: 0, reversed: 0, emailFailed: 0, resendSkipped: 0,
   };
   const touched = new Set();
 
@@ -766,27 +766,42 @@ export async function handleRetryMints() {
   }
 
   // ── Delivery emails that never went out ──
+  // The query itself drops legacy rows (no payment id: they predate delivery
+  // tracking) and rows under 10 minutes old (a live run may still be sending),
+  // so neither can fill the 20-row window ahead of a deliverable row.
   let undelivered = [];
   try {
-    undelivered = await listUndeliveredMints({ maxRecords: 20 });
+    undelivered = await listUndeliveredMints({
+      maxRecords: 20,
+      createdBefore: new Date(Date.now() - UNDELIVERED_MIN_AGE_MS).toISOString(),
+    });
   } catch (err) {
     console.error(`[retry-mints] listUndeliveredMints failed: ${err.message}`);
   }
-  const youngest = Date.now() - UNDELIVERED_MIN_AGE_MS;
+  // A row that can never be sent leaves the window: flagged delivered, with why.
+  const skipForGood = async (row, reason) => {
+    stats.resendSkipped++;
+    const prior = row.fields?.['Notes'] ? `${row.fields['Notes']} | ` : '';
+    await updateNftMint(row.id, { 'Email Delivered': true, 'Notes': `${prior}resend skipped: ${reason}` }).catch((err) => {
+      console.error(`[retry-mints] could not park undelivered row ${row.id}: ${err.message}`);
+    });
+  };
   for (const row of undelivered) {
     const f = row.fields ?? {};
     if (touched.has(row.id)) continue;                       // handled by the retry above
     if (!['Sent', 'Minted'].includes(f['Mint Status'])) continue;
     if (f['Email Delivered'] === true) continue;
     const transactionId = f['Payment Transaction ID'] || null;
-    if (!f['Email'] || !transactionId) continue;            // legacy rows predate delivery tracking
-    const created = Date.parse(f['Created At'] ?? '');
-    if (Number.isFinite(created) && created > youngest) continue;
+    if (!transactionId) continue;                            // the query excludes these
+    if (!f['Email']) { await skipForGood(row, 'no recipient email'); continue; }
     const entitlementKey = resolveEntitlementFromNftType(f['NFT Type'] ?? '');
-    if (!entitlementKey) continue;
+    if (!entitlementKey) { await skipForGood(row, 'no entitlement for this NFT type'); continue; }
 
     const payment = await findPaymentByTransactionId(transactionId).catch(() => null);
-    if (REVERSED_PAYMENT.has(payment?.fields?.['Status'])) continue;
+    if (REVERSED_PAYMENT.has(payment?.fields?.['Status'])) {
+      await skipForGood(row, `payment ${payment.fields['Status']}`);
+      continue;
+    }
     try {
       await sendNftDelivery({
         email: f['Email'],

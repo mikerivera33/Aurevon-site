@@ -18,7 +18,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const fake = vi.hoisted(() => {
   const state = { calls: [], results: [], createArgs: [], rpcs: [] };
-  const METHODS = ['select', 'insert', 'update', 'upsert', 'eq', 'neq', 'is', 'in', 'like', 'lt', 'gt', 'or', 'order', 'limit', 'single'];
+  const METHODS = ['select', 'insert', 'update', 'upsert', 'eq', 'neq', 'is', 'not', 'in', 'like', 'lt', 'lte', 'gt', 'or', 'order', 'limit', 'single'];
   function builder(table) {
     const q = { table, ops: [] };
     state.calls.push(q);
@@ -478,13 +478,19 @@ describe('mint lookups', () => {
     await expect(db.listPaymentTransactionIds(['cs_c'])).rejects.toThrow(/listPaymentTransactionIds: boom/);
   });
 
-  it('listUndeliveredMints: Minted/Sent with email_delivered=false, oldest first', async () => {
-    respond({ data: [], error: null });
+  it('listUndeliveredMints: Minted/Sent with email_delivered=false and a payment id, oldest first', async () => {
+    respond({ data: [], error: null }, { data: [], error: null });
     await db.listUndeliveredMints();
-    expect(op('in')).toEqual([['in', 'mint_status', ['Minted', 'Sent']]]);
-    expect(op('eq')).toEqual([['eq', 'email_delivered', false]]);
-    expect(op('order')).toEqual([['order', 'created_at', { ascending: true }]]);
-    expect(op('limit')).toEqual([['limit', 20]]);
+    expect(op('in', 0)).toEqual([['in', 'mint_status', ['Minted', 'Sent']]]);
+    expect(op('eq', 0)).toEqual([['eq', 'email_delivered', false]]);
+    expect(op('not', 0)).toEqual([['not', 'payment_transaction_id', 'is', null]]);
+    expect(op('lt', 0)).toEqual([]);
+    expect(op('order', 0)).toEqual([['order', 'created_at', { ascending: true }]]);
+    expect(op('limit', 0)).toEqual([['limit', 20]]);
+    // createdBefore filters in the query (never in the caller, where it would block the window).
+    await db.listUndeliveredMints({ maxRecords: 5, createdBefore: '2026-11-04T10:00:00Z' });
+    expect(op('lt', 1)).toEqual([['lt', 'created_at', '2026-11-04T10:00:00.000Z']]);
+    expect(op('limit', 1)).toEqual([['limit', 5]]);
   });
 });
 

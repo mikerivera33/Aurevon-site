@@ -294,6 +294,48 @@ describe('handleRetryMints', () => {
       expect(report.delivered).toBe(0);
     });
 
+    it('asks the db for rows with a payment id older than 10 minutes (filters in the query, not the loop)', async () => {
+      const before = Date.now();
+      await handleRetryMints();
+      const [[args]] = db.listUndeliveredMints.mock.calls;
+      expect(args.maxRecords).toBe(20);
+      const cutoff = Date.parse(args.createdBefore);
+      expect(cutoff).toBeLessThanOrEqual(before - 10 * 60_000 + 1000);
+      expect(cutoff).toBeGreaterThan(before - 11 * 60_000);
+    });
+
+    it('20 legacy rows (no payment id) ahead of a deliverable row do not block it', async () => {
+      for (let i = 0; i < 20; i++) sentRow(`recLegacy${i}`, {});
+      sentRow('recDeliverable', { Reference: 'EMBER_004', 'Payment Transaction ID': 'cs_live_D' });
+
+      const report = await handleRetryMints();
+
+      expect(sendNftDelivery).toHaveBeenCalledTimes(1);
+      expect(sendNftDelivery).toHaveBeenCalledWith(expect.objectContaining({ transactionId: 'cs_live_D', serial: 'EMBER_004' }));
+      expect(row('recDeliverable').fields['Email Delivered']).toBe(true);
+      expect(report.delivered).toBe(1);
+    });
+
+    it('rows that can never be sent (reversed payment, no entitlement) are flagged delivered with a note and leave the window', async () => {
+      sentRow('recRefundedQuiet', { 'Payment Transaction ID': 'cs_live_RQ', Notes: 'minted by webhook' });
+      payment('cs_live_RQ', { Status: 'Refunded' });
+      sentRow('recNoPass', { 'Payment Transaction ID': 'cs_live_NP', 'NFT Type': 'Mystery Pass' });
+
+      const first = await handleRetryMints();
+
+      expect(sendNftDelivery).not.toHaveBeenCalled();
+      expect(first).toEqual(expect.objectContaining({ delivered: 0, resendSkipped: 2 }));
+      expect(row('recRefundedQuiet').fields).toEqual(expect.objectContaining({
+        'Email Delivered': true, Notes: 'minted by webhook | resend skipped: payment Refunded',
+      }));
+      expect(row('recNoPass').fields).toEqual(expect.objectContaining({
+        'Email Delivered': true, Notes: 'resend skipped: no entitlement for this NFT type',
+      }));
+
+      const second = await handleRetryMints();
+      expect(second.resendSkipped).toBe(0); // no longer listed
+    });
+
     it('a send that throws alerts retry_mints.email_failed (no email address) and the next row still goes out', async () => {
       sentRow('recBounce', { 'Payment Transaction ID': 'cs_live_B1' });
       sentRow('recFine', { 'Payment Transaction ID': 'cs_live_B2' });

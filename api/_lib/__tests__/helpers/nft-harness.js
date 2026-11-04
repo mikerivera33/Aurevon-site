@@ -108,8 +108,12 @@ export function makeFakeDb(store) {
     listFailedMints: vi.fn(async ({ maxRecords = 10, maxRetries = 5 } = {}) => store.mints
       .filter((r) => r.fields['Mint Status'] === 'Failed' && Number(r.fields['Retry Count'] ?? 0) < maxRetries)
       .slice(0, maxRecords)),
-    listUndeliveredMints: vi.fn(async ({ maxRecords = 20 } = {}) => store.mints
+    // Same filters as the real query. A row with no 'Created At' counts as old
+    // (rows written by createNftMint here carry none).
+    listUndeliveredMints: vi.fn(async ({ maxRecords = 20, createdBefore } = {}) => store.mints
       .filter((r) => ['Minted', 'Sent'].includes(r.fields['Mint Status']) && r.fields['Email Delivered'] !== true)
+      .filter((r) => r.fields['Payment Transaction ID'] !== undefined && r.fields['Payment Transaction ID'] !== null)
+      .filter((r) => !createdBefore || !r.fields['Created At'] || Date.parse(r.fields['Created At']) < Date.parse(createdBefore))
       .slice(0, maxRecords)),
     // ops_events
     recordOpsEvent: vi.fn(async (e) => { store.ops.push(e); return { id: `ops_${++store.seq}`, fields: {} }; }),
