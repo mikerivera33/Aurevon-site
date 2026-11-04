@@ -402,7 +402,8 @@ const TIER_DISPLAY_NAMES = {
 
 function tierDisplay(tier) {
   const key = String(tier ?? '').replace(/^re_/, '');
-  return TIER_DISPLAY_NAMES[key] ?? key.toUpperCase();
+  // Never "Item: UNKNOWN" (or a raw key): an unnamed tier reads "your purchase".
+  return TIER_DISPLAY_NAMES[key] ?? 'your purchase';
 }
 
 export function buildPurchaseConfirmHtml({ customerName, tier, transactionId }) {

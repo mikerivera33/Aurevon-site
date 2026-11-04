@@ -505,8 +505,18 @@ export async function handleVerifiedIPN(ipn) {
     return;
   }
 
+  if (tier === null) {
+    // Settled money that matches no tier: recorded above, but nothing to
+    // fulfil and no "Item: …" email for a product we can't name. The owner
+    // reviews it by hand.
+    console.warn(`[PayPal IPN] txnId=${txnId} resolved to no tier — recorded, no fulfilment, no email`);
+    await sendAlert('paypal.tier_unresolved', { txnId, gross: ipn.mc_gross ?? null, currency: ipn.mc_currency ?? null },
+      { severity: 'high', dedupeKey: txnId }).catch(() => {});
+    return;
+  }
+
   // NFT fulfilment (mint → NFT_Mints row → delivery email) or, for tiers
-  // without an NFT (bogo / single / add-ons / unknown), a purchase confirmation.
+  // without an NFT (bogo / single / add-ons), a purchase confirmation.
   const result = await fulfilNft({ transactionId: txnId, email: customerEmail, customerName, tier: passType, provider: 'paypal' });
   if (result.reason === 'no_nft') {
     console.log(`[PayPal IPN] Tier "${passType}" has no NFT. Sending purchase confirmation.`);

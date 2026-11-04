@@ -226,3 +226,23 @@ describe('paypal txn_type gate + lifecycle receiver (fail-closed)', () => {
     expect(db.updateEntitlementState).not.toHaveBeenCalled();
   });
 });
+
+describe('settled IPN that resolves to no tier (final fix 2)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env = { ...SAVED };
+    process.env.PAYPAL_BUSINESS_EMAIL = 'mike@aurevonvc.com';
+  });
+  afterEach(() => { process.env = { ...SAVED }; });
+
+  it('records the Payments row, alerts paypal.tier_unresolved (high), sends no email and mints nothing', async () => {
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com', { mc_gross: '12.34' }));
+
+    expect(db.createPayment).toHaveBeenCalledWith(expect.objectContaining({ transactionId: 'PP_TEST_1', tier: 'unknown' }));
+    expect(sendAlert).toHaveBeenCalledWith('paypal.tier_unresolved',
+      { txnId: 'PP_TEST_1', gross: '12.34', currency: 'USD' }, { severity: 'high', dedupeKey: 'PP_TEST_1' });
+    expect(email.sendPurchaseConfirmation).not.toHaveBeenCalled();
+    expect(email.sendNftDelivery).not.toHaveBeenCalled();
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+  });
+});

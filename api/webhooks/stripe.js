@@ -283,6 +283,17 @@ export async function fulfilCheckout(session, { redelivery = false, concurrent =
   await persistSubscriptionIdentity(session, customerEmail, identityTier);
   await activateMonthlyBilling(session, customerEmail, identityTier, { redelivery });
 
+  if (tier === 'unknown') {
+    // Settled money that matches no tier: the Payments row is recorded, but
+    // there is nothing to fulfil and no "Item: …" email for a product we can't
+    // name. The owner reviews it by hand.
+    console.warn(`[Stripe] Session ${sessionId} resolved to no tier — recorded, no fulfilment, no email`);
+    await sendAlert('stripe.tier_unresolved',
+      { txnId: sessionId, gross: (session?.amount_total ?? 0) / 100, currency: session?.currency ?? null },
+      { severity: 'high', dedupeKey: sessionId }).catch(() => {});
+    return;
+  }
+
   const result = await fulfilNft({ transactionId: sessionId, email: customerEmail, customerName, tier, provider: 'stripe' });
   if (result.reason === 'no_nft') {
     if (redelivery) return;

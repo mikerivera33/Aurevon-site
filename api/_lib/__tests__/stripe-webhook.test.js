@@ -489,3 +489,23 @@ describe('Stripe webhook handler', () => {
     }
   });
 });
+
+describe('settled checkout that resolves to no tier (final fix 2)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    db.createPayment.mockResolvedValue({});
+    db.findPaymentByTransactionId.mockResolvedValue(null);
+  });
+
+  it('records the Payments row, alerts stripe.tier_unresolved (high), sends no email and mints nothing', async () => {
+    // No metadata.tier and an amount that matches no catalog price.
+    await handleCheckoutSessionCompleted(session('cs_test_unknown', { metadata: {}, amount_total: 1234, currency: 'usd' }));
+
+    expect(db.createPayment).toHaveBeenCalledWith(expect.objectContaining({ transactionId: 'cs_test_unknown', tier: 'unknown' }));
+    expect(sendAlert).toHaveBeenCalledWith('stripe.tier_unresolved',
+      { txnId: 'cs_test_unknown', gross: 12.34, currency: 'usd' }, { severity: 'high', dedupeKey: 'cs_test_unknown' });
+    expect(email.sendPurchaseConfirmation).not.toHaveBeenCalled();
+    expect(email.sendNftDelivery).not.toHaveBeenCalled();
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+  });
+});

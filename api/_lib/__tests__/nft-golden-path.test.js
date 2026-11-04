@@ -168,9 +168,23 @@ const NO_NFT = [
   ['stripe', 'addon_rush', 99, null],
   ['paypal', 'bogo', 299.99, 'txn_id'],
   ['paypal', 'single', 189.99, 'txn_id'],
-  // PayPal does not sell add-ons: a $99 IPN resolves to no eligible tier ("unknown").
-  ['paypal', 'addon_rush', 99, null],
 ];
+
+// PayPal does not sell add-ons: a $99 IPN resolves to no eligible tier.
+// Behaviour change (final fix 2): it used to email "Item: UNKNOWN"; now the
+// payment is recorded, the owner is alerted, and the buyer gets no email.
+describe('paypal $99 (no tier)', () => {
+  it('records the payment, alerts paypal.tier_unresolved, no Crossmint, no email', async () => {
+    const id = txnId('paypal', 'noTieraddonrush');
+    await deliver.paypal({ id, tier: 'addon_rush', amount: 99, email: BUYER });
+
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
+    expect(crossmintCalls(store)).toHaveLength(0);
+    expect(resendCalls(store)).toHaveLength(0);
+    expect(sendAlert).toHaveBeenCalledWith('paypal.tier_unresolved', expect.objectContaining({ txnId: id }),
+      expect.objectContaining({ severity: 'high', dedupeKey: id }));
+  });
+});
 
 describe.each(NO_NFT)('%s %s (no NFT)', (provider, tier, amount, intakeParam) => {
   it('never reaches Crossmint or NFT_Mints; sends one purchase confirmation without a Discord link', async () => {

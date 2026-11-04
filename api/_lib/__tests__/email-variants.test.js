@@ -147,6 +147,14 @@ describe('purchase confirmation display names', () => {
     expect(html).not.toContain('RE_BOGO');
   });
 
+  it('an unknown / missing / unmapped tier reads "your purchase", never UNKNOWN or a raw key', () => {
+    for (const tier of ['unknown', undefined, '', 'deal']) {
+      const html = buildPurchaseConfirmHtml({ customerName: 'Pat', tier });
+      expect(html).toContain('your purchase');
+      expect(html).not.toMatch(/UNKNOWN|>DEAL</);
+    }
+  });
+
   it('re_single renders "Second Opinion"', () => {
     expect(buildPurchaseConfirmHtml({ customerName: 'Pat', tier: 're_single' })).toContain('Second Opinion');
   });
