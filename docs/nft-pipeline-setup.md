@@ -23,9 +23,9 @@ Generate a random secret with:
 - `CROSSMINT_TEMPLATE_*` variables are no longer read. Metadata is sent inline
   with each mint.
 - BOGO, Second Opinion and add-ons earn no NFT.
-- Subscription renewals never mint again. A full refund or a dispute revokes
-  the pass and its role (for a subscription, only when the first payment is
-  refunded or disputed).
+- Subscription renewals never mint again. A full Stripe refund or dispute
+  revokes the pass (PayPal refunds are handled by hand) and its role (for a
+  subscription, only when the first payment is refunded or disputed).
 
 ## How it flows
 
@@ -128,9 +128,12 @@ linked variables. Compare against the table above.
 Settings → API Keys: copy the Project URL and the secret key. Vercel → Add
 `SUPABASE_URL` and `SUPABASE_SECRET_KEY` (Sensitive). The Supabase → Vercel
 integration can create them instead; confirm both names exist afterwards.
-The migrations in `supabase/migrations/` are already applied. To confirm:
-Supabase → Database → Migrations shows 3 versions: `20261103210000`,
-`20261104000000`, `20261104010000`.
+The migrations in `supabase/migrations/` must all be applied before the
+code that uses them is deployed. To confirm: Supabase → Database → Migrations
+shows 4 versions: `20261103210000`, `20261104000000`, `20261104010000`,
+`20261104020000`. The last one (`nft_mints.mint_key_suffix`,
+`members.discord_sync_attempts`) is new with this release: apply it first
+(Supabase → SQL Editor → paste the file → Run, or `supabase db push`).
 
 **O5. Secrets.** Generate random values and add to Vercel Production, all
 Sensitive: `CRON_SECRET`, `RECONCILE_SECRET`, `SYNC_SECRET`, `STATE_SECRET`,
@@ -212,7 +215,7 @@ Deploy and watch the log for the bot coming online.
    with the secret exported in that shell only. Expect `ok: true`, nothing in
    `missing_required` or `misnamed`, no `missing_events`, and the crons not
    stale.
-3. Stripe → the endpoint → Send test webhook `checkout.session.completed` →
+3. Stripe → the endpoint → Send test webhook `invoice.payment_failed` →
    expect 200. Crossmint → the endpoint → send a test event → expect 2xx.
 4. Vercel → Settings → Cron Jobs → run both crons once.
 5. GitHub → Actions → health check → Run workflow → green.

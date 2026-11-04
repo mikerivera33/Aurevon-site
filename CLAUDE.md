@@ -133,6 +133,10 @@ If you're touching analytics or assets, run the guards locally before pushing �
 - Crossmint: idempotent `PUT /2022-06-09/collections/{id}/nfts/{paymentTxnId}` to the recipient `email:<email>:<chain>`, metadata inline. `/api/webhooks/crossmint` verifies Svix (`whsec_` secret) and handles `nfts.create.succeeded` / `nfts.create.failed`.
 - Honest emails: "minted" only after a successful mint; otherwise "Payment received", NFT being finalized.
 - Stripe webhook writes the Payments marker before acking (500 on DB failure so Stripe redelivers). Full refunds and disputes revoke the pass and its role (for subscriptions, only the first invoice).
+- PayPal IPN verifies with PayPal and writes the Payments marker before acking (`acceptIPN`): verify error / DB failure → 500 so PayPal redelivers; INVALID → 200, no writes. Mint / email run in `waitUntil` after the 200.
+- Retry key: `nfts.create.failed` bumps `nft_mints.mint_key_suffix`; the next retry mints under `<payment>-r<n>`. A synchronous HTTP error / timeout keeps the same key (that PUT may have landed).
+- Reconcile polls Crossmint (`GET /actions/{id}`) for up to 20 rows stuck in `Sent` > 60 min and settles them through the webhook's own `settleMintSucceeded` / `settleMintFailed`.
+- Reconcile retries `failed` Discord syncs (> 6 h old, 20 per run); after 3 consecutive failures (`members.discord_sync_attempts`) it stops and alerts `discord.sync_gave_up`.
 - Crons: `/api/cron/retry-mints` every 15 min (backoff via `nft_mints.next_retry_at`, gives up after 8 → `retry_mints.gave_up`); `/api/cron/reconcile` daily 02:00 UTC (orphans, unrecorded Stripe sessions, pending Discord syncs, revocations). Heartbeats in `ops_events`.
 - Alerts: `ALERT_WEBHOOK_URL` (warn and above) + `OWNER_ALERT_EMAIL` via Resend (high/critical), deduped through `ops_events`.
 - Health: public `GET /api/health` → `{ ok, status, database }`. With `Authorization: Bearer <INTERNAL_API_SECRET>` it returns the full readiness report and 503 when not ready.
