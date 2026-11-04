@@ -119,12 +119,12 @@ footer a{color:var(--o2);text-decoration:none;}
   function nftNameFor(tier){
     return NFT_NAMES[String(tier || '').replace(/^re_/, '')] || '';
   }
-  // "Your … NFT and Discord link are on the way to your Stripe email." + "Didn't get it?" → /member-claim
+  // "Your … NFT and Discord link are on the way to your checkout email." + "Didn't get it?" → /member-claim
   function renderNftStatus(el){
     var info = window.BKT_PAID_INFO || {};
     var name = nftNameFor(info.tier);
     if(!el || !name) return false;
-    el.textContent = 'Your ' + name + ' NFT and Discord link are on the way to your Stripe email. ';
+    el.textContent = 'Your ' + name + ' NFT and Discord link are on the way to your checkout email. ';
     var a = document.createElement('a');
     a.href = '/member-claim';
     a.textContent = "Didn't get it?";

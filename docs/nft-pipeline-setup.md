@@ -61,8 +61,8 @@ misnamed (for example a mixed-case `Stripe_Webhook_Secret`).
 | Purpose | Required | Optional |
 |---|---|---|
 | Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | |
-| PayPal IPN | `PAYPAL_BUSINESS_EMAIL` | `PAYPAL_ITEM_TIERS`, `PAYPAL_MODE`, `PAYPAL_SANDBOX` |
-| Crossmint | `CROSSMINT_API_KEY`, `CROSSMINT_COLLECTION_ID`, `CROSSMINT_WEBHOOK_SECRET` | `CROSSMINT_COLLECTION_MONTHLY`, `CROSSMINT_COLLECTION_LIFETIME`, `CROSSMINT_COLLECTION_PRODUCT_A`, `CROSSMINT_COLLECTION_PRODUCT_B`, `CROSSMINT_COLLECTION_PRODUCT_C`, `CROSSMINT_ENV`, `CROSSMINT_CHAIN`, `CROSSMINT_PROJECT_ID` |
+| PayPal IPN | `PAYPAL_BUSINESS_EMAIL` | `PAYPAL_ITEM_TIERS`, `PAYPAL_MODE` |
+| Crossmint | `CROSSMINT_API_KEY`, `CROSSMINT_COLLECTION_ID`, `CROSSMINT_WEBHOOK_SECRET` | `CROSSMINT_COLLECTION_MONTHLY`, `CROSSMINT_COLLECTION_LIFETIME`, `CROSSMINT_COLLECTION_PRODUCT_A`, `CROSSMINT_COLLECTION_PRODUCT_B`, `CROSSMINT_COLLECTION_PRODUCT_C`, `CROSSMINT_ENV`, `CROSSMINT_CHAIN` |
 | Email (Resend) | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | `RESEND_FROM_NAME` |
 | Database (Supabase) | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (or `SUPABASE_SERVICE_ROLE_KEY`) | |
 | Alerts | `ALERT_WEBHOOK_URL` | `OWNER_ALERT_EMAIL` |
@@ -78,7 +78,7 @@ full health report.
 
 Railway (Discord bot, `discord/bot.js`): `DISCORD_BOT_TOKEN`,
 `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`, the five `DISCORD_ROLE_*` above plus
-`DISCORD_ROLE_VERIFIED`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SITE_URL`,
+`DISCORD_ROLE_VERIFIED`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SITE_URL`, `DISCORD_INVITE_URL`,
 optional `ENTITLEMENT_GRACE_PERIOD_DAYS`. Railway sets `PORT`.
 
 ## Stripe webhook events
@@ -128,7 +128,9 @@ linked variables. Compare against the table above.
 Settings → API Keys: copy the Project URL and the secret key. Vercel → Add
 `SUPABASE_URL` and `SUPABASE_SECRET_KEY` (Sensitive). The Supabase → Vercel
 integration can create them instead; confirm both names exist afterwards.
-The migrations in `supabase/migrations/` are already applied.
+The migrations in `supabase/migrations/` are already applied. To confirm:
+Supabase → Database → Migrations shows 3 versions: `20261103210000`,
+`20261104000000`, `20261104010000`.
 
 **O5. Secrets.** Generate random values and add to Vercel Production, all
 Sensitive: `CRON_SECRET`, `RECONCILE_SECRET`, `SYNC_SECRET`, `STATE_SECRET`,
