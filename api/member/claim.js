@@ -24,13 +24,18 @@
 
 import crypto from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
-import { findMemberByEmail, findActiveMintByEmail, findActiveMintsByEmail, findActiveMintByEmailAndType, findAnyMintByEmailAndType, listUnlinkedMintsBefore, listPaymentsSince, findLatestPaymentByEmailAndTier, listPendingDiscordSync, listOutOfSyncEntitlements, listFailedMints, updateDiscordSyncStatus, updateNftMint, createNftMint, dbConfigured } from '../_lib/db.js';
+import {
+  findMemberByEmail, findActiveMintByEmail, findActiveMintsByEmail, listUnlinkedMintsBefore, listPaymentsSince,
+  findLatestPaymentByEmailAndTier, listPendingDiscordSync, listOutOfSyncEntitlements, listLapsedMonthlyWithoutExpiry,
+  listFailedMints, listUndeliveredMints, findMintByPaymentId, findPaymentByTransactionId, listPaymentTransactionIds,
+  recordOpsEvent, updateDiscordSyncStatus, updateNftMint, createNftMint, dbConfigured,
+} from '../_lib/db.js';
 import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
-import { ENTITLEMENT_MAP, resolveEntitlementFromNftType, getRoleId, shouldRevokeAccess, pickGrantableMint } from '../_lib/entitlements.js';
+import { ENTITLEMENT_MAP, resolveEntitlementFromNftType, resolveEntitlementFromSku, getRoleId, shouldRevokeAccess, pickGrantableMint } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
-import { sendDiscordAccessLink } from '../_lib/email.js';
+import { sendDiscordAccessLink, sendNftDelivery } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
-import { fulfilNft } from '../_lib/fulfil.js';
+import { fulfilNft, serialFromReference } from '../_lib/fulfil.js';
 import { airtableImportEnabled, importFromAirtable, importHasProblems } from '../_lib/airtable-import.js';
 
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
@@ -202,10 +207,17 @@ async function handleClaim(req, res) {
 // NFT_Mints row (e.g. maxDuration hit during the Crossmint call), the marker
 // makes every redelivery skip, so the mint is silently dropped and nothing
 // recovers it (retry-mints needs a Failed row; reconcile never queried Payments).
-// This sweep finds recent NFT-tier payments with NO mint row at all and writes a
-// 'Failed' dead-letter row, which the (idempotent) retry-mints cron then recovers.
+// This sweep finds recent NFT-tier payments with NO mint row for that payment and
+// writes a 'Failed' dead-letter row (carrying the payment id), which the
+// retry-mints cron then mints through fulfilNft.
+//
+// Dedupe is by payment id only: a buyer may own two passes of one type (two
+// purchases), so an existing row for the same email + NFT type proves nothing.
+// A Refunded / Disputed payment is never dead-lettered.
+const REVERSED_PAYMENT = new Set(['Refunded', 'Disputed']);
+
 export async function recoverOrphanPayments({ sinceDays = 3 } = {}) {
-  const { TIER_NFT_MAP, inferTierFromAmount } = await import('../_lib/tiers.js');
+  const { TIER_NFT_MAP, inferTierFromAmount, canonicalTier } = await import('../_lib/tiers.js');
   let payments;
   try {
     payments = await listPaymentsSince(sinceDays);
@@ -215,11 +227,15 @@ export async function recoverOrphanPayments({ sinceDays = 3 } = {}) {
   }
 
   let recovered = 0;
+  let errors = 0;
   for (const p of payments) {
     const email = p.fields?.['Customer Email'] ?? '';
-    const tier  = p.fields?.['Pass Type'] ?? '';
-    if (!email || !tier) continue;
+    const storedTier = p.fields?.['Pass Type'] ?? '';
+    const txnId = p.fields?.['Transaction ID'] ?? '';
+    if (!email || !storedTier || !txnId) continue;
+    if (REVERSED_PAYMENT.has(p.fields?.['Status'])) continue; // refunded / disputed: never mint
 
+    let tier = storedTier;
     let nftType = TIER_NFT_MAP[tier]?.nft ?? null;
     // If the stored tier doesn't map to an NFT it may be a payment whose tier
     // inference failed at webhook time (stored as 'unknown' / an unmapped label).
@@ -230,29 +246,143 @@ export async function recoverOrphanPayments({ sinceDays = 3 } = {}) {
       if (amount > 0) {
         const reTier = inferTierFromAmount(Math.round(amount * 100));
         nftType = reTier ? (TIER_NFT_MAP[reTier]?.nft ?? null) : null;
+        if (nftType) tier = reTier;
       }
     }
     if (!nftType) continue; // genuine no-NFT tier (add-on / second opinion) — nothing to recover
 
-    const existing = await findAnyMintByEmailAndType(email, nftType).catch(() => null);
-    if (existing) continue; // a mint row exists (Sent/Failed/Queued) — handled by other paths
+    let existing;
+    try {
+      existing = await findMintByPaymentId(txnId);
+    } catch (err) {
+      // Unknown is not "none": skip this run rather than dead-letter a duplicate.
+      console.error(`[Reconcile] mint lookup failed for payment ${txnId}: ${err.message}`);
+      errors++;
+      continue;
+    }
+    if (existing) continue; // this payment has a mint row (Sent/Failed/Queued) — other paths own it
 
-    // Orphan: paid for an NFT tier but no mint row exists at all. Dead-letter it.
-    const txnId = p.fields?.['Transaction ID'] ?? p.id;
-    await createNftMint({
-      reference:       `RECOVER_${txnId}`,
-      email,
-      nftType,
-      tierSource:      tier,
-      status:          'Failed',
-      sentDate:        new Date().toISOString(),
-      emailDelivered:  false,
-      notes:           `Recovered orphan payment ${txnId} (paid, NFT tier, no mint row) — queued for retry-mints`,
-    }).catch((err) => console.error(`[Reconcile] dead-letter write failed for ${txnId}: ${err.message}`));
+    // Orphan: paid for an NFT tier but this payment has no mint row. Dead-letter it.
+    try {
+      await createNftMint({
+        reference:            `RECOVER_${txnId}`,
+        email,
+        nftType,
+        tierSource:           canonicalTier(tier),
+        status:               'Failed',
+        sentDate:             new Date().toISOString(),
+        emailDelivered:       false,
+        notes:                `Recovered orphan payment ${txnId} (paid, NFT tier, no mint row) — queued for retry-mints`,
+        paymentTransactionId: txnId,
+        entitlementType:      resolveEntitlementFromNftType(nftType) ?? '',
+        retryCount:           0,
+      });
+    } catch (err) {
+      if (err.code === 'DUPLICATE_PAYMENT_MINT') continue; // a live run wrote it meanwhile
+      console.error(`[Reconcile] dead-letter write failed for ${txnId}: ${err.message}`);
+      errors++;
+      continue;
+    }
     recovered++;
-    console.log(`[Reconcile] Dead-lettered orphan payment ${txnId} for ${email} (${nftType})`);
+    console.log(`[Reconcile] Dead-lettered orphan payment ${txnId} (${nftType})`);
   }
-  return { recovered };
+  return { recovered, errors };
+}
+
+// ── Stripe-side reconcile ────────────────────────────────────────────────────
+// Every recovery path above starts from a Payments row. If the webhook never
+// wrote one (event never delivered, endpoint misconfigured, every redelivery
+// 500'd), nothing on our side knows the sale happened. This pass asks Stripe
+// for recent complete Checkout Sessions and runs any settled one that has no
+// Payments row through the webhook's own two steps (marker, then fulfilment).
+const STRIPE_RECOVERY_MAX_PAGES = 5;
+
+function chargeReversed(charge, isFullRefund) {
+  return Boolean(charge && typeof charge === 'object' && (charge.disputed === true || isFullRefund(charge)));
+}
+
+export async function recoverUnrecordedStripeSessions({ sinceDays = 3, budgetMs = 30_000 } = {}) {
+  const report = { skipped: false, scanned: 0, recovered: 0, errors: 0, reversed: 0, deferred: 0 };
+  if (!process.env.STRIPE_SECRET_KEY) return { ...report, skipped: true };
+
+  const [{ default: Stripe }, webhook] = await Promise.all([import('stripe'), import('../webhooks/stripe.js')]);
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+  const gte = Math.floor((Date.now() - sinceDays * 86_400_000) / 1000);
+  const startedAt = Date.now();
+  const recoveredIds = [];
+  const errorIds = [];
+
+  let startingAfter;
+  for (let page = 0; page < STRIPE_RECOVERY_MAX_PAGES; page++) {
+    const params = {
+      status: 'complete',
+      created: { gte },
+      limit: 100,
+      // A session refunded / disputed before it was ever recorded must not mint.
+      expand: ['data.payment_intent.latest_charge', 'data.invoice.charge'],
+    };
+    if (startingAfter) params.starting_after = startingAfter;
+
+    let res;
+    let recorded;
+    try {
+      res = await stripe.checkout.sessions.list(params);
+      // Only sessions this site's checkout created carry metadata.tier; anything
+      // else on the account is not ours to record or email.
+      const candidates = (res?.data ?? []).filter((s) => webhook.isSettledCheckout(s) && s.metadata?.tier);
+      recorded = await listPaymentTransactionIds(candidates.map((s) => s.id));
+    } catch (err) {
+      console.error(`[Reconcile] Stripe session scan failed (page ${page + 1}): ${err.message}`);
+      report.errors++;
+      break;
+    }
+
+    const sessions = res?.data ?? [];
+    for (const session of sessions) {
+      report.scanned++;
+      if (!webhook.isSettledCheckout(session) || !session.metadata?.tier) continue;
+      if (recorded.has(session.id)) continue;
+      if (chargeReversed(session.payment_intent?.latest_charge, webhook.isFullRefund)
+        || chargeReversed(session.invoice?.charge, webhook.isFullRefund)) {
+        console.log(`[Reconcile] Stripe session ${session.id} has no Payments row but was refunded/disputed — not recovering`);
+        report.reversed++;
+        continue;
+      }
+      if (Date.now() - startedAt > budgetMs) {
+        report.deferred++; // next run (the window is days wide)
+        continue;
+      }
+      try {
+        const result = await webhook.recordCheckoutPayment(session);
+        if (result?.status !== 'recorded') continue;
+        await webhook.fulfilCheckout(session, { redelivery: false });
+        report.recovered++;
+        recoveredIds.push(session.id);
+        console.log(`[Reconcile] Recovered unrecorded Stripe session ${session.id}`);
+      } catch (err) {
+        console.error(`[Reconcile] Stripe session ${session.id} recovery failed: ${err.message}`);
+        report.errors++;
+        errorIds.push(session.id);
+      }
+    }
+
+    if (!res?.has_more || sessions.length === 0) break;
+    startingAfter = sessions[sessions.length - 1].id;
+  }
+
+  if (report.recovered > 0) {
+    await sendAlert('reconcile.stripe_sessions_recovered', { count: report.recovered, sessionIds: recoveredIds },
+      { severity: 'high' }).catch(() => {});
+  }
+  if (report.errors > 0) {
+    await sendAlert('reconcile.stripe_session_errors', { count: report.errors, sessionIds: errorIds },
+      { severity: 'high' }).catch(() => {});
+  }
+  if (report.deferred > 0) {
+    await sendAlert('reconcile.stripe_sessions_deferred', { count: report.deferred },
+      { severity: 'warning' }).catch(() => {});
+  }
+  return report;
 }
 
 // ── GET: reconcile ───────────────────────────────────────────────────────────
@@ -301,7 +431,7 @@ async function handleReconcile() {
       if (!mintRecord) {
         // Mark it so the row leaves the pending window (listPendingDiscordSync
         // caps the batch) instead of crowding out members who can be granted.
-        console.log(`[Reconcile] Pending sync denied for lapsed monthly email=${email} — marking revoked`);
+        console.log(`[Reconcile] Pending sync denied for lapsed monthly member=${member.id} — marking revoked`);
         await updateDiscordSyncStatus(email, 'revoked').catch(() => {});
         continue;
       }
@@ -315,31 +445,19 @@ async function handleReconcile() {
       await updateDiscordSyncStatus(email, 'synced');
       await updateNftMint(mintRecord.id, { 'Discord Synced': true, 'Discord Synced At': now });
       report.roleAssigned++;
-      console.log(`[Reconcile] Role assigned email=${email} discordId=${discordId}`);
+      console.log(`[Reconcile] Role assigned member=${member.id}`);
     } catch (err) {
       report.syncFailed++;
-      report.errors.push(`sync email=${email}: ${err.message}`);
+      report.errors.push(`sync member=${member.id}: ${err.message}`);
       await updateDiscordSyncStatus(email, 'failed', { error: err.message }).catch(() => {});
     }
   }
 
   // 2. Find monthly members whose access should be revoked
-  let expiredMembers = [];
-  try {
-    const graceDays = parseInt(process.env.ENTITLEMENT_GRACE_PERIOD_DAYS ?? '7', 10);
-    expiredMembers = await listOutOfSyncEntitlements({ graceDays });
-    report.revokeChecked = expiredMembers.length;
-    console.log(`[Reconcile] ${expiredMembers.length} monthly members to review for revocation`);
-  } catch (err) {
-    report.errors.push(`listOutOfSyncEntitlements: ${err.message}`);
-  }
-
-  for (const member of expiredMembers) {
-    const email        = member.fields?.['Email'] ?? '';
-    const discordId    = member.fields?.['Discord ID'];
-    const endsAt       = member.fields?.['Entitlement Expires At'];
-    const gracePeriodDays = parseInt(process.env.ENTITLEMENT_GRACE_PERIOD_DAYS ?? '7', 10);
-
+  const gracePeriodDays = parseInt(process.env.ENTITLEMENT_GRACE_PERIOD_DAYS ?? '7', 10);
+  const revokeIfLapsed = async (member, endsAt) => {
+    const email     = member.fields?.['Email'] ?? '';
+    const discordId = member.fields?.['Discord ID'];
     const needsRevoke = shouldRevokeAccess({
       membershipMode: 'recurring',
       revokeOnCancel: true,
@@ -347,8 +465,7 @@ async function handleReconcile() {
       endsAt,
       gracePeriodDays,
     });
-
-    if (!needsRevoke) continue;
+    if (!needsRevoke || !email) return;
 
     report.revokeApplied++;
 
@@ -357,7 +474,7 @@ async function handleReconcile() {
       const roleId = getRoleId('monthly_membership');
       if (roleId) {
         await removeRoleFromMember(discordId, roleId).catch((err) => {
-          report.errors.push(`removeRole email=${email}: ${err.message}`);
+          report.errors.push(`removeRole member=${member.id}: ${err.message}`);
         });
       }
     }
@@ -368,7 +485,33 @@ async function handleReconcile() {
     // Fire Engage event
     onSubscriptionCancelled({ email, entitlementType: 'monthly_membership' }).catch(() => {});
 
-    console.log(`[Reconcile] Revoked monthly access email=${email}`);
+    console.log(`[Reconcile] Revoked monthly access member=${member.id}`);
+  };
+
+  let expiredMembers = [];
+  try {
+    expiredMembers = await listOutOfSyncEntitlements({ graceDays: gracePeriodDays });
+    report.revokeChecked += expiredMembers.length;
+    console.log(`[Reconcile] ${expiredMembers.length} monthly members to review for revocation`);
+  } catch (err) {
+    report.errors.push(`listOutOfSyncEntitlements: ${err.message}`);
+  }
+  for (const member of expiredMembers) {
+    await revokeIfLapsed(member, member.fields?.['Entitlement Expires At']);
+  }
+
+  // 2b. Lapsed monthly members with no Entitlement Expires At (cancelled before
+  // any invoice stamped one): the grace window runs from the last Discord sync,
+  // else the join date.
+  let undatedMembers = [];
+  try {
+    undatedMembers = await listLapsedMonthlyWithoutExpiry({ maxRecords: 100 });
+    report.revokeChecked += undatedMembers.length;
+  } catch (err) {
+    report.errors.push(`listLapsedMonthlyWithoutExpiry: ${err.message}`);
+  }
+  for (const member of undatedMembers) {
+    await revokeIfLapsed(member, member.fields?.['Discord Sync At'] ?? member.fields?.['Join Date'] ?? null);
   }
 
   // 3. Find buyers who never linked Discord — send Engage reminder
@@ -387,7 +530,15 @@ async function handleReconcile() {
     report.errors.push(`discordLinkReminders: ${err.message}`);
   }
 
-  // 4. Recover orphan payments (paid, NFT tier, but no mint row — webhook died mid-pipeline)
+  // 4a. Stripe-side: settled Checkout Sessions with no Payments row at all
+  // (webhook never delivered). Runs first so 4b sees the rows it writes.
+  try {
+    report.stripeSessions = await recoverUnrecordedStripeSessions({ sinceDays: 3 });
+  } catch (err) {
+    report.errors.push(`recoverUnrecordedStripeSessions: ${err.message}`);
+  }
+
+  // 4b. Recover orphan payments (paid, NFT tier, but no mint row — webhook died mid-pipeline)
   try {
     const { recovered } = await recoverOrphanPayments({ sinceDays: 3 });
     report.orphansRecovered = recovered;
@@ -405,7 +556,26 @@ async function handleReconcile() {
     await sendAlert('reconcile.orphans_recovered', { count: report.orphansRecovered });
   }
 
+  await heartbeat('cron.reconcile.ok', {
+    roleAssigned: report.roleAssigned,
+    syncFailed: report.syncFailed,
+    revokeChecked: report.revokeChecked,
+    revokeApplied: report.revokeApplied,
+    orphansRecovered: report.orphansRecovered,
+    stripeSessionsRecovered: report.stripeSessions?.recovered ?? 0,
+    errors: report.errors.length,
+  });
+
   return report;
+}
+
+/** Cron heartbeat for the ops log. A failed write is logged, never thrown. */
+async function heartbeat(event, detail) {
+  try {
+    await recordOpsEvent({ event, severity: 'info', detail });
+  } catch (err) {
+    console.error(`[cron] heartbeat ${event} not recorded: ${err.message}`);
+  }
 }
 
 // ── GET: status ──────────────────────────────────────────────────────────────
@@ -458,105 +628,200 @@ export async function resolveRetryIdempotencyKey({ reference, email, tier, recor
   return ref || `retry_${recordId}`;
 }
 
+const MAX_MINT_RETRIES = 5;
+// A row this young may belong to a run that is still sending its email.
+const UNDELIVERED_MIN_AGE_MS = 10 * 60_000;
+
+/**
+ * The tier fulfilNft should mint a Failed row as: its Tier Source when that
+ * earns an NFT, else the canonical tier of its NFT Type (older rows may carry
+ * an 'unknown' / unmapped Tier Source).
+ */
+function retryTier(fields) {
+  const tierSource = fields?.['Tier Source'] ?? '';
+  if (resolveEntitlementFromSku(tierSource)) return tierSource;
+  const key = resolveEntitlementFromNftType(fields?.['NFT Type'] ?? '');
+  return key ? MANUAL_MINT_TIER[key] : null;
+}
+
+/**
+ * Cron (every 15 min): finish the NFT pipeline for rows that did not.
+ *
+ * 1. Failed mint rows (≤10 per run, under the retry cap) go back through
+ *    fulfilNft with their payment id — it retries in place: stored serial,
+ *    same Crossmint idempotency key, Retry Count / Last Error, minted email +
+ *    Email Delivered on success. Dedupe is by payment id, never email + type.
+ *    Legacy rows without a payment id resolve one (resolveRetryIdempotencyKey),
+ *    and only proceed when no OTHER row already holds that payment; the id is
+ *    backfilled first so every later run dedupes by payment.
+ * 2. Minted/Sent rows whose delivery email never went out are re-sent.
+ * 3. Heartbeat `cron.retry_mints.ok` in ops_events.
+ */
 export async function handleRetryMints() {
   if (!dbConfigured()) {
     return { skipped: true, reason: 'Database not configured', retried: 0, errors: 0 };
   }
 
-  const { TIER_NFT_MAP, getNextSerial } = await import('../_lib/tiers.js');
-  const { mintToEmail } = await import('../_lib/crossmint.js');
-  const retried = [];
-  const errors = [];
-  const skippedDup = [];
-  const skippedLookup = [];
-  const failedMints = await listFailedMints({ maxRecords: 50 });
+  const stats = {
+    retried: 0, minted: 0, failed: 0, gaveUp: 0, delivered: 0, remaining: 0,
+    skippedLookupErrors: 0, legacySkipped: 0, reversed: 0, emailFailed: 0,
+  };
+  const touched = new Set();
 
-  for (const record of failedMints) {
-    const email        = record.fields?.['Email'] ?? '';
-    const nftType      = record.fields?.['NFT Type'] ?? '';
-    const tier         = record.fields?.['Tier Source'] ?? '';
-    if (!email || !nftType) continue;
+  const giveUp = async (rowId, reason) => {
+    stats.gaveUp++;
+    console.error(`[retry-mints] row ${rowId} gave up (${reason}) — needs an operator`);
+    await sendAlert('retry_mints.gave_up', { rowId, reason }, { severity: 'high', dedupeKey: `gave_up:${rowId}` }).catch(() => {});
+  };
 
-    // Idempotency: if an active mint of this type already exists for the email,
-    // this "Failed" row is a stale artifact (the original mint actually went
-    // through) — re-minting would create a SECOND on-chain asset. Resolve it
-    // against the canonical record instead of re-minting.
-    // A failed lookup is not "no active mint": skip the row and retry on the
-    // next cron run rather than risk minting a second asset.
-    let existingActive;
+  const failedRows = await listFailedMints({ maxRecords: 10, maxRetries: MAX_MINT_RETRIES });
+
+  for (const row of failedRows) {
+    const f = row.fields ?? {};
+    const email = f['Email'] ?? '';
+    if (!email) continue;
+    const retryCount = Number(f['Retry Count'] ?? 0);
+    if (retryCount >= MAX_MINT_RETRIES) {
+      await giveUp(row.id, 'retry cap reached');
+      continue;
+    }
+    const tier = retryTier(f);
+    if (!tier) {
+      // Not one of the five NFTs: nothing can mint it. Park it off the queue.
+      await updateNftMint(row.id, { 'Retry Count': MAX_MINT_RETRIES, 'Last Error': 'No NFT tier for this row' }).catch(() => {});
+      await giveUp(row.id, 'no NFT tier');
+      continue;
+    }
+
+    // ── payment id (the dedupe + Crossmint idempotency key) ──
+    let transactionId = f['Payment Transaction ID'] || null;
+    if (!transactionId) {
+      try {
+        transactionId = await resolveRetryIdempotencyKey({ reference: f['Reference'], email, tier: f['Tier Source'] || tier, recordId: row.id });
+        const holder = await findMintByPaymentId(transactionId);
+        if (holder && holder.id !== row.id) {
+          // Another row already holds this payment: this one is a stale
+          // duplicate. Retrying would mint the payment twice. Park it.
+          stats.legacySkipped++;
+          await updateNftMint(row.id, {
+            'Retry Count': MAX_MINT_RETRIES,
+            'Last Error': `Not retried: payment ${transactionId} already has mint row ${holder.id}`,
+          }).catch(() => {});
+          await sendAlert('retry_mints.legacy_row_skipped', { rowId: row.id, transactionId, holderId: holder.id },
+            { severity: 'warning', dedupeKey: `legacy:${row.id}` }).catch(() => {});
+          continue;
+        }
+        if (!holder) await updateNftMint(row.id, { 'Payment Transaction ID': transactionId });
+      } catch (err) {
+        // A failed lookup / backfill is not "no other row": skip this run.
+        console.error(`[retry-mints] payment resolution failed for row ${row.id}: ${err.message} — skipping this run`);
+        stats.skippedLookupErrors++;
+        continue;
+      }
+    }
+
+    let payment;
     try {
-      existingActive = await findActiveMintByEmailAndType(email, nftType);
+      payment = await findPaymentByTransactionId(transactionId);
     } catch (err) {
-      console.error(`[retry-mints] active-mint lookup failed for record ${record.id}: ${err.message} — skipping this run`);
-      skippedLookup.push({ recordId: record.id });
+      console.error(`[retry-mints] payment lookup failed for row ${row.id}: ${err.message} — skipping this run`);
+      stats.skippedLookupErrors++;
       continue;
     }
-    if (existingActive) {
-      await updateNftMint(record.id, {
-        'Mint Status': existingActive.fields?.['Mint Status'] ?? 'Sent',
-        'Token ID':    existingActive.fields?.['Token ID'] ?? record.fields?.['Token ID'] ?? '',
-        'Notes':       `Retry skipped: active mint already exists for ${email} (${nftType}); not re-minting.`,
+    if (REVERSED_PAYMENT.has(payment?.fields?.['Status'])) {
+      // Refunded / disputed before the retry: never mint it.
+      stats.reversed++;
+      await updateNftMint(row.id, {
+        'Mint Status': 'Revoked',
+        'Revoked At': new Date().toISOString(),
+        'Last Error': `Not retried: payment ${payment.fields['Status']}`,
       }).catch(() => {});
-      skippedDup.push({ email, nftType });
       continue;
     }
 
-    const tierConfig    = TIER_NFT_MAP[tier] ?? null;
-    const templateKey   = tierConfig?.template ?? null;
-    const serialPrefix  = tierConfig?.serialPrefix ?? null;
-    const collectionName = tierConfig?.collectionName ?? null;
-
-    // Idempotency key for the retry mint. The webhook minted with the payment
-    // transaction id (Stripe session / PayPal txn_id). A recovered orphan stores
-    // that as `RECOVER_<txnId>`; a Failed webhook row stores a *serial* as
-    // Reference. Reusing the serial as the Crossmint key would mint a SECOND
-    // on-chain asset if Crossmint accepted the first PUT and the webhook then
-    // recorded Failed (timeout / non-JSON). Always prefer the payment id.
-    const reference = record.fields?.['Reference'] ?? '';
-    let idempotencyKey;
+    stats.retried++;
+    touched.add(row.id);
+    let result;
     try {
-      idempotencyKey = await resolveRetryIdempotencyKey({
-        reference,
+      result = await fulfilNft({
+        transactionId,
         email,
+        customerName: payment?.fields?.['Customer Name'] ?? 'Aurevon Member',
         tier,
-        recordId: record.id,
+        provider: 'retry',
+        source: 'cron',
       });
     } catch (err) {
-      console.error(`[retry-mints] payment lookup failed for record ${record.id}: ${err.message} — skipping this run`);
-      skippedLookup.push({ recordId: record.id });
+      // fulfilNft only throws on programmer errors; count it so the cap applies.
+      result = { minted: false };
+      await updateNftMint(row.id, { 'Retry Count': retryCount + 1, 'Last Error': err.message }).catch(() => {});
+    }
+
+    if (result.minted) {
+      stats.minted++;
+    } else {
+      stats.failed++;
+      if (retryCount + 1 >= MAX_MINT_RETRIES) await giveUp(row.id, 'retry cap reached');
+    }
+  }
+
+  // ── Delivery emails that never went out ──
+  let undelivered = [];
+  try {
+    undelivered = await listUndeliveredMints({ maxRecords: 20 });
+  } catch (err) {
+    console.error(`[retry-mints] listUndeliveredMints failed: ${err.message}`);
+  }
+  const youngest = Date.now() - UNDELIVERED_MIN_AGE_MS;
+  for (const row of undelivered) {
+    const f = row.fields ?? {};
+    if (touched.has(row.id)) continue;                       // handled by the retry above
+    if (!['Sent', 'Minted'].includes(f['Mint Status'])) continue;
+    if (f['Email Delivered'] === true) continue;
+    const transactionId = f['Payment Transaction ID'] || null;
+    if (!f['Email'] || !transactionId) continue;            // legacy rows predate delivery tracking
+    const created = Date.parse(f['Created At'] ?? '');
+    if (Number.isFinite(created) && created > youngest) continue;
+    const entitlementKey = resolveEntitlementFromNftType(f['NFT Type'] ?? '');
+    if (!entitlementKey) continue;
+
+    const payment = await findPaymentByTransactionId(transactionId).catch(() => null);
+    if (REVERSED_PAYMENT.has(payment?.fields?.['Status'])) continue;
+    try {
+      await sendNftDelivery({
+        email: f['Email'],
+        customerName: payment?.fields?.['Customer Name'] ?? 'Aurevon Member',
+        nftType: f['NFT Type'],
+        mintId: f['Crossmint Action ID'] || f['Token ID'] || 'minted',
+        discordInviteUrl: process.env.DISCORD_INVITE_URL,
+        serial: serialFromReference(f['Reference'], ENTITLEMENT_MAP[entitlementKey].serialPrefix),
+        status: 'minted',
+        transactionId,
+      });
+    } catch (err) {
+      stats.emailFailed++;
+      console.error(`[retry-mints] delivery email failed for row ${row.id}: ${err.message}`);
+      await sendAlert('retry_mints.email_failed', { rowId: row.id, transactionId, error: err.message },
+        { severity: 'warning', dedupeKey: `email:${row.id}` }).catch(() => {});
       continue;
     }
-
-    let serial = null;
-    if (serialPrefix) {
-      try { serial = await getNextSerial(serialPrefix); } catch { /* continue without serial */ }
-    }
-
-    try {
-      const result = await mintToEmail({ email, nftType, customerName: email, templateKey, serial, collectionName, tierKey: tier, idempotencyKey });
-      // mintToEmail returns {ok:false} on API failure (it only throws for config errors).
-      // Without this check a failed retry was stamped 'Sent' with an undefined Token ID,
-      // leaving listFailedMints forever and poisoning the idempotency guard.
-      if (!result.ok) throw new Error(result.error ?? 'Crossmint returned ok:false');
-      await updateNftMint(record.id, { 'Mint Status': 'Sent', 'Token ID': result.actionId ?? '', 'Retry Count': (record.fields['Retry Count'] ?? 0) + 1 });
-      retried.push({ email, nftType, mintId: result.actionId });
-    } catch (err) {
-      errors.push({ email, nftType, error: err.message });
-      await updateNftMint(record.id, { 'Retry Count': (record.fields['Retry Count'] ?? 0) + 1, Notes: `Retry failed: ${err.message}` }).catch(() => {});
-    }
+    stats.delivered++;
+    await updateNftMint(row.id, { 'Email Delivered': true }).catch((err) => {
+      console.error(`[retry-mints] could not flag Email Delivered on ${row.id}: ${err.message}`);
+    });
   }
 
-  if (errors.length > 0) {
-    await sendAlert('retry_mints.errors', { count: errors.length, retried: retried.length });
-  }
+  // Rows from this batch still queued for a later run.
+  stats.remaining = stats.failed - stats.gaveUp + stats.skippedLookupErrors;
+  if (stats.remaining < 0) stats.remaining = 0;
 
-  return {
-    retried: retried.length,
-    errors: errors.length,
-    skippedDuplicates: skippedDup.length,
-    skippedLookupErrors: skippedLookup.length,
-    details: { retried, errors, skippedDuplicates: skippedDup, skippedLookupErrors: skippedLookup },
-  };
+  if (stats.failed > 0) {
+    await sendAlert('retry_mints.errors', { count: stats.failed, retried: stats.retried }).catch(() => {});
+  }
+  const { retried, minted, failed, gaveUp, delivered, remaining } = stats;
+  await heartbeat('cron.retry_mints.ok', { retried, minted, failed, gaveUp, delivered, remaining });
+
+  return { ...stats, errors: stats.failed };
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────

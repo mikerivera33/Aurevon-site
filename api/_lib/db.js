@@ -495,6 +495,14 @@ export async function findLatestPaymentByEmailAndTier(email, tier) {
     'findLatestPaymentByEmailAndTier');
 }
 
+/** Which of `transactionIds` already have a Payments row (Stripe-side reconcile). */
+export async function listPaymentTransactionIds(transactionIds) {
+  const ids = [...new Set((transactionIds ?? []).filter(Boolean).map(String))];
+  if (ids.length === 0) return new Set();
+  const res = await supabase().from('payments').select('transaction_id').in('transaction_id', ids);
+  return new Set((check(res, 'listPaymentTransactionIds') ?? []).map((r) => r.transaction_id));
+}
+
 /** Payments in the last `days` days (orphan-payment recovery). */
 export async function listPaymentsSince(days = 3) {
   const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
@@ -570,6 +578,21 @@ export async function listOutOfSyncEntitlements({ graceDays = 7 } = {}) {
     from('members').eq('entitlement_type', 'monthly_membership').eq('entitlement_status', 'active')
       .lt('entitlement_expires_at', cutoff).limit(100),
     'listOutOfSyncEntitlements');
+}
+
+/**
+ * Monthly members whose billing is not active but who have no Entitlement
+ * Expires At (cancelled before any invoice stamped one). Reconcile judges their
+ * grace window from Discord Sync At ?? Join Date. Already-revoked rows are left
+ * out so the nightly pass does not revoke them again.
+ */
+export async function listLapsedMonthlyWithoutExpiry({ maxRecords = 100 } = {}) {
+  return many('members',
+    from('members').eq('entitlement_type', 'monthly_membership').neq('billing_state', 'active')
+      .is('entitlement_expires_at', null)
+      .or('discord_sync_status.is.null,discord_sync_status.neq.revoked')
+      .limit(maxRecords),
+    'listLapsedMonthlyWithoutExpiry');
 }
 
 // ── Customer portal auth ─────────────────────────────────────────────────────

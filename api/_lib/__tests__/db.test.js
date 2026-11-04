@@ -18,7 +18,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const fake = vi.hoisted(() => {
   const state = { calls: [], results: [], createArgs: [], rpcs: [] };
-  const METHODS = ['select', 'insert', 'update', 'upsert', 'eq', 'in', 'like', 'lt', 'gt', 'or', 'order', 'limit', 'single'];
+  const METHODS = ['select', 'insert', 'update', 'upsert', 'eq', 'neq', 'is', 'in', 'like', 'lt', 'gt', 'or', 'order', 'limit', 'single'];
   function builder(table) {
     const q = { table, ops: [] };
     state.calls.push(q);
@@ -442,6 +442,31 @@ describe('mint lookups', () => {
     await db.listFailedMints({ maxRecords: 50, maxRetries: 3 });
     expect(op('lt', 1)).toEqual([['lt', 'retry_count', 3]]);
     expect(op('limit', 1)).toEqual([['limit', 50]]);
+  });
+
+  it('listLapsedMonthlyWithoutExpiry: monthly, billing not active, no expiry, not already revoked', async () => {
+    respond({ data: [{ id: 'm1', email: 'a@example.com', billing_state: 'cancelled', join_date: '2026-10-01T00:00:00Z' }], error: null });
+    const rows = await db.listLapsedMonthlyWithoutExpiry();
+    expect(rows).toEqual([expect.objectContaining({ id: 'm1', fields: expect.objectContaining({ 'Billing State': 'cancelled', 'Join Date': '2026-10-01T00:00:00Z' }) })]);
+    expect(state.calls.at(-1).table).toBe('members');
+    expect(op('eq')).toEqual([['eq', 'entitlement_type', 'monthly_membership']]);
+    expect(op('neq')).toEqual([['neq', 'billing_state', 'active']]);
+    expect(op('is')).toEqual([['is', 'entitlement_expires_at', null]]);
+    expect(op('or')).toEqual([['or', 'discord_sync_status.is.null,discord_sync_status.neq.revoked']]);
+    expect(op('limit')).toEqual([['limit', 100]]);
+  });
+
+  it('listPaymentTransactionIds: one IN query, returns the ids that exist; no query for none', async () => {
+    respond({ data: [{ transaction_id: 'cs_a' }], error: null });
+    const found = await db.listPaymentTransactionIds(['cs_a', 'cs_b', 'cs_a', null]);
+    expect(found).toEqual(new Set(['cs_a']));
+    expect(state.calls.at(-1).table).toBe('payments');
+    expect(op('in')).toEqual([['in', 'transaction_id', ['cs_a', 'cs_b']]]);
+    const before = state.calls.length;
+    expect(await db.listPaymentTransactionIds([])).toEqual(new Set());
+    expect(state.calls.length).toBe(before);
+    respond({ data: null, error: { message: 'boom' } });
+    await expect(db.listPaymentTransactionIds(['cs_c'])).rejects.toThrow(/listPaymentTransactionIds: boom/);
   });
 
   it('listUndeliveredMints: Minted/Sent with email_delivered=false, oldest first', async () => {

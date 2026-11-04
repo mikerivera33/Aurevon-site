@@ -21,6 +21,7 @@ export function freshStore() {
     members: new Map(),
     seq: 0,
     calls: [],
+    ops: [],
     crossmintStatus: 200,
     resendFails: false,
     serialFails: false,
@@ -41,7 +42,10 @@ export function makeFakeDb(store) {
     findPaymentByTransactionId: vi.fn(async (id) => store.payments.get(id) ?? null),
     createPayment: vi.fn(async (p) => {
       if (store.payments.has(p.transactionId)) throw dup('DUPLICATE_PAYMENT');
-      const rec = { id: `pay_${++store.seq}`, fields: { 'Transaction ID': p.transactionId, 'Pass Type': p.tier, 'Status': p.status, 'Payment Provider': p.method } };
+      const rec = { id: `pay_${++store.seq}`, fields: {
+        'Transaction ID': p.transactionId, 'Pass Type': p.tier, 'Status': p.status, 'Payment Provider': p.method,
+        'Customer Email': p.customerEmail, 'Customer Name': p.customerName, 'Amount': p.amount,
+      } };
       store.payments.set(p.transactionId, rec);
       return rec;
     }),
@@ -52,6 +56,7 @@ export function makeFakeDb(store) {
       return rec;
     }),
     listPaymentsSince: vi.fn(async () => []),
+    listPaymentTransactionIds: vi.fn(async (ids) => new Set((ids ?? []).filter((id) => store.payments.has(id)))),
     findLatestPaymentByEmailAndTier: vi.fn(async () => null),
     // serials
     nextSerial: vi.fn(async (prefix) => {
@@ -97,7 +102,14 @@ export function makeFakeDb(store) {
     findActiveMintByEmailAndType: vi.fn(async () => null),
     findAnyMintByEmailAndType: vi.fn(async () => null),
     listUnlinkedMintsBefore: vi.fn(async () => []),
-    listFailedMints: vi.fn(async () => []),
+    listFailedMints: vi.fn(async ({ maxRecords = 10, maxRetries = 5 } = {}) => store.mints
+      .filter((r) => r.fields['Mint Status'] === 'Failed' && Number(r.fields['Retry Count'] ?? 0) < maxRetries)
+      .slice(0, maxRecords)),
+    listUndeliveredMints: vi.fn(async ({ maxRecords = 20 } = {}) => store.mints
+      .filter((r) => ['Minted', 'Sent'].includes(r.fields['Mint Status']) && r.fields['Email Delivered'] !== true)
+      .slice(0, maxRecords)),
+    // ops_events
+    recordOpsEvent: vi.fn(async (e) => { store.ops.push(e); return { id: `ops_${++store.seq}`, fields: {} }; }),
     // members
     findMemberByEmail: vi.fn(async (e) => store.members.get(String(e).toLowerCase()) ?? null),
     upsertMemberByEmail: vi.fn(async () => ({})),
@@ -108,6 +120,7 @@ export function makeFakeDb(store) {
     markDiscordAuthNonceUsed: vi.fn(async () => ({})),
     listPendingDiscordSync: vi.fn(async () => []),
     listOutOfSyncEntitlements: vi.fn(async () => []),
+    listLapsedMonthlyWithoutExpiry: vi.fn(async () => []),
     dbConfigured: vi.fn(() => true),
   };
 }

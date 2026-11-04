@@ -136,7 +136,7 @@
   "crons": [
     {
       "path": "/api/cron/retry-mints",
-      "schedule": "0 3 * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/reconcile",

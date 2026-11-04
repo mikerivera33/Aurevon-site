@@ -96,7 +96,7 @@ Defined in `vercel.json`. Hobby plan limit is 2 crons — do not add more withou
 
 | Path | Schedule (UTC) | Purpose |
 |---|---|---|
-| `/api/cron/retry-mints` | `0 3 * * *` (03:00) | Retry any failed Crossmint mints |
+| `/api/cron/retry-mints` | `*/15 * * * *` | Retry failed Crossmint mints; re-send undelivered pass emails |
 | `/api/cron/reconcile` | `0 2 * * *` (02:00) | Reconcile Airtable entitlements against Discord roles |
 
 ## Health monitoring
