@@ -9,7 +9,7 @@
 import Stripe from 'stripe';
 import { dbConfigured, countMints, countPendingDiscordSyncOlderThan, countUndeliveredEmails, lastOpsEvent } from './db.js';
 import { ENTITLEMENT_MAP } from './entitlements.js';
-import { REQUIRED_STRIPE_EVENTS } from '../webhooks/stripe.js';
+import { REQUIRED_STRIPE_EVENTS } from './stripe-events.js';
 
 export const PROBE_TIMEOUT_MS = 3000;
 const CHECKS_TTL_MS = 30_000;
@@ -63,6 +63,11 @@ export function withTimeout(promise, ms = PROBE_TIMEOUT_MS, what = 'probe') {
 
 const signal = () => globalThis.AbortSignal.timeout(PROBE_TIMEOUT_MS);
 
+function urlHost(u) {
+  try { return new URL(u).host; } catch { return null; }
+}
+const siteHost = () => urlHost(process.env.BASE_URL || 'https://www.aurevonvc.com');
+
 // ── Probes ───────────────────────────────────────────────────────────────────
 
 /** Stripe: is the live endpoint subscribed to every event the handler needs? */
@@ -72,8 +77,12 @@ export async function probeStripe() {
   if (!key) return { ...base, api: 'unconfigured', webhook_endpoint: 'unknown', webhook_events_ok: null, missing_events: [] };
   const stripe = new Stripe(key, { apiVersion: STRIPE_API_VERSION, timeout: PROBE_TIMEOUT_MS, maxNetworkRetries: 0 });
   const list = await withTimeout(stripe.webhookEndpoints.list({ limit: 20 }), PROBE_TIMEOUT_MS, 'stripe');
-  const endpoint = (list?.data ?? []).find(
+  const ours = (list?.data ?? []).filter(
     (e) => String(e?.url ?? '').replace(/\/+$/, '').endsWith('/api/webhooks/stripe') && e?.status === 'enabled');
+  // Prefer the endpoint on this deployment's host (a preview/old-domain endpoint
+  // may also exist); else the first enabled /api/webhooks/stripe endpoint.
+  const host = siteHost();
+  const endpoint = ours.find((e) => urlHost(e.url) === host) ?? ours[0];
   if (!endpoint) {
     return { ...base, api: 'ok', webhook_endpoint: 'missing', webhook_events_ok: false, missing_events: [...REQUIRED_STRIPE_EVENTS] };
   }

@@ -754,21 +754,10 @@ export async function handleDisputeCreated(dispute) {
 // Vercel handler
 // ---------------------------------------------------------------------------
 
-/**
- * Every event the live endpoint must be subscribed to (Stripe Dashboard →
- * Webhooks). The handler below handles each one; a test keeps the two in step.
- */
-export const REQUIRED_STRIPE_EVENTS = [
-  'checkout.session.completed',
-  'checkout.session.async_payment_succeeded',
-  'checkout.session.async_payment_failed',
-  'customer.subscription.updated',
-  'customer.subscription.deleted',
-  'invoice.payment_succeeded',
-  'invoice.payment_failed',
-  'charge.refunded',
-  'charge.dispute.created',
-];
+// Every event the live endpoint must be subscribed to; the handler below handles
+// each one (a test keeps the two in step). Lives in a dependency-free module so
+// /api/health can read it without loading this file's import graph.
+export { REQUIRED_STRIPE_EVENTS } from '../_lib/stripe-events.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {

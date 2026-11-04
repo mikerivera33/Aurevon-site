@@ -19,7 +19,7 @@ vi.mock('stripe', () => ({ default: vi.fn(function Stripe() { return { webhookEn
 
 import handler, { _resetHealthCache } from '../../health.js';
 import { envReport } from '../health-checks.js';
-import { REQUIRED_STRIPE_EVENTS } from '../../webhooks/stripe.js';
+import { REQUIRED_STRIPE_EVENTS } from '../stripe-events.js';
 import * as db from '../db.js';
 import {
   SECRET, HEALTHY_ENV, ROLE_IDS, ALL_STRIPE_EVENTS, applyEnv, healthyFetch, freshHeartbeats, endpointList, mockRes,
@@ -136,6 +136,41 @@ describe('Stripe webhook events', () => {
   it('the fixture lists exactly REQUIRED_STRIPE_EVENTS', () => {
     expect([...ALL_STRIPE_EVENTS].sort()).toEqual([...REQUIRED_STRIPE_EVENTS].sort());
     expect(REQUIRED_STRIPE_EVENTS).toHaveLength(9);
+  });
+
+  it('webhooks/stripe.js re-exports the same list from the dependency-free module', async () => {
+    const fromWebhook = (await import('../../webhooks/stripe.js')).REQUIRED_STRIPE_EVENTS;
+    expect(fromWebhook).toBe(REQUIRED_STRIPE_EVENTS);
+  });
+
+  it('health-checks.js does not import the webhook handler graph', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../health-checks.js', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/webhooks\/stripe\.js/);
+    const mod = readFileSync(new URL('../stripe-events.js', import.meta.url), 'utf8');
+    expect(mod).not.toMatch(/^import /m);
+  });
+
+  it("prefers the enabled endpoint on BASE_URL's host over another /api/webhooks/stripe endpoint", async () => {
+    process.env.BASE_URL = 'https://www.aurevonvc.com';
+    stripeList.mockResolvedValue({ data: [
+      { url: 'https://old-preview.vercel.app/api/webhooks/stripe', status: 'enabled', enabled_events: ['*'] },
+      { url: 'https://www.aurevonvc.com/api/webhooks/stripe', status: 'enabled', enabled_events: ['checkout.session.completed'] },
+    ] });
+    const res = await authed();
+    expect(res.body.stripe.missing_events).toHaveLength(8);
+    expect(res.statusCode).toBe(503);
+  });
+
+  it('falls back to the first enabled /api/webhooks/stripe endpoint when none is on the site host', async () => {
+    process.env.BASE_URL = 'https://www.aurevonvc.com';
+    stripeList.mockResolvedValue({ data: [
+      { url: 'https://other-a.example.com/api/webhooks/stripe', status: 'enabled', enabled_events: ['*'] },
+      { url: 'https://other-b.example.com/api/webhooks/stripe', status: 'enabled', enabled_events: [] },
+    ] });
+    const res = await authed();
+    expect(res.body.stripe.webhook_endpoint).toBe('found');
+    expect(res.body.stripe.missing_events).toEqual([]);
   });
 
   it('an endpoint subscribed to 3 events → missing_events has 6, webhook_events_ok false, 503', async () => {
