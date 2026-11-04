@@ -34,17 +34,13 @@ async function alert(event, detail) {
  * The serial a stored Reference carries, or null. `PREFIX_NNN` is a serial;
  * `PREFIX_NNN_dupXXXX` is a row that MINTED with `PREFIX_NNN` on-chain while
  * another row already held that reference. `PREFIX_NNN_rXXXX` carries NO serial:
- * that row never minted and `PREFIX_NNN` belongs to another row (see
- * isUnmintedCollisionRef). `MINT_…` / `RECOVER_…` / anything else: none.
+ * that row never minted and `PREFIX_NNN` belongs to another row.
+ * `MINT_…` / `RECOVER_…` / anything else: none. A retry of a row whose
+ * reference carries no serial reserves a fresh one (fulfilNft step 3).
  */
 export function serialFromReference(reference, prefix) {
   const m = new RegExp(`^(${prefix}_\\d+)(?:_dup[A-Za-z0-9]+)?$`).exec(String(reference ?? ''));
   return m ? m[1] : null;
-}
-
-/** `PREFIX_NNN_rXXXX`: a failed mint whose serial collided and no fresh one could be reserved. */
-function isUnmintedCollisionRef(reference, prefix) {
-  return new RegExp(`^${prefix}_\\d+_r[A-Za-z0-9]+$`).test(String(reference ?? ''));
 }
 
 /**
@@ -137,10 +133,13 @@ export async function fulfilNft({ transactionId, email, customerName, tier, prov
   if (retryRow) {
     const storedRef = retryRow.fields?.['Reference'];
     serial = serialFromReference(storedRef, prefix);
-    if (isUnmintedCollisionRef(storedRef, prefix)) {
-      // Its PREFIX_NNN belongs to another row and nothing minted with it: take a
-      // fresh serial and claim it as this row's Reference BEFORE minting, so the
-      // NFT never carries a serial another row holds. No serial → mint without one.
+    if (serial === null) {
+      // The stored reference carries no serial: `PREFIX_NNN_r…` (its PREFIX_NNN
+      // belongs to another row), `MINT_…` (the counter was down) or `RECOVER_…`
+      // (orphan recovery). Take a fresh serial and claim it as this row's
+      // Reference BEFORE minting, so the NFT never carries a serial another row
+      // holds and never goes on-chain without one when one can be had. No
+      // serial → mint without one.
       const fresh = await getNextSerial(prefix).catch(async (err) => {
         console.error(`${tag} serial reservation failed for ${prefix}: ${err.message}`);
         await alert(`${p}.serial_failed`, { transactionId: txn, prefix, error: err.message });
@@ -269,7 +268,7 @@ export async function fulfilNft({ transactionId, email, customerName, tier, prov
       } else if (err.code === 'DUPLICATE_REFERENCE') {
         // Nothing landed on-chain with this serial yet: take a fresh one, once.
         // Without one, `_r` keeps the row retryable; `reference` belongs to the
-        // other row, so the retry reserves its own serial (isUnmintedCollisionRef).
+        // other row, so the retry reserves its own serial (step 3).
         const fresh = await getNextSerial(prefix).catch(() => null);
         const ref = fresh ?? `${reference}_r${txn.slice(-4)}`;
         row = await insertFallback(ref, 'fresh serial');

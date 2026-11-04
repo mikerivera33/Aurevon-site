@@ -289,27 +289,58 @@ describe('fulfilNft recovery paths', () => {
     expect(alerted('retry.serial_failed')).toHaveLength(1);
   });
 
-  it('a retry of a MINT_ fallback row emails no serial (never the fallback reference), and a failed retry emails nothing', async () => {
+  // Behaviour change (final fix 4): a MINT_ row used to retry with no serial
+  // forever; the retry now reserves one, claims it, and mints with it.
+  it('a retry of a MINT_ fallback row reserves a fresh serial once: Crossmint Serial, Reference and email carry it; a failed retry emails nothing', async () => {
     store.serialFails = true;
     store.crossmintStatus = 500;
     await fulfilNft({ transactionId: 'cs_test_mintref1', email: BUYER, tier: 'retainer', provider: 'stripe' });
-    expect(store.mints[0].fields['Reference']).toBe('MINT_mintref1_EMBER');
+    const row = store.mints[0];
+    expect(row.fields['Reference']).toBe('MINT_mintref1_EMBER');
     expect(resendCalls(store)).toHaveLength(1); // the first "being finalized" email
 
     store.serialFails = false;
     await fulfilNft({ transactionId: 'cs_test_mintref1', email: BUYER, tier: 'retainer', provider: 'retry' });
     expect(resendCalls(store)).toHaveLength(1); // failed retry: no repeat pending email
-    expect(store.mints[0].fields['Retry Count']).toBe(1);
+    expect(row.fields['Retry Count']).toBe(1);
+    expect(row.fields['Reference']).toBe('EMBER_001'); // claimed before the (failed) mint
 
     store.crossmintStatus = 200;
     const res = await fulfilNft({ transactionId: 'cs_test_mintref1', email: BUYER, tier: 'retainer', provider: 'retry' });
 
-    expect(res.serial).toBeNull();
+    expect(res).toEqual(expect.objectContaining({ minted: true, serial: 'EMBER_001' }));
+    expect(row.fields['Reference']).toBe('EMBER_001');
+    const mints = crossmintCalls(store);
+    expect(mints[2].body.metadata.attributes.filter((a) => a.trait_type === 'Serial')).toEqual([{ trait_type: 'Serial', value: 'EMBER_001' }]);
     const emails = resendCalls(store);
     expect(emails).toHaveLength(2);
-    expect(emails[1].body.subject).toBe('Your Aurevon Ember NFT is live — Welcome to Aurevon');
+    expect(emails[1].body.subject).toMatch(/#001/);
+    expect(emails[1].body.html).toContain('EMBER_001');
     expect(emails[1].body.html).not.toContain('MINT_');
-    expect(db.nextSerial).toHaveBeenCalledTimes(1); // the retries never reserve a serial
+    // First reservation failed, the first retry reserved EMBER_001, the second reused it.
+    expect(db.nextSerial).toHaveBeenCalledTimes(2);
+  });
+
+  it('a retry of a RECOVER_ (orphan-recovery) row reserves a fresh serial: Crossmint Serial, Reference and email carry it', async () => {
+    store.serials.EMBER = 4;
+    store.mints.push({ id: 'mint_recover', fields: {
+      'Reference': 'RECOVER_cs_test_orphan1', 'Email': BUYER, 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer',
+      'Mint Status': 'Failed', 'Payment Transaction ID': 'cs_test_orphan1', 'Entitlement Type': 'retainer', 'Retry Count': 0,
+    } });
+
+    const res = await fulfilNft({ transactionId: 'cs_test_orphan1', email: BUYER, tier: 'retainer', provider: 'retry' });
+
+    expect(res).toEqual(expect.objectContaining({ minted: true, serial: 'EMBER_005', rowId: 'mint_recover' }));
+    const row = store.mints.find((r) => r.id === 'mint_recover');
+    expect(row.fields['Reference']).toBe('EMBER_005');
+    expect(row.fields['Mint Status']).toBe('Sent');
+    expect(crossmintCalls(store)[0].body.metadata.attributes.filter((a) => a.trait_type === 'Serial'))
+      .toEqual([{ trait_type: 'Serial', value: 'EMBER_005' }]);
+    const email = resendCalls(store).at(-1).body;
+    expect(email.subject).toMatch(/#005/);
+    expect(email.html).toContain('EMBER_005');
+    expect(email.html).not.toContain('RECOVER_');
+    expect(store.mints).toHaveLength(1);
   });
 
   it('a row insert failure after minting alerts *.mint_row_dropped with minted:true and still emails', async () => {

@@ -136,13 +136,15 @@ describe('handleRetryMints', () => {
 
     await handleRetryMints();
 
-    expect(crossmint.mintToEmail).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'cs_live_ABC123', serial: null }));
+    // Behaviour change (final fix 4): the recovered row reserves a fresh serial.
+    expect(crossmint.mintToEmail).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'cs_live_ABC123', serial: 'INSIDER_001' }));
     expect(db.updateNftMint).toHaveBeenCalledWith('recOrphan', { 'Payment Transaction ID': 'cs_live_ABC123' });
     expect(db.updateNftMint.mock.invocationCallOrder[0]).toBeLessThan(crossmint.mintToEmail.mock.invocationCallOrder[0]);
     expect(row('recOrphan').fields['Mint Status']).toBe('Sent');
     expect(store.mints).toHaveLength(1);
-    // Never the RECOVER_ reference as a serial in the email.
-    expect(sendNftDelivery).toHaveBeenCalledWith(expect.objectContaining({ serial: null, status: 'minted' }));
+    // Never the RECOVER_ reference as a serial in the email: the fresh one.
+    expect(row('recOrphan').fields['Reference']).toBe('INSIDER_001');
+    expect(sendNftDelivery).toHaveBeenCalledWith(expect.objectContaining({ serial: 'INSIDER_001', status: 'minted' }));
   });
 
   it('reuses the Payments transaction id when the Failed row Reference is a serial', async () => {
