@@ -193,6 +193,8 @@ export async function fulfilNft({ transactionId, email, customerName, tier, prov
         'Last Error': minted ? '' : notes,
         'Retry Count': retryCount,
         ...(claimedReference ? { 'Reference': claimedReference } : {}),
+        // Backoff for retry-mints: 15 min × 2^retryCount, capped at 32 h.
+        ...(minted ? {} : { 'Next Retry At': nextRetryAt(retryCount) }),
       });
       row = row?.id ? row : retryRow;
     } catch (err) {
@@ -217,6 +219,7 @@ export async function fulfilNft({ transactionId, email, customerName, tier, prov
       paymentTransactionId: txn,
       entitlementType: entitlementKey,
       retryCount: 0,
+      nextRetryAt: minted ? undefined : nextRetryAt(0),
     };
     const reference = serial ?? `MINT_${txn.slice(-8)}_${prefix}`;
     const insert = (ref) => createNftMint({ reference: ref, ...fields });

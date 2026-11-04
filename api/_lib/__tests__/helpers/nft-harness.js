@@ -83,6 +83,7 @@ export function makeFakeDb(store) {
           'Entitlement Type': m.entitlementType,
           'Payment Transaction ID': m.paymentTransactionId,
           'Crossmint Action ID': m.crossmintActionId,
+          'Next Retry At': m.nextRetryAt,
         },
       };
       store.mints.push(rec);
@@ -105,9 +106,27 @@ export function makeFakeDb(store) {
     findActiveMintByEmailAndType: vi.fn(async () => null),
     findAnyMintByEmailAndType: vi.fn(async () => null),
     listUnlinkedMintsBefore: vi.fn(async () => []),
-    listFailedMints: vi.fn(async ({ maxRecords = 10, maxRetries = 5 } = {}) => store.mints
-      .filter((r) => r.fields['Mint Status'] === 'Failed' && Number(r.fields['Retry Count'] ?? 0) < maxRetries)
-      .slice(0, maxRecords)),
+    // Same filters / order as the real query: due backoff only (Next Retry At
+    // unset or <= now), unscheduled rows first, then earliest due, then oldest
+    // (insertion order stands in for created_at).
+    listFailedMints: vi.fn(async ({ maxRecords = 10, maxRetries = 8, now = new Date() } = {}) => {
+      const due = new Date(now).getTime();
+      const at = (r) => (r.fields['Next Retry At'] ? Date.parse(r.fields['Next Retry At']) : null);
+      return store.mints
+        .map((r, i) => ({ r, i }))
+        .filter(({ r }) => r.fields['Mint Status'] === 'Failed' && Number(r.fields['Retry Count'] ?? 0) < maxRetries)
+        .filter(({ r }) => at(r) === null || at(r) <= due)
+        .sort((a, b) => {
+          const x = at(a.r);
+          const y = at(b.r);
+          if (x === y) return a.i - b.i;
+          if (x === null) return -1;
+          if (y === null) return 1;
+          return x - y;
+        })
+        .slice(0, maxRecords)
+        .map(({ r }) => r);
+    }),
     // Same filters as the real query. A row with no 'Created At' counts as old
     // (rows written by createNftMint here carry none).
     listUndeliveredMints: vi.fn(async ({ maxRecords = 20, createdBefore } = {}) => store.mints

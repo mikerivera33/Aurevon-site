@@ -28,7 +28,7 @@ vi.mock('stripe', () => ({
 }));
 
 import { resetStore, applyEnv, installFetch, crossmintCalls, resendCalls, deliver, txnId } from './helpers/nft-harness.js';
-import { serialFromReference } from '../fulfil.js';
+import { serialFromReference, nextRetryAt } from '../fulfil.js';
 
 const SAVED = { ...process.env };
 let db;
@@ -141,6 +141,32 @@ describe('fulfilNft recovery paths', () => {
     expect(mints[1].url).toBe(mints[0].url); // same idempotency key
     expect(mints[1].body.metadata.attributes).toEqual(expect.arrayContaining([{ trait_type: 'Serial', value: 'EMBER_001' }]));
     expect(db.nextSerial).toHaveBeenCalledTimes(1);
+  });
+
+  it('schedules the backoff: a first failure is due in 15 min, a failed retry in 30 min, a success leaves it', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-11-04T12:00:00.000Z'));
+      store.crossmintStatus = 500;
+      await fulfilNft({ transactionId: 'cs_test_backoff', email: BUYER, tier: 'retainer', provider: 'stripe' });
+      expect(store.mints[0].fields['Next Retry At']).toBe('2026-11-04T12:15:00.000Z');
+
+      vi.setSystemTime(new Date('2026-11-04T12:15:00.000Z'));
+      await fulfilNft({ transactionId: 'cs_test_backoff', email: BUYER, tier: 'retainer', provider: 'retry' });
+      expect(store.mints[0].fields).toEqual(expect.objectContaining({ 'Retry Count': 1, 'Next Retry At': '2026-11-04T12:45:00.000Z' }));
+
+      store.crossmintStatus = 200;
+      vi.setSystemTime(new Date('2026-11-04T12:45:00.000Z'));
+      await fulfilNft({ transactionId: 'cs_test_backoff', email: BUYER, tier: 'retainer', provider: 'retry' });
+      expect(store.mints[0].fields['Mint Status']).toBe('Sent');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a successful first mint sets no Next Retry At', async () => {
+    await fulfilNft({ transactionId: 'cs_test_nobackoff', email: BUYER, tier: 'retainer', provider: 'stripe' });
+    expect(store.mints[0].fields['Next Retry At']).toBeUndefined();
   });
 
   it('DUPLICATE_REFERENCE on a FAILED mint takes one fresh serial (nothing on-chain carries the old one)', async () => {
@@ -305,6 +331,14 @@ describe('fulfilNft recovery paths', () => {
     expect(store.calls).toHaveLength(0);
     expect(db.findMintByPaymentId).not.toHaveBeenCalled();
     expect(db.nextSerial).not.toHaveBeenCalled();
+  });
+});
+
+describe('nextRetryAt', () => {
+  const T = new Date('2026-11-04T00:00:00.000Z');
+  const hoursAfter = (n) => (Date.parse(nextRetryAt(n, T)) - T.getTime()) / 3_600_000;
+  it('is 15 min × 2^retryCount, capped at 32 h', () => {
+    expect([0, 1, 2, 3, 4, 5, 6, 7, 8, 20].map(hoursAfter)).toEqual([0.25, 0.5, 1, 2, 4, 8, 16, 32, 32, 32]);
   });
 });
 

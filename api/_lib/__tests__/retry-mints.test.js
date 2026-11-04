@@ -15,7 +15,7 @@
  * db: the in-memory harness (real UNIQUE semantics); Crossmint, email and
  * alerts mocked.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const store = vi.hoisted(() => ({}));
 
@@ -79,7 +79,7 @@ describe('handleRetryMints', () => {
 
     expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
     expect(crossmint.mintToEmail).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'cs_live_E1', serial: 'EMBER_007' }));
-    expect(db.listFailedMints).toHaveBeenCalledWith({ maxRecords: 10, maxRetries: 5 });
+    expect(db.listFailedMints).toHaveBeenCalledWith({ maxRecords: 10, maxRetries: 8 });
     expect(sendNftDelivery).toHaveBeenCalledTimes(1);
     expect(sendNftDelivery).toHaveBeenCalledWith(expect.objectContaining({
       status: 'minted', serial: 'EMBER_007', transactionId: 'cs_live_E1', customerName: 'Ember Buyer',
@@ -124,8 +124,8 @@ describe('handleRetryMints', () => {
     expect(alerted('retry_mints.legacy_row_skipped')).toEqual([
       ['retry_mints.legacy_row_skipped', { rowId: 'recStale', transactionId: 'cs_live_X', holderId: 'recCanonical' }, expect.objectContaining({ dedupeKey: 'legacy:recStale' })],
     ]);
-    // Parked off the queue (listFailedMints filters Retry Count < 5) without claiming the payment.
-    expect(row('recStale').fields['Retry Count']).toBe(5);
+    // Parked off the queue (listFailedMints filters Retry Count < 8) without claiming the payment.
+    expect(row('recStale').fields['Retry Count']).toBe(8);
     expect(row('recStale').fields['Payment Transaction ID']).toBeUndefined();
     await handleRetryMints();
     expect(alerted('retry_mints.legacy_row_skipped')).toHaveLength(1);
@@ -207,28 +207,42 @@ describe('handleRetryMints', () => {
       'Mint Status': 'Failed', 'Retry Count': 1, 'Last Error': expect.stringMatching(/Crossmint 500/),
     }));
     expect(sendNftDelivery).not.toHaveBeenCalled();
-    expect(alerted('retry_mints.errors')).toHaveLength(1);
+    expect(alerted('retry_mints.errors')).toEqual([
+      ['retry_mints.errors', expect.objectContaining({ count: 1, firstRowId: 'recFailed3' }), expect.objectContaining({ dedupeKey: 'errors:recFailed3' })],
+    ]);
   });
 
-  it('a retry that reaches 5 alerts retry_mints.gave_up and leaves the queue', async () => {
-    failedRow('recTired', { Email: 'tired@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Retry Count': 4, 'Payment Transaction ID': 'cs_live_T' });
+  it('a retry that reaches 8 alerts retry_mints.gave_up and leaves the queue', async () => {
+    failedRow('recTired', { Email: 'tired@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Retry Count': 7, 'Payment Transaction ID': 'cs_live_T' });
     crossmint.mintToEmail.mockResolvedValue({ ok: false, error: 'Crossmint 500' });
 
     const report = await handleRetryMints();
 
     expect(report).toEqual(expect.objectContaining({ failed: 1, gaveUp: 1, remaining: 0 }));
-    expect(row('recTired').fields['Retry Count']).toBe(5);
+    expect(row('recTired').fields['Retry Count']).toBe(8);
     expect(alerted('retry_mints.gave_up')).toEqual([
       ['retry_mints.gave_up', expect.objectContaining({ rowId: 'recTired' }), expect.objectContaining({ dedupeKey: 'gave_up:recTired' })],
     ]);
 
+    row('recTired').fields['Next Retry At'] = null; // even once due again
     await handleRetryMints();
     expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1); // not listed again
   });
 
-  it('skips a row already at 5 retries (if one is listed) and alerts gave_up', async () => {
+  it('a retry that reaches 7 stays queued: no gave_up yet', async () => {
+    failedRow('recNearly', { Email: 'n@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Retry Count': 6, 'Payment Transaction ID': 'cs_live_N' });
+    crossmint.mintToEmail.mockResolvedValue({ ok: false, error: 'Crossmint 500' });
+
+    const report = await handleRetryMints();
+
+    expect(report).toEqual(expect.objectContaining({ failed: 1, gaveUp: 0, remaining: 1 }));
+    expect(row('recNearly').fields['Retry Count']).toBe(7);
+    expect(alerted('retry_mints.gave_up')).toHaveLength(0);
+  });
+
+  it('skips a row already at 8 retries (if one is listed) and alerts gave_up', async () => {
     db.listFailedMints.mockResolvedValueOnce([
-      { id: 'recCapped', fields: { Email: 'c@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Mint Status': 'Failed', 'Retry Count': 5, 'Payment Transaction ID': 'cs_live_C' } },
+      { id: 'recCapped', fields: { Email: 'c@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Mint Status': 'Failed', 'Retry Count': 8, 'Payment Transaction ID': 'cs_live_C' } },
     ]);
 
     const report = await handleRetryMints();
@@ -284,7 +298,7 @@ describe('handleRetryMints', () => {
     });
 
     it('skips Failed rows, legacy rows without a payment id, and rows created in the last 10 minutes', async () => {
-      store.mints.push({ id: 'recFailedQuiet', fields: { 'Mint Status': 'Failed', 'Email Delivered': false, Email: 'f@example.com', 'NFT Type': 'Aurevon Ember', 'Retry Count': 5 } });
+      store.mints.push({ id: 'recFailedQuiet', fields: { 'Mint Status': 'Failed', 'Email Delivered': false, Email: 'f@example.com', 'NFT Type': 'Aurevon Ember', 'Retry Count': 8 } });
       sentRow('recLegacy', {});
       sentRow('recYoung', { 'Payment Transaction ID': 'cs_live_Y', 'Created At': new Date().toISOString() });
 
@@ -351,6 +365,75 @@ describe('handleRetryMints', () => {
         ['retry_mints.email_failed', expect.objectContaining({ rowId: 'recBounce', transactionId: 'cs_live_B1' }), expect.anything()],
       ]);
       expect(JSON.stringify(sendAlert.mock.calls)).not.toContain('@example.com');
+    });
+  });
+
+  describe('retry backoff', () => {
+    const T0 = new Date('2026-11-04T12:00:00.000Z');
+    const at = (ms) => new Date(T0.getTime() + ms).toISOString();
+    const MIN = 60_000;
+    beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(T0); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('a row whose Next Retry At is in the future is not listed; a due one is', async () => {
+      failedRow('recLater', { Email: 'l@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Payment Transaction ID': 'cs_live_L', 'Next Retry At': at(5 * MIN) });
+      failedRow('recDue', { Email: 'd@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Payment Transaction ID': 'cs_live_DU', 'Next Retry At': at(-1 * MIN) });
+
+      const report = await handleRetryMints();
+
+      expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
+      expect(crossmint.mintToEmail).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'cs_live_DU' }));
+      expect(row('recLater').fields['Mint Status']).toBe('Failed');
+      expect(row('recLater').fields['Retry Count']).toBe(0);
+      expect(report.retried).toBe(1);
+    });
+
+    it('lists never-scheduled rows first, then the earliest due', async () => {
+      failedRow('recDueOld', { Email: 'a@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Payment Transaction ID': 'cs_live_O1', 'Next Retry At': at(-10 * MIN) });
+      failedRow('recDueOlder', { Email: 'b@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Payment Transaction ID': 'cs_live_O2', 'Next Retry At': at(-60 * MIN) });
+      failedRow('recNew', { Email: 'c@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Payment Transaction ID': 'cs_live_O3' });
+
+      await handleRetryMints();
+
+      expect(crossmint.mintToEmail.mock.calls.map(([a]) => a.idempotencyKey)).toEqual(['cs_live_O3', 'cs_live_O2', 'cs_live_O1']);
+    });
+
+    it('each failed retry pushes Next Retry At out 15 min × 2^retryCount: 30 min, 1 h, 2 h for counts 1..3', async () => {
+      failedRow('recBack', { Email: 'k@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Payment Transaction ID': 'cs_live_K' });
+      crossmint.mintToEmail.mockResolvedValue({ ok: false, error: 'Crossmint 500' });
+      const seen = [];
+      for (let i = 0; i < 3; i++) {
+        const now = Date.now();
+        await handleRetryMints();
+        const f = row('recBack').fields;
+        seen.push([f['Retry Count'], (Date.parse(f['Next Retry At']) - now) / MIN]);
+        // Not due yet: a run one minute before is a no-op.
+        vi.setSystemTime(Date.parse(f['Next Retry At']) - MIN);
+        await handleRetryMints();
+        expect(row('recBack').fields['Retry Count']).toBe(i + 1);
+        vi.setSystemTime(Date.parse(f['Next Retry At']));
+      }
+      expect(seen).toEqual([[1, 30], [2, 60], [3, 120]]);
+      expect(crossmint.mintToEmail).toHaveBeenCalledTimes(3);
+    });
+
+    it('a listFailedMints failure alerts retry_mints.errors and the resend and heartbeat still run', async () => {
+      db.listFailedMints.mockRejectedValueOnce(new Error('Supabase 503'));
+      store.mints.push({ id: 'recQuiet2', fields: {
+        'Mint Status': 'Sent', 'Email Delivered': false, Email: 'q2@example.com', 'NFT Type': 'Aurevon Ember',
+        Reference: 'EMBER_010', 'Payment Transaction ID': 'cs_live_Q2',
+      } });
+
+      const report = await handleRetryMints();
+
+      expect(alerted('retry_mints.errors')).toEqual([
+        ['retry_mints.errors', expect.objectContaining({ stage: 'listFailedMints' }), expect.objectContaining({ dedupeKey: 'errors:listFailedMints' })],
+      ]);
+      expect(sendNftDelivery).toHaveBeenCalledTimes(1);
+      expect(report).toEqual(expect.objectContaining({ delivered: 1, listFailed: true, errors: 1 }));
+      expect(db.recordOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
+        event: 'cron.retry_mints.ok', detail: expect.objectContaining({ delivered: 1, listFailed: true }),
+      }));
     });
   });
 

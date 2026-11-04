@@ -441,16 +441,28 @@ describe('mint lookups', () => {
     expect(op('limit')).toEqual([['limit', 5]]);
   });
 
-  it('listFailedMints: Failed under the retry cap, oldest first, default 10', async () => {
+  it('listFailedMints: Failed under the retry cap (default 8) with backoff due, unscheduled first, then oldest; default 10', async () => {
     respond({ data: [], error: null }, { data: [], error: null });
-    await db.listFailedMints();
+    await db.listFailedMints({ now: new Date('2026-11-04T12:00:00Z') });
     expect(op('eq', 0)).toEqual([['eq', 'mint_status', 'Failed']]);
-    expect(op('lt', 0)).toEqual([['lt', 'retry_count', 5]]);
-    expect(op('order', 0)).toEqual([['order', 'created_at', { ascending: true }]]);
+    expect(op('lt', 0)).toEqual([['lt', 'retry_count', 8]]);
+    expect(op('or', 0)).toEqual([['or', 'next_retry_at.is.null,next_retry_at.lte.2026-11-04T12:00:00.000Z']]);
+    expect(op('order', 0)).toEqual([
+      ['order', 'next_retry_at', { ascending: true, nullsFirst: true }],
+      ['order', 'created_at', { ascending: true }],
+    ]);
     expect(op('limit', 0)).toEqual([['limit', 10]]);
     await db.listFailedMints({ maxRecords: 50, maxRetries: 3 });
     expect(op('lt', 1)).toEqual([['lt', 'retry_count', 3]]);
     expect(op('limit', 1)).toEqual([['limit', 50]]);
+  });
+
+  it("'Next Retry At' maps to next_retry_at on create and update", async () => {
+    respond({ data: { id: 'm1' }, error: null }, { data: { id: 'm1' }, error: null });
+    await db.createNftMint({ reference: 'EMBER_001', email: 'a@b.co', nftType: 'Aurevon Ember', status: 'Failed', nextRetryAt: '2026-11-04T12:15:00.000Z' });
+    expect(op('insert', 0)[0][1]).toMatchObject({ next_retry_at: '2026-11-04T12:15:00.000Z' });
+    await db.updateNftMint('m1', { 'Next Retry At': '2026-11-04T12:30:00.000Z' });
+    expect(op('update', 1)).toEqual([['update', { next_retry_at: '2026-11-04T12:30:00.000Z' }]]);
   });
 
   it('listLapsedMonthlyWithoutExpiry: monthly, billing not active, no expiry, not already revoked', async () => {

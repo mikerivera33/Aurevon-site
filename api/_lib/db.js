@@ -75,6 +75,7 @@ export const FIELDS = {
     'Crossmint Action ID': 'crossmint_action_id',
     'Revoked At': 'revoked_at',
     'Last Error': 'last_error',
+    'Next Retry At': 'next_retry_at',
   },
   customer_auth: {
     'Email': 'email',
@@ -119,6 +120,7 @@ const NON_TEXT = new Set([
   'active', 'join_date', 'discord_linked_at', 'discord_sync_at', 'entitlement_expires_at',
   'amount', 'purchase_price', 'payment_date', 'mint_date', 'email_delivered', 'retry_count', 'discord_synced',
   'discord_synced_at', 'token_expires', 'session_active', 'last_login', 'revoked_at', 'detail',
+  'next_retry_at',
 ]);
 const EMAIL_COLUMNS = new Set(['email', 'customer_email']);
 
@@ -254,7 +256,7 @@ export async function nextSerial(prefix) {
 export async function createNftMint({
   reference, email, nftType, tierSource, status, sentDate,
   emailDelivered = false, notes = '', mintId = '', retryCount = 0, entitlementType = '',
-  paymentTransactionId, crossmintActionId,
+  paymentTransactionId, crossmintActionId, nextRetryAt,
 }) {
   try {
     return await insert('nft_mints', {
@@ -272,6 +274,7 @@ export async function createNftMint({
       'Discord Synced': false,
       'Payment Transaction ID': paymentTransactionId ? String(paymentTransactionId) : undefined,
       'Crossmint Action ID': crossmintActionId ? String(crossmintActionId) : undefined,
+      'Next Retry At': nextRetryAt || undefined,
     });
   } catch (err) {
     if (err.code === '23505') {
@@ -382,10 +385,16 @@ export async function listUnlinkedMintsBefore(cutoffIso, { maxRecords = 50 } = {
     'listUnlinkedMintsBefore');
 }
 
-/** Failed mints still under the retry cap, oldest first. */
-export async function listFailedMints({ maxRecords = 10, maxRetries = 5 } = {}) {
+/**
+ * Failed mints under the retry cap whose backoff is due (next_retry_at null or
+ * <= now): never-scheduled rows first, then the longest-due, then oldest.
+ */
+export async function listFailedMints({ maxRecords = 10, maxRetries = 8, now = new Date() } = {}) {
+  const due = new Date(now).toISOString();
   return many('nft_mints',
     from('nft_mints').eq('mint_status', 'Failed').lt('retry_count', maxRetries)
+      .or(`next_retry_at.is.null,next_retry_at.lte.${due}`)
+      .order('next_retry_at', { ascending: true, nullsFirst: true })
       .order('created_at', { ascending: true }).limit(maxRecords),
     'listFailedMints');
 }

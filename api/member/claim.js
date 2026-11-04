@@ -35,7 +35,7 @@ import { ENTITLEMENT_MAP, resolveEntitlementFromNftType, resolveEntitlementFromS
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
 import { sendDiscordAccessLink, sendNftDelivery } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
-import { fulfilNft, serialFromReference } from '../_lib/fulfil.js';
+import { fulfilNft, serialFromReference, nextRetryAt } from '../_lib/fulfil.js';
 import { airtableImportEnabled, importFromAirtable, importHasProblems } from '../_lib/airtable-import.js';
 
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
@@ -638,7 +638,9 @@ export async function resolveRetryIdempotencyKey({ reference, email, tier, recor
   return ref || `retry_${recordId}`;
 }
 
-const MAX_MINT_RETRIES = 5;
+// With the 15 min × 2^n backoff (fulfil.js nextRetryAt) the 8 attempts span
+// about 2.7 days (64 h of waits) before retry_mints.gave_up hands the row to an operator.
+const MAX_MINT_RETRIES = 8;
 // A row this young may belong to a run that is still sending its email.
 const UNDELIVERED_MIN_AGE_MS = 10 * 60_000;
 
@@ -657,7 +659,7 @@ function retryTier(fields) {
 /**
  * Cron (every 15 min): finish the NFT pipeline for rows that did not.
  *
- * 1. Failed mint rows (≤10 per run, under the retry cap) go back through
+ * 1. Failed mint rows (≤10 per run, under the retry cap, backoff due) go back through
  *    fulfilNft with their payment id — it retries in place: stored serial,
  *    same Crossmint idempotency key, Retry Count / Last Error, minted email +
  *    Email Delivered on success. Dedupe is by payment id, never email + type.
@@ -684,7 +686,18 @@ export async function handleRetryMints() {
     await sendAlert('retry_mints.gave_up', { rowId, reason }, { severity: 'high', dedupeKey: `gave_up:${rowId}` }).catch(() => {});
   };
 
-  const failedRows = await listFailedMints({ maxRecords: 10, maxRetries: MAX_MINT_RETRIES });
+  // A list failure must not cost the resend and the heartbeat: alert, carry on.
+  let failedRows = [];
+  let listFailed = false;
+  try {
+    failedRows = await listFailedMints({ maxRecords: 10, maxRetries: MAX_MINT_RETRIES });
+  } catch (err) {
+    listFailed = true;
+    console.error(`[retry-mints] listFailedMints failed: ${err.message}`);
+    await sendAlert('retry_mints.errors', { stage: 'listFailedMints', error: err.message },
+      { severity: 'high', dedupeKey: 'errors:listFailedMints' }).catch(() => {});
+  }
+  let firstFailedId = null;
 
   for (const row of failedRows) {
     const f = row.fields ?? {};
@@ -764,13 +777,16 @@ export async function handleRetryMints() {
     } catch (err) {
       // fulfilNft only throws on programmer errors; count it so the cap applies.
       result = { minted: false };
-      await updateNftMint(row.id, { 'Retry Count': retryCount + 1, 'Last Error': err.message }).catch(() => {});
+      await updateNftMint(row.id, {
+        'Retry Count': retryCount + 1, 'Last Error': err.message, 'Next Retry At': nextRetryAt(retryCount + 1),
+      }).catch(() => {});
     }
 
     if (result.minted) {
       stats.minted++;
     } else {
       stats.failed++;
+      firstFailedId ??= row.id;
       if (retryCount + 1 >= MAX_MINT_RETRIES) await giveUp(row.id, 'retry cap reached');
     }
   }
@@ -841,12 +857,15 @@ export async function handleRetryMints() {
   if (stats.remaining < 0) stats.remaining = 0;
 
   if (stats.failed > 0) {
-    await sendAlert('retry_mints.errors', { count: stats.failed, retried: stats.retried }).catch(() => {});
+    await sendAlert('retry_mints.errors', { count: stats.failed, retried: stats.retried, firstRowId: firstFailedId },
+      { dedupeKey: `errors:${firstFailedId}` }).catch(() => {});
   }
   const { retried, minted, failed, gaveUp, delivered, remaining } = stats;
-  await heartbeat('cron.retry_mints.ok', { retried, minted, failed, gaveUp, delivered, remaining });
+  await heartbeat('cron.retry_mints.ok', {
+    retried, minted, failed, gaveUp, delivered, remaining, ...(listFailed ? { listFailed: true } : {}),
+  });
 
-  return { ...stats, errors: stats.failed };
+  return { ...stats, ...(listFailed ? { listFailed: true } : {}), errors: stats.failed + (listFailed ? 1 : 0) };
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────

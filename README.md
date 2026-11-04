@@ -34,7 +34,7 @@ Aurevon is a fully autonomous investment education and Web3 membership platform.
 - **Resend delivers** a branded confirmation email with the NFT and Discord invite link.
 - **The customer clicks** the Discord OAuth link, which auto-assigns the correct server role based on their tier.
 - **Airtable is updated** with the payment, NFT mint record, and member row — all visible in the Operator Hub.
-- **Retries are automatic**: the `retry-mints` cron runs every 15 minutes to reattempt failed mints (and re-send undelivered pass emails), and a `reconcile` cron runs daily at 02:00 UTC to sync pending Discord roles and recover orphan payments.
+- **Retries are automatic**: the `retry-mints` cron runs every 15 minutes to reattempt failed mints with backoff (15 min doubling to a 32 h cap, 8 attempts, then an operator alert) and re-send undelivered pass emails, and a `reconcile` cron runs daily at 02:00 UTC to sync pending Discord roles and recover orphan payments.
 
 **What you (the operator) do:** Nothing after setup. Open `operator.html` to monitor KPIs, view leads, and trigger manual actions if needed.
 
