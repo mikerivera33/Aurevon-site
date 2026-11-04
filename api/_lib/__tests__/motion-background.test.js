@@ -30,7 +30,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 
 // Internal operator consoles: no storm on data-heavy admin screens.
-const ADMIN_PAGES = new Set(['operator.html', 'aurevon-crm.html', 'setup-wizard.html']);
+const ADMIN_PAGES = new Set(['operator.html', 'aurevon-crm.html']);
 
 const TAGS = [
   '<link rel="stylesheet" href="/motion/motion-bg.css">',
@@ -43,7 +43,7 @@ const TAGS = [
 function htmlFiles(dir, out = []) {
   for (const name of readdirSync(join(ROOT, dir))) {
     const rel = dir ? `${dir}/${name}` : name;
-    if (['node_modules', 'docs', '.git', 'motion'].includes(name)) continue;
+    if (['node_modules', 'docs', '.git', 'motion', 'coverage', '.superpowers', '.claude'].includes(name)) continue;
     const full = join(ROOT, rel);
     if (statSync(full).isDirectory()) htmlFiles(rel, out);
     else if (name.endsWith('.html')) out.push(rel);
@@ -58,7 +58,7 @@ describe('motion background wiring', () => {
 
   it('finds the expected page set', () => {
     expect(publicPages.length).toBeGreaterThanOrEqual(20);
-    expect(adminPages.length).toBe(3);
+    expect(adminPages.length).toBe(2);
   });
 
   it.each(publicPages)('%s carries the stylesheet and all four scripts, in order', (page) => {

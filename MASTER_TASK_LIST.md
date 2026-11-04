@@ -215,7 +215,7 @@ From `/api/health` audit — currently configured: `STRIPE_SECRET_KEY`, `STRIPE_
 | 17 | Discord welcome automation | `discord-welcome.html` exists but no Discord bot webhook is configured. |
 | 18 | CRM integration | `aurevon-crm.html` is the canonical CRM. Verify Airtable CRM view is configured. |
 | 19 | Aurevon RE Intake form | `aurevon-re-intake.html` — form submission needs Airtable or email endpoint. |
-| 20 | `setup-wizard.html` completion | Walk-through wizard for initial config — verify all steps still align with current env vars. |
+| 20 | ~~`setup-wizard.html` completion~~ | Deleted Nov 2026 (stale 7-tier model). Owner setup steps live in `docs/nft-pipeline-setup.md`. |
 
 ---
 

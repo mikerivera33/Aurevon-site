@@ -109,10 +109,6 @@
       "destination": "/api/member/claim.js?action=reconcile"
     },
     {
-      "source": "/api/email/send",
-      "destination": "/api/email/send.js"
-    },
-    {
       "source": "/api/crossmint/mint",
       "destination": "/api/member/claim.js?action=mint"
     },

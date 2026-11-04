@@ -42,7 +42,7 @@ const SCOPES        = 'identify guilds.join';
 
 // ── Timing-safe secret compare ───────────────────────────────────────────────
 // Length-guarded crypto.timingSafeEqual for variable-length secrets, matching
-// the pattern in api/member/claim.js and api/email/send.js. Returns true only
+// the pattern in api/member/claim.js. Returns true only
 // on an exact match. Callers MUST still guard against an unset/empty configured
 // secret BEFORE calling this — two empty strings compare equal here.
 export function timingSafeStrEqual(a, b) {

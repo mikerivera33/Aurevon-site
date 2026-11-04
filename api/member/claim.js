@@ -89,8 +89,7 @@ async function handleMint(req, res) {
   // AUTOMATION_PLAYBOOKS.md, which calls this with Authorization: Bearer
   // <INTERNAL_API_SECRET>). Without this gate ANYONE could trigger arbitrary,
   // irreversible Crossmint mints to any recipient email/wallet and drain the
-  // mint budget. Accept the secret via Bearer header or x-internal-secret
-  // (mirrors api/email/send.js).
+  // mint budget. Accept the secret via Bearer header or x-internal-secret.
   const internalSecret = process.env.INTERNAL_API_SECRET;
   if (!internalSecret) {
     return res.status(500).json({ error: 'Mint endpoint not configured' });
