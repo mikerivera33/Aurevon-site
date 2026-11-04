@@ -30,6 +30,17 @@ async function alert(event, detail) {
   await sendAlert(event, detail).catch(() => {});
 }
 
+/**
+ * The serial a stored Reference carries, or null. `PREFIX_NNN` is a serial;
+ * `PREFIX_NNN_dupXXXX` / `PREFIX_NNN_rXXXX` are collision fallbacks whose mint
+ * request went out with `PREFIX_NNN`, so a retry reuses it (same idempotent PUT,
+ * same metadata). `MINT_…` / `RECOVER_…` / anything else carries no serial.
+ */
+export function serialFromReference(reference, prefix) {
+  const m = new RegExp(`^(${prefix}_\\d+)(?:_(?:dup|r)[A-Za-z0-9]+)?$`).exec(String(reference ?? ''));
+  return m ? m[1] : null;
+}
+
 function existingResult(row, entitlementKey, nftType) {
   return {
     minted: true,
@@ -91,8 +102,7 @@ export async function fulfilNft({ transactionId, email, customerName, tier, prov
   // 3. Serial — reserved once, before the mint.
   let serial = null;
   if (retryRow) {
-    const ref = String(retryRow.fields?.['Reference'] ?? '');
-    serial = new RegExp(`^${prefix}_\\d+$`).test(ref) ? ref : null;
+    serial = serialFromReference(retryRow.fields?.['Reference'], prefix);
   } else {
     try {
       serial = await getNextSerial(prefix);
@@ -143,7 +153,9 @@ export async function fulfilNft({ transactionId, email, customerName, tier, prov
       await alert(`${p}.mint_row_dropped`, { transactionId: txn, tier: tierSource, nftType, minted, error: err.message });
       row = null;
     }
-    displaySerial = serial ?? retryRow.fields?.['Reference'] ?? null;
+    // Never the stored fallback reference (MINT_…/RECOVER_…): it is not a
+    // serial, and the email would derive a bogus edition from it.
+    displaySerial = serial ?? null;
   } else {
     const fields = {
       email: to,
@@ -161,34 +173,45 @@ export async function fulfilNft({ transactionId, email, customerName, tier, prov
     };
     const reference = serial ?? `MINT_${txn.slice(-8)}_${prefix}`;
     const insert = (ref) => createNftMint({ reference: ref, ...fields });
+    // A concurrent run for this payment wrote the row and owns delivery: hand
+    // its row back — no mint_row_dropped alert, no email from this run.
+    const concurrentRow = async () => {
+      console.log(`${tag} ${txn} mint row written concurrently — returning it`);
+      const existing = await findMintByPaymentId(txn).catch(() => null);
+      return existingResult(existing, entitlementKey, nftType);
+    };
+    // Second insert (collision fallback reference). Returns the row, null when
+    // dropped (alerted), or RACED when a concurrent run won the payment.
+    const RACED = Symbol('raced');
+    const insertFallback = async (ref, what) => {
+      try {
+        return await insert(ref);
+      } catch (e2) {
+        if (e2.code === 'DUPLICATE_PAYMENT_MINT') return RACED;
+        console.error(`${tag} createNftMint (${what}) failed for ${txn}: ${e2.message}`);
+        await alert(`${p}.mint_row_dropped`, { transactionId: txn, tier: tierSource, nftType, minted, error: e2.message });
+        return null;
+      }
+    };
     try {
       row = await insert(reference);
     } catch (err) {
-      if (err.code === 'DUPLICATE_PAYMENT_MINT') {
-        // A concurrent run for this payment wrote the row and owns delivery.
-        console.log(`${tag} ${txn} mint row written concurrently — returning it`);
-        const existing = await findMintByPaymentId(txn).catch(() => null);
-        return existingResult(existing, entitlementKey, nftType);
-      }
+      if (err.code === 'DUPLICATE_PAYMENT_MINT') return concurrentRow();
       if (err.code === 'DUPLICATE_REFERENCE' && minted) {
         // The NFT already carries this serial on-chain: never re-mint. Keep the
         // row (and the payment link) under a distinguishable reference.
         const dupRef = `${reference}_dup${txn.slice(-4)}`;
         await alert(`${p}.serial_collision`, { transactionId: txn, serial: reference, reference: dupRef });
-        row = await insert(dupRef).catch(async (e2) => {
-          console.error(`${tag} createNftMint (dup ref) failed for ${txn}: ${e2.message}`);
-          await alert(`${p}.mint_row_dropped`, { transactionId: txn, tier: tierSource, nftType, minted, error: e2.message });
-          return null;
-        });
+        row = await insertFallback(dupRef, 'dup ref');
+        if (row === RACED) return concurrentRow();
       } else if (err.code === 'DUPLICATE_REFERENCE') {
         // Nothing landed on-chain with this serial yet: take a fresh one, once.
+        // Without one, `_r` keeps the row retryable: the retry reuses `reference`
+        // (the serial this mint request carried) — see serialFromReference.
         const fresh = await getNextSerial(prefix).catch(() => null);
         const ref = fresh ?? `${reference}_r${txn.slice(-4)}`;
-        row = await insert(ref).catch(async (e2) => {
-          console.error(`${tag} createNftMint (fresh serial) failed for ${txn}: ${e2.message}`);
-          await alert(`${p}.mint_row_dropped`, { transactionId: txn, tier: tierSource, nftType, minted, error: e2.message });
-          return null;
-        });
+        row = await insertFallback(ref, 'fresh serial');
+        if (row === RACED) return concurrentRow();
         if (row) displaySerial = fresh;
       } else {
         // Minted on-chain but unrecorded is an orphan: orphan-recovery + the
@@ -200,27 +223,33 @@ export async function fulfilNft({ transactionId, email, customerName, tier, prov
   }
 
   // 6. Tell the buyer — the real pass when minted, "being finalized" otherwise.
-  try {
-    await sendNftDelivery({
-      email: to,
-      customerName,
-      nftType,
-      mintId: actionId ?? 'pending',
-      nftImageUrl: imageUrl,
-      discordInviteUrl: process.env.DISCORD_INVITE_URL,
-      tier: tierSource,
-      serial: displaySerial,
-      status: minted ? 'minted' : 'pending',
-      transactionId: txn,
-    });
-    if (minted && row?.id) {
-      await updateNftMint(row.id, { 'Email Delivered': true }).catch((err) => {
-        console.error(`${tag} could not flag Email Delivered on ${row.id}: ${err.message}`);
+  // A failed RETRY sends nothing: the buyer already has the "being finalized"
+  // email from the first attempt, and a re-run job must never re-email it.
+  const skipEmail = Boolean(retryRow) && !minted;
+  if (skipEmail) console.log(`${tag} retry for ${txn} still failing — no repeat "pending" email`);
+  if (!skipEmail) {
+    try {
+      await sendNftDelivery({
+        email: to,
+        customerName,
+        nftType,
+        mintId: actionId ?? 'pending',
+        nftImageUrl: imageUrl,
+        discordInviteUrl: process.env.DISCORD_INVITE_URL,
+        tier: tierSource,
+        serial: displaySerial,
+        status: minted ? 'minted' : 'pending',
+        transactionId: txn,
       });
+      if (minted && row?.id) {
+        await updateNftMint(row.id, { 'Email Delivered': true }).catch((err) => {
+          console.error(`${tag} could not flag Email Delivered on ${row.id}: ${err.message}`);
+        });
+      }
+    } catch (err) {
+      console.error(`${tag} delivery email failed for ${txn}: ${err.message}`);
+      await alert(`${p}.email_failed`, { transactionId: txn, nftType, minted, error: err.message });
     }
-  } catch (err) {
-    console.error(`${tag} delivery email failed for ${txn}: ${err.message}`);
-    await alert(`${p}.email_failed`, { transactionId: txn, nftType, minted, error: err.message });
   }
 
   // 7. A member who already linked Discord gets the new role on the next reconcile.

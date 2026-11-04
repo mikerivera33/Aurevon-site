@@ -28,6 +28,7 @@ vi.mock('stripe', () => ({
 }));
 
 import { resetStore, applyEnv, installFetch, crossmintCalls, resendCalls, deliver, txnId } from './helpers/nft-harness.js';
+import { serialFromReference } from '../fulfil.js';
 
 const SAVED = { ...process.env };
 let db;
@@ -160,6 +161,89 @@ describe('fulfilNft recovery paths', () => {
 
     expect(res).toEqual(expect.objectContaining({ minted: true, existing: true, rowId: 'mint_race', serial: 'EMBER_009' }));
     expect(resendCalls(store)).toHaveLength(0);
+    // This run's PUT went out once (same idempotency key as the winner's — a no-op on Crossmint).
+    expect(crossmintCalls(store)).toHaveLength(1);
+    expect(alerted('stripe.mint_row_dropped')).toHaveLength(0);
+  });
+
+  it('a concurrent run winning during the _dup fallback insert (DUPLICATE_PAYMENT_MINT) returns its row: no drop alert, no email', async () => {
+    db.createNftMint
+      .mockImplementationOnce(async () => { throw Object.assign(new Error('dup ref'), { code: 'DUPLICATE_REFERENCE' }); })
+      .mockImplementationOnce(async () => {
+        // The other run's row lands between our two inserts.
+        store.mints.push({ id: 'mint_winner', fields: { 'Reference': 'EMBER_005', 'Payment Transaction ID': 'cs_test_race2', 'Mint Status': 'Sent' } });
+        throw Object.assign(new Error('dup payment'), { code: 'DUPLICATE_PAYMENT_MINT' });
+      });
+
+    const res = await fulfilNft({ transactionId: 'cs_test_race2', email: BUYER, tier: 'retainer', provider: 'stripe' });
+
+    expect(res).toEqual(expect.objectContaining({ minted: true, existing: true, rowId: 'mint_winner', serial: 'EMBER_005' }));
+    expect(crossmintCalls(store)).toHaveLength(1);
+    expect(alerted('stripe.mint_row_dropped')).toHaveLength(0);
+    expect(alerted('stripe.serial_collision')).toHaveLength(1);
+    expect(resendCalls(store)).toHaveLength(0);
+    expect(db.createNftMint).toHaveBeenCalledTimes(2);
+  });
+
+  it('a concurrent run winning during the fresh-serial fallback insert returns its row: no drop alert, no email', async () => {
+    store.crossmintStatus = 500;
+    db.createNftMint
+      .mockImplementationOnce(async () => { throw Object.assign(new Error('dup ref'), { code: 'DUPLICATE_REFERENCE' }); })
+      .mockImplementationOnce(async () => {
+        store.mints.push({ id: 'mint_winner2', fields: { 'Reference': 'EMBER_006', 'Payment Transaction ID': 'cs_test_race3', 'Mint Status': 'Failed' } });
+        throw Object.assign(new Error('dup payment'), { code: 'DUPLICATE_PAYMENT_MINT' });
+      });
+
+    const res = await fulfilNft({ transactionId: 'cs_test_race3', email: BUYER, tier: 'retainer', provider: 'stripe' });
+
+    expect(res).toEqual(expect.objectContaining({ existing: true, rowId: 'mint_winner2' }));
+    expect(crossmintCalls(store)).toHaveLength(1);
+    expect(alerted('stripe.mint_row_dropped')).toHaveLength(0);
+    expect(resendCalls(store)).toHaveLength(0);
+  });
+
+  it('the _r fallback stays retryable: a later retry reuses PREFIX_NNN (the serial the first PUT carried)', async () => {
+    store.crossmintStatus = 500;
+    store.mints.push({ id: 'mint_old', fields: { 'Reference': 'EMBER_001', 'Payment Transaction ID': 'cs_test_older' } });
+    db.nextSerial.mockResolvedValueOnce(1).mockRejectedValueOnce(new Error('rpc next_serial unavailable'));
+    await fulfilNft({ transactionId: 'cs_test_rfallback', email: BUYER, tier: 'retainer', provider: 'stripe' });
+
+    const row = store.mints.find((r) => r.fields['Payment Transaction ID'] === 'cs_test_rfallback');
+    expect(row.fields['Reference']).toBe('EMBER_001_rback');
+    expect(row.fields['Mint Status']).toBe('Failed');
+
+    store.crossmintStatus = 200;
+    const res = await fulfilNft({ transactionId: 'cs_test_rfallback', email: BUYER, tier: 'retainer', provider: 'retry' });
+
+    expect(res).toEqual(expect.objectContaining({ minted: true, serial: 'EMBER_001', rowId: row.id }));
+    const mints = crossmintCalls(store);
+    expect(mints).toHaveLength(2);
+    expect(mints[1].url).toBe(mints[0].url);
+    expect(mints[1].body.metadata.attributes).toEqual(expect.arrayContaining([{ trait_type: 'Serial', value: 'EMBER_001' }]));
+    expect(resendCalls(store).at(-1).body.subject).toMatch(/#001/);
+  });
+
+  it('a retry of a MINT_ fallback row emails no serial (never the fallback reference), and a failed retry emails nothing', async () => {
+    store.serialFails = true;
+    store.crossmintStatus = 500;
+    await fulfilNft({ transactionId: 'cs_test_mintref1', email: BUYER, tier: 'retainer', provider: 'stripe' });
+    expect(store.mints[0].fields['Reference']).toBe('MINT_mintref1_EMBER');
+    expect(resendCalls(store)).toHaveLength(1); // the first "being finalized" email
+
+    store.serialFails = false;
+    await fulfilNft({ transactionId: 'cs_test_mintref1', email: BUYER, tier: 'retainer', provider: 'retry' });
+    expect(resendCalls(store)).toHaveLength(1); // failed retry: no repeat pending email
+    expect(store.mints[0].fields['Retry Count']).toBe(1);
+
+    store.crossmintStatus = 200;
+    const res = await fulfilNft({ transactionId: 'cs_test_mintref1', email: BUYER, tier: 'retainer', provider: 'retry' });
+
+    expect(res.serial).toBeNull();
+    const emails = resendCalls(store);
+    expect(emails).toHaveLength(2);
+    expect(emails[1].body.subject).toBe('Your Aurevon Ember NFT is live — Welcome to Aurevon');
+    expect(emails[1].body.html).not.toContain('MINT_');
+    expect(db.nextSerial).toHaveBeenCalledTimes(1); // the retries never reserve a serial
   });
 
   it('a row insert failure after minting alerts *.mint_row_dropped with minted:true and still emails', async () => {
@@ -181,5 +265,21 @@ describe('fulfilNft recovery paths', () => {
     expect(store.calls).toHaveLength(0);
     expect(db.findMintByPaymentId).not.toHaveBeenCalled();
     expect(db.nextSerial).not.toHaveBeenCalled();
+  });
+});
+
+describe('serialFromReference', () => {
+  it.each([
+    ['EMBER_007', 'EMBER_007'],
+    ['EMBER_007_dupab12', 'EMBER_007'],
+    ['EMBER_007_r9xYz', 'EMBER_007'],
+    ['MINT_12345678_EMBER', null],
+    ['RECOVER_cs_live_X', null],
+    ['INSIDER_007', null],      // another prefix
+    ['EMBER_007_extra', null],
+    ['', null],
+    [undefined, null],
+  ])('%s → %s', (ref, serial) => {
+    expect(serialFromReference(ref, 'EMBER')).toBe(serial);
   });
 });
