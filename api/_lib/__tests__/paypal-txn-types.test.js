@@ -541,8 +541,9 @@ describe('HTTP handler', () => {
     await p;
     expect(res.code).toBe(200);
     expect(res.payload).toBe('OK');
-    await vi.waitFor(() => expect(payment('PPHTTP0001')).toMatchObject({ 'Status': 'Succeeded' }));
-    expect(crossmintCalls(store)).toHaveLength(1);
+    // Behaviour change (final fix 5): the marker is written BEFORE the ack.
+    expect(payment('PPHTTP0001')).toMatchObject({ 'Status': 'Succeeded' });
+    await vi.waitFor(() => expect(crossmintCalls(store)).toHaveLength(1));
   });
 });
 

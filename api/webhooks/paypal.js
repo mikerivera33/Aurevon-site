@@ -85,6 +85,14 @@ function subscriptionOf(ipn, txnType) {
 // IPN Verification
 // ---------------------------------------------------------------------------
 
+const VERIFY_TIMEOUT_MS = 10_000;
+
+/**
+ * Ask PayPal whether this IPN is genuine.
+ * @returns {Promise<boolean>} true = VERIFIED, false = INVALID
+ * @throws on a network error / timeout or any other response (status page,
+ *   empty body …): the caller answers 500 so PayPal redelivers.
+ */
 async function verifyPayPalIPN(rawBody) {
   const verifyUrl = process.env.PAYPAL_MODE === 'sandbox'
     ? PAYPAL_IPN_VERIFY_URL_SANDBOX
@@ -97,11 +105,14 @@ async function verifyPayPalIPN(rawBody) {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: verifyBody,
+    signal: globalThis.AbortSignal?.timeout?.(VERIFY_TIMEOUT_MS),
   });
 
-  const result = await response.text();
-  console.log(`[PayPal IPN] Verification result: ${result}`);
-  return result.trim() === 'VERIFIED';
+  const result = String(await response.text()).trim();
+  console.log(`[PayPal IPN] Verification result: ${logToken(result)}`);
+  if (result === 'VERIFIED') return true;
+  if (result === 'INVALID') return false;
+  throw new Error(`unexpected verify response (HTTP ${response.status ?? '?'})`);
 }
 
 // ---------------------------------------------------------------------------
@@ -373,23 +384,40 @@ async function handleSubscriptionLifecycle(ipn, txnType) {
 
 // ---------------------------------------------------------------------------
 // Core pipeline (mirrors stripe handler)
+//
+// PayPal only redelivers an IPN it did not get a 200 for, so everything that
+// decides whether money is fulfilled happens BEFORE the answer:
+//   verify with PayPal → (payment types) idempotency lookup → gates → Payments
+//   marker → 200, then mint / email / billing in waitUntil.
+// A verify network error, an unexpected verify response, or a database failure
+// answers 500 so PayPal retries; INVALID answers 200 and writes nothing.
 // ---------------------------------------------------------------------------
 
-export async function handleVerifiedIPN(ipn) {
-  const txnType = ipnTxnType(ipn);
+const OK = Object.freeze({ status: 200, after: null });
+const RETRY = Object.freeze({ status: 500, after: null });
+
+/** Lifecycle notices (billing only) and ignored types (logged). Never a Payments row. */
+async function handleNonPaymentIPN(ipn, txnType) {
   if (LIFECYCLE_TXN_TYPES.has(txnType)) {
     await handleSubscriptionLifecycle(ipn, txnType);
     return;
   }
-  if (!FULFIL_TXN_TYPES.has(txnType)) {
-    // subscr_signup, refunds/adjustments, new_case, masspay, … — never fulfil.
-    console.log(`[PayPal IPN] Ignoring txn_type=${logToken(txnType)} — no fulfilment`);
-    return;
-  }
+  // subscr_signup, refunds/adjustments, new_case, masspay, … — never fulfil.
+  console.log(`[PayPal IPN] Ignoring txn_type=${logToken(txnType)} — no fulfilment`);
+}
 
+/**
+ * Payment IPN, up to and including the Payments idempotency marker. Every
+ * money-bounding gate (txn_id, payer email, Completed, receiver, USD, tier,
+ * subscription first-payment check) runs here, before the answer.
+ *
+ * @returns {Promise<{ status: 200|500, after: null|(() => Promise<void>), txnId?: string }>}
+ *   `after` (mint / email / billing) is set only once this run wrote the marker.
+ */
+async function recordPaymentIPN(ipn, txnType) {
   if (!ipn.txn_id) {
     console.error('[PayPal IPN] Verified IPN missing txn_id — refusing to process (fail-closed)');
-    return;
+    return OK;
   }
 
   const txnId = ipn.txn_id;
@@ -400,7 +428,7 @@ export async function handleVerifiedIPN(ipn) {
 
   if (!customerEmail) {
     console.error(`[PayPal IPN] No payer_email in IPN txnId=${txnId} — aborting pipeline`);
-    return;
+    return OK;
   }
 
   console.log(`[PayPal IPN] Processing txnId=${txnId} txn_type=${txnType} amount=${amount} status=${paymentStatus}`);
@@ -408,11 +436,11 @@ export async function handleVerifiedIPN(ipn) {
   // Only process completed payments
   if (paymentStatus !== 'completed') {
     console.log(`[PayPal IPN] Skipping non-completed payment (status=${paymentStatus})`);
-    return;
+    return OK;
   }
 
   // Validate receiver email to prevent fraud (fail-closed, case-insensitive).
-  if (!(await receiverIsUs(ipn.receiver_email, { txnId }))) return;
+  if (!(await receiverIsUs(ipn.receiver_email, { txnId }))) return OK;
 
   // Currency is checked only for a Completed payment to our own receiver, so
   // the alert below means real money arrived in a currency we don't price in.
@@ -425,7 +453,7 @@ export async function handleVerifiedIPN(ipn) {
       currency: ipn.mc_currency ?? null,
       gross: ipn.mc_gross ?? null,
     }).catch(() => {});
-    return;
+    return OK;
   }
 
   await alertIfItemTiersInvalid();
@@ -443,24 +471,24 @@ export async function handleVerifiedIPN(ipn) {
       // payment, and minting every period is worse than a manual review.
       console.error(`[PayPal IPN] ${txnType} ${txnId} has no usable subscription id — refusing to fulfil`);
       await sendAlert('paypal.subscr_id_missing', { txnId, txnType, tier: passType }).catch(() => {});
-      return;
+      return OK;
     }
     try {
       renewal = Boolean(await findPaymentBySubscriptionId(sub.id, sub.kind));
     } catch (err) {
-      // Fail closed: guessing "first payment" could mint again.
+      // Fail closed: guessing "first payment" could mint again. 500 → PayPal retries.
       console.error(`[PayPal IPN] subscription lookup failed for ${sub.token}: ${err.message} — aborting before marker`);
       await sendAlert('paypal.subscription_lookup_failed', { txnId, subscriptionId: sub.token, error: err.message }).catch(() => {});
-      return;
+      return RETRY;
     }
   }
 
   const token = sub ? sub.token : `paid_${passType}_${Date.now()}`;
 
   // Write Payments row — this is the idempotency MARKER and must land before the
-  // irreversible Crossmint mint. If it fails we abort: minting without a persisted
-  // marker would let a later IPN redelivery double-mint (the dedup check below
-  // queries this table). No marker ⇒ no mint. (Mirrors the Stripe handler.)
+  // irreversible Crossmint mint. If it fails we answer 500: PayPal redelivers,
+  // and minting without a persisted marker would let a later redelivery
+  // double-mint. No marker ⇒ no mint. (Mirrors the Stripe handler.)
   try {
     await createPayment({
       transactionId: txnId,
@@ -476,13 +504,19 @@ export async function handleVerifiedIPN(ipn) {
     if (err.code === 'DUPLICATE_PAYMENT') {
       // A concurrent IPN for this txn already wrote the marker and owns fulfilment.
       console.log(`[PayPal IPN] txn ${txnId} already being processed — skipping duplicate`);
-      return;
+      return OK;
     }
     console.error(`[PayPal IPN] createPayment (idempotency marker) failed: ${err.message} — aborting before mint`);
     await sendAlert('paypal.payment_marker_failed', { txnId, tier: passType, error: err.message });
-    return;
+    return RETRY;
   }
 
+  const ctx = { ipn, txnType, txnId, customerEmail, customerName, tier, passType, sub, renewal };
+  return { status: 200, after: () => fulfilPaymentIPN(ctx), txnId };
+}
+
+/** After the marker: monthly billing, renewal bookkeeping, mint / confirmation. */
+async function fulfilPaymentIPN({ ipn, txnType, txnId, customerEmail, customerName, tier, passType, sub, renewal }) {
   // Genesis billing (+31 days) for EVERY paid comm_monthly payment — one-off,
   // first subscription payment or renewal — and BEFORE fulfilNft so nothing
   // the mint path does can skip it.
@@ -531,6 +565,85 @@ export async function handleVerifiedIPN(ipn) {
   console.log(`[PayPal IPN] Pipeline complete for txnId=${txnId}`);
 }
 
+/**
+ * An already-verified IPN, start to finish (direct callers and tests): the
+ * marker phase, then the post-marker work awaited inline.
+ */
+export async function handleVerifiedIPN(ipn) {
+  const txnType = ipnTxnType(ipn);
+  if (!FULFIL_TXN_TYPES.has(txnType)) {
+    await handleNonPaymentIPN(ipn, txnType);
+    return;
+  }
+  const outcome = await recordPaymentIPN(ipn, txnType);
+  if (outcome.after) await outcome.after();
+}
+
+/**
+ * Everything that must happen before PayPal gets its answer.
+ * @returns {Promise<{ status: 200|500, after: null|(() => Promise<void>), txnId?: string }>}
+ */
+export async function acceptIPN(rawBody) {
+  const ipn = parseIPN(rawBody);
+  const txnType = ipnTxnType(ipn);
+  const txnId = ipn.txn_id || null;
+
+  let verified;
+  try {
+    verified = await verifyPayPalIPN(rawBody);
+  } catch (err) {
+    // Network error, timeout or a response that is neither VERIFIED nor
+    // INVALID: we can't tell, so PayPal must retry.
+    console.error(`[PayPal IPN] Verification request failed (txn_type=${logToken(txnType)}): ${err.message}`);
+    await sendAlert('paypal.verify_failed', { txnId, txnType: logToken(txnType), error: err.message },
+      { severity: 'high', dedupeKey: txnId ?? undefined }).catch(() => {});
+    return RETRY;
+  }
+
+  if (!verified) {
+    console.warn('[PayPal IPN] IPN verification returned INVALID — discarding');
+    await sendAlert('paypal.ipn_invalid', { txnId, txnType: logToken(txnType) },
+      { severity: 'warn', dedupeKey: txnId ?? undefined }).catch(() => {});
+    return OK;
+  }
+
+  console.log(`[PayPal IPN] Verified. txn_type=${logToken(txnType)} txn_id=${ipn.txn_id}, payment_status=${ipn.payment_status}`);
+
+  // Lifecycle notices (no txn_id) and ignored types (subscr_signup, …) never
+  // write a Payments row: ack, then process.
+  if (!FULFIL_TXN_TYPES.has(txnType)) {
+    return { status: 200, after: () => handleNonPaymentIPN(ipn, txnType), txnId };
+  }
+
+  if (!txnId) {
+    console.error('[PayPal IPN] Verified IPN missing txn_id — refusing to process (fail-closed)');
+    return OK;
+  }
+
+  // Idempotency check — a redelivery of a recorded txn_id is a no-op (the
+  // UNIQUE Transaction ID in Payments also blocks a concurrent duplicate at
+  // createPayment). A lookup failure answers 500 so PayPal retries.
+  try {
+    const prior = await findPaymentByTransactionId(txnId);
+    if (prior) {
+      console.log(`[PayPal IPN] Duplicate txn_id ${txnId} — skipping`);
+      return OK;
+    }
+  } catch (err) {
+    console.error(`[PayPal IPN] Idempotency check failed: ${err.message} — aborting`);
+    await sendAlert('paypal.idempotency_lookup_failed', { txnId, error: err.message });
+    return RETRY;
+  }
+
+  return recordPaymentIPN(ipn, txnType);
+}
+
+/** acceptIPN, then the post-ack work awaited inline (direct callers and tests). */
+export async function processIPN(rawBody) {
+  const outcome = await acceptIPN(rawBody);
+  if (outcome.after) await outcome.after();
+}
+
 // ---------------------------------------------------------------------------
 // Vercel handler
 // ---------------------------------------------------------------------------
@@ -554,67 +667,28 @@ export default async function handler(req, res) {
     return res.status(400).send('Failed to read body');
   }
 
-  // PayPal expects HTTP 200 to acknowledge receipt immediately.
+  // Verify + marker BEFORE answering: a 500 makes PayPal redeliver.
+  let outcome;
+  try {
+    outcome = await acceptIPN(rawBody);
+  } catch (err) {
+    console.error(`[PayPal IPN] Unhandled error before ack: ${err.message}`, err.stack);
+    await sendAlert('paypal.pipeline_crashed', { stage: 'accept', error: err.message }, { severity: 'critical' }).catch(() => {});
+    outcome = RETRY;
+  }
+
+  if (outcome.status !== 200) return res.status(outcome.status).send('Retry');
   res.status(200).send('OK');
 
-  // Register the post-ack pipeline with waitUntil so Vercel keeps the function
-  // alive until it settles. Without this, work after res.end() can be frozen and
-  // the verify→mint→email pipeline silently dropped (the durability bug this
-  // branch targets; the Stripe handler already uses waitUntil for the same reason).
-  waitUntil(processIPN(rawBody).catch((err) => {
-    console.error(`[PayPal IPN] Unhandled pipeline error: ${err.message}`, err.stack);
-  }));
-}
-
-export async function processIPN(rawBody) {
-  // Verify with PayPal
-  let verified;
-  try {
-    verified = await verifyPayPalIPN(rawBody);
-  } catch (err) {
-    console.error(`[PayPal IPN] Verification request failed: ${err.message}`);
-    return;
+  // Mint / email / billing after the ack. waitUntil keeps the function alive
+  // until it settles; without it work after res.end() can be frozen.
+  if (outcome.after) {
+    waitUntil(outcome.after().catch(async (err) => {
+      console.error(`[PayPal IPN] Unhandled pipeline error: ${err.message}`, err.stack);
+      await sendAlert('paypal.pipeline_crashed', { txnId: outcome.txnId ?? null, error: err.message },
+        { severity: 'critical' }).catch(() => {});
+    }));
   }
-
-  if (!verified) {
-    console.warn('[PayPal IPN] IPN verification returned INVALID — discarding');
-    return;
-  }
-
-  const ipn = parseIPN(rawBody);
-  const txnType = ipnTxnType(ipn);
-  console.log(`[PayPal IPN] Verified. txn_type=${logToken(txnType)} txn_id=${ipn.txn_id}, payment_status=${ipn.payment_status}`);
-
-  // Lifecycle notices (no txn_id) and ignored types (subscr_signup, …) never
-  // write a Payments row, so they skip the txn_id idempotency check.
-  if (!FULFIL_TXN_TYPES.has(txnType)) {
-    await handleVerifiedIPN(ipn);
-    return;
-  }
-
-  // Idempotency check — skip if this txn_id has already been processed (the
-  // UNIQUE Transaction ID in Payments also blocks a concurrent duplicate at
-  // createPayment). Lookup failure is fail-closed: the
-  // handler has already answered 200, so PayPal will NOT redeliver — the alert
-  // below is what surfaces the payment for manual recovery.
-  const txnId = ipn.txn_id;
-  if (!txnId) {
-    console.error('[PayPal IPN] Verified IPN missing txn_id — refusing to process (fail-closed)');
-    return;
-  }
-  try {
-    const prior = await findPaymentByTransactionId(txnId);
-    if (prior) {
-      console.log(`[PayPal IPN] Duplicate txn_id ${txnId} — skipping`);
-      return;
-    }
-  } catch (err) {
-    console.error(`[PayPal IPN] Idempotency check failed: ${err.message} — aborting`);
-    await sendAlert('paypal.idempotency_lookup_failed', { txnId, error: err.message });
-    return;
-  }
-
-  await handleVerifiedIPN(ipn);
 }
 
 export const config = {
