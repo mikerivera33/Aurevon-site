@@ -207,19 +207,32 @@ async function grantDiscordAccess(email, fallbackRow) {
 
 // ── Event handlers ───────────────────────────────────────────────────────────
 
-export async function handleMintSuccess(event) {
+/**
+ * Apply a succeeded mint to its row: Minted + on-chain facts, then the Discord
+ * grant. Shared by the webhook and reconcile's Sent-row polling.
+ *
+ * A row already Revoked (refund / dispute landed before Crossmint finished)
+ * keeps its status: only the on-chain facts are recorded, nothing is granted,
+ * and the owner is told (the token exists on-chain for a refunded purchase).
+ */
+export async function settleMintSucceeded(row, event) {
   const data = event?.data ?? {};
-  const row = await findMintForEvent(event);
-  if (!row) return alertUnmatched(event);
-
   const tokenId = data.token?.tokenId ?? data.token?.id;
-  const fields = {
-    'Mint Status': 'Minted',
-    'Mint Date': new Date().toISOString(),
+  const onChain = {
     'Transaction Hash': data.txId ?? '',
     'Wallet Address': data.recipient?.walletAddress ?? '',
   };
-  if (tokenId !== undefined && tokenId !== null && tokenId !== '') fields['Token ID'] = String(tokenId);
+  if (tokenId !== undefined && tokenId !== null && tokenId !== '') onChain['Token ID'] = String(tokenId);
+
+  if (row.fields?.['Mint Status'] === 'Revoked') {
+    await updateNftMint(row.id, onChain);
+    console.warn(`${LOG} row ${row.id} is Revoked — recorded on-chain facts only, no status change, no grant`);
+    await sendAlert('crossmint.revoked_row_minted', { rowId: row.id, actionId: event?.actionId ?? '' },
+      { severity: 'info', dedupeKey: row.id });
+    return;
+  }
+
+  const fields = { 'Mint Status': 'Minted', 'Mint Date': new Date().toISOString(), ...onChain };
   await updateNftMint(row.id, fields);
   console.log(`${LOG} row ${row.id} → Minted actionId=${event?.actionId ?? ''}`);
 
@@ -231,22 +244,42 @@ export async function handleMintSuccess(event) {
   await grantDiscordAccess(email, { ...row, fields: { ...row.fields, ...fields } });
 }
 
+/**
+ * Apply a failed mint to its row: Failed, the error, and a new Crossmint
+ * idempotency-key suffix — the failed action's key would only replay the
+ * failure, so the next retry-mints PUT uses `<payment>-r<n>`. A Revoked row
+ * stays Revoked (it must never re-enter the retry queue).
+ */
+export async function settleMintFailed(row, event) {
+  const err = event?.data?.error ?? {};
+  const message = err.message ?? 'unknown error';
+  const lastError = `${err.reason ? `${err.reason}: ` : ''}${message}`.slice(0, 500);
+  if (row.fields?.['Mint Status'] === 'Revoked') {
+    await updateNftMint(row.id, { 'Last Error': lastError });
+    return;
+  }
+  await updateNftMint(row.id, {
+    'Mint Status': 'Failed',
+    'Notes': `Crossmint failed: ${message}`,
+    'Last Error': lastError,
+    'Mint Key Suffix': (Number(row.fields?.['Mint Key Suffix']) || 0) + 1,
+  });
+}
+
+export async function handleMintSuccess(event) {
+  const row = await findMintForEvent(event);
+  if (!row) return alertUnmatched(event);
+  await settleMintSucceeded(row, event);
+}
+
 export async function handleMintFailure(event) {
   const actionId = event?.actionId ?? '';
   const err = event?.data?.error ?? {};
-  const message = err.message ?? 'unknown error';
   console.warn(`${LOG} mint failed actionId=${actionId} reason=${err.reason ?? ''}`);
 
   const row = await findMintForEvent(event);
-  if (row) {
-    await updateNftMint(row.id, {
-      'Mint Status': 'Failed',
-      'Notes': `Crossmint failed: ${message}`,
-      'Last Error': `${err.reason ? `${err.reason}: ` : ''}${message}`.slice(0, 500),
-    });
-  } else {
-    await alertUnmatched(event);
-  }
+  if (row) await settleMintFailed(row, event);
+  else await alertUnmatched(event);
   await sendAlert('crossmint.mint_failed_webhook', { actionId }, { dedupeKey: actionId || undefined });
 }
 

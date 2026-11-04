@@ -47,6 +47,18 @@ function isUnmintedCollisionRef(reference, prefix) {
   return new RegExp(`^${prefix}_\\d+_r[A-Za-z0-9]+$`).test(String(reference ?? ''));
 }
 
+/**
+ * The Crossmint idempotency key for a payment: the payment id, or
+ * `<payment>-r<n>` once Crossmint has reported n mint actions for it as failed
+ * (settleMintFailed bumps 'Mint Key Suffix'). Replaying a failed action's key
+ * returns that failed action; a synchronous timeout / HTTP error keeps the key
+ * because that PUT may have landed.
+ */
+export function mintIdempotencyKey(transactionId, suffix) {
+  const n = Number(suffix);
+  return Number.isInteger(n) && n > 0 ? `${transactionId}-r${n}` : String(transactionId);
+}
+
 const RETRY_BASE_MS = 15 * 60_000;
 const RETRY_CAP_MS = 32 * 60 * 60_000;
 
@@ -164,7 +176,7 @@ export async function fulfilNft({ transactionId, email, customerName, tier, prov
   let imageUrl = null;
   let notes = '';
   try {
-    const result = await mintToEmail({ email: to, walletAddress, nftType, serial, idempotencyKey: txn, entitlementKey });
+    const result = await mintToEmail({ email: to, walletAddress, nftType, serial, idempotencyKey: mintIdempotencyKey(txn, retryRow?.fields?.['Mint Key Suffix']), entitlementKey });
     if (!result?.ok) throw new Error(result?.error ?? 'Crossmint returned ok:false');
     status = 'Sent';
     actionId = result.actionId ?? null;

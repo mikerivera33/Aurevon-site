@@ -94,7 +94,9 @@ describe('event routing', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(db.updateNftMint).toHaveBeenCalledWith('row_1', {
+      // Behaviour change (final fix 3): the retry-key suffix is bumped too.
       'Mint Status': 'Failed', 'Notes': 'Crossmint failed: out of gas', 'Last Error': 'insufficient_funds: out of gas',
+      'Mint Key Suffix': 1,
     });
     expect(sendAlert).toHaveBeenCalledWith('crossmint.mint_failed_webhook', { actionId: 'act_1' }, { dedupeKey: 'act_1' });
   });
@@ -109,6 +111,38 @@ describe('event routing', () => {
   it('legacy names (action.succeeded) are ignored', async () => {
     await deliver({ type: 'action.succeeded', actionId: 'act_1', data: {} });
     expect(db.updateNftMint).not.toHaveBeenCalled();
+  });
+});
+
+describe('Revoked rows (refund landed before Crossmint finished)', () => {
+  const REVOKED = { id: 'row_r', fields: { ...ROW.fields, 'Mint Status': 'Revoked', 'Discord ID': 'd1' } };
+
+  it('a success event records the on-chain facts only: status stays Revoked, no Discord grant, info alert', async () => {
+    db.findMintByActionId.mockResolvedValue(REVOKED);
+    db.findMemberByEmail.mockResolvedValue({ id: 'm1', fields: { 'Discord ID': 'd1' } });
+    await handleMintSuccess(success());
+
+    expect(db.updateNftMint).toHaveBeenCalledTimes(1);
+    expect(db.updateNftMint).toHaveBeenCalledWith('row_r', {
+      'Token ID': '7', 'Transaction Hash': '0xabc', 'Wallet Address': '0xwallet',
+    });
+    expect(syncMemberRoles).not.toHaveBeenCalled();
+    expect(db.findMemberByEmail).not.toHaveBeenCalled();
+    expect(db.updateDiscordSyncStatus).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('crossmint.revoked_row_minted', { rowId: 'row_r', actionId: 'act_1' },
+      { severity: 'info', dedupeKey: 'row_r' });
+  });
+
+  it('a failure event keeps it Revoked (never re-enters the retry queue) and bumps no key suffix', async () => {
+    db.findMintByActionId.mockResolvedValue(REVOKED);
+    await handleMintFailure({ type: 'nfts.create.failed', actionId: 'act_1', data: { error: { message: 'boom' } } });
+    expect(db.updateNftMint).toHaveBeenCalledWith('row_r', { 'Last Error': 'boom' });
+  });
+
+  it('each webhook failure bumps the suffix from the row value', async () => {
+    db.findMintByActionId.mockResolvedValue({ id: 'row_2', fields: { ...ROW.fields, 'Mint Status': 'Sent', 'Mint Key Suffix': 2 } });
+    await handleMintFailure({ type: 'nfts.create.failed', actionId: 'act_1', data: { error: { message: 'boom' } } });
+    expect(db.updateNftMint).toHaveBeenCalledWith('row_2', expect.objectContaining({ 'Mint Status': 'Failed', 'Mint Key Suffix': 3 }));
   });
 });
 

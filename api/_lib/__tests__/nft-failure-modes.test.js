@@ -334,6 +334,49 @@ describe('fulfilNft recovery paths', () => {
   });
 });
 
+describe('Crossmint retry key (final fix 3)', () => {
+  const nftUrls = () => crossmintCalls(store).map((c) => c.url.replace(/^.*\/nfts\//, ''));
+
+  it('a webhook-reported failure makes the next retry PUT <txn>-r1, then -r2', async () => {
+    const { settleMintFailed } = await import('../../webhooks/crossmint.js');
+    await fulfilNft({ transactionId: 'cs_test_whfail', email: BUYER, tier: 'retainer', provider: 'stripe' });
+    const row = store.mints[0];
+    expect(row.fields['Mint Status']).toBe('Sent');
+
+    await settleMintFailed(row, { actionId: row.fields['Crossmint Action ID'], data: { error: { message: 'out of gas' } } });
+    expect(row.fields).toEqual(expect.objectContaining({ 'Mint Status': 'Failed', 'Mint Key Suffix': 1 }));
+
+    await fulfilNft({ transactionId: 'cs_test_whfail', email: BUYER, tier: 'retainer', provider: 'retry' });
+    await settleMintFailed(row, { actionId: row.fields['Crossmint Action ID'], data: { error: { message: 'again' } } });
+    await fulfilNft({ transactionId: 'cs_test_whfail', email: BUYER, tier: 'retainer', provider: 'retry' });
+
+    expect(nftUrls()).toEqual(['cs_test_whfail', 'cs_test_whfail-r1', 'cs_test_whfail-r2']);
+    expect(row.fields['Mint Status']).toBe('Sent');
+    expect(store.mints).toHaveLength(1);
+  });
+
+  it('a synchronous HTTP failure keeps the same key (that PUT may have landed)', async () => {
+    store.crossmintStatus = 500;
+    await fulfilNft({ transactionId: 'cs_test_syncfail', email: BUYER, tier: 'retainer', provider: 'stripe' });
+    await fulfilNft({ transactionId: 'cs_test_syncfail', email: BUYER, tier: 'retainer', provider: 'retry' });
+    store.crossmintStatus = 200;
+    await fulfilNft({ transactionId: 'cs_test_syncfail', email: BUYER, tier: 'retainer', provider: 'retry' });
+
+    expect(nftUrls()).toEqual(['cs_test_syncfail', 'cs_test_syncfail', 'cs_test_syncfail']);
+    expect(store.mints[0].fields['Mint Key Suffix']).toBeUndefined();
+  });
+});
+
+describe('mintIdempotencyKey', () => {
+  it('is the payment id for null / 0 / junk, else <txn>-r<n>', async () => {
+    const { mintIdempotencyKey } = await import('../fulfil.js');
+    expect(mintIdempotencyKey('PP1', null)).toBe('PP1');
+    expect(mintIdempotencyKey('PP1', 0)).toBe('PP1');
+    expect(mintIdempotencyKey('PP1', 'x')).toBe('PP1');
+    expect(mintIdempotencyKey('PP1', 3)).toBe('PP1-r3');
+  });
+});
+
 describe('nextRetryAt', () => {
   const T = new Date('2026-11-04T00:00:00.000Z');
   const hoursAfter = (n) => (Date.parse(nextRetryAt(n, T)) - T.getTime()) / 3_600_000;

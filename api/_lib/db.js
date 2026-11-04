@@ -76,6 +76,9 @@ export const FIELDS = {
     'Revoked At': 'revoked_at',
     'Last Error': 'last_error',
     'Next Retry At': 'next_retry_at',
+    // Crossmint idempotency-key suffix: bumped when Crossmint reports the mint
+    // action failed, so the next retry mints under `<payment>-r<n>`.
+    'Mint Key Suffix': 'mint_key_suffix',
   },
   customer_auth: {
     'Email': 'email',
@@ -120,7 +123,7 @@ const NON_TEXT = new Set([
   'active', 'join_date', 'discord_linked_at', 'discord_sync_at', 'entitlement_expires_at',
   'amount', 'purchase_price', 'payment_date', 'mint_date', 'email_delivered', 'retry_count', 'discord_synced',
   'discord_synced_at', 'token_expires', 'session_active', 'last_login', 'revoked_at', 'detail',
-  'next_retry_at',
+  'next_retry_at', 'mint_key_suffix',
 ]);
 const EMAIL_COLUMNS = new Set(['email', 'customer_email']);
 
