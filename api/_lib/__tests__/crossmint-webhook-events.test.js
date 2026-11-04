@@ -181,7 +181,8 @@ describe('Discord grant after success', () => {
     db.findMemberByEmail.mockResolvedValue({ fields: { 'Discord ID': 'd_1' } });
     db.findActiveMintsByEmail.mockResolvedValue([ROW]);
     await handleMintSuccess(success());
-    expect(syncMemberRoles).toHaveBeenCalledWith('d_1', 'role_insider');
+    // Multi-role (Task 8): every grantable role as an array, no obsolete roles.
+    expect(syncMemberRoles).toHaveBeenCalledWith('d_1', ['role_insider'], []);
     expect(db.updateNftMint).toHaveBeenCalledWith('row_1', expect.objectContaining({ 'Discord Synced': true }));
     expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith('buyer@example.com', 'synced');
   });

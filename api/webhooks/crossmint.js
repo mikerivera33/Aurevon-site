@@ -26,7 +26,8 @@ import {
   listActiveMintsByEmailAndTypeWithoutToken, findActiveMintsByEmail, updateDiscordSyncStatus,
 } from '../_lib/db.js';
 import {
-  ENTITLEMENT_MAP, resolveEntitlementFromNftType, getRoleId, pickGrantableMint, UNKNOWN_BILLING_FIELDS,
+  ENTITLEMENT_MAP, resolveEntitlementFromNftType, grantableEntitlements, grantableRoleIds, obsoleteRoleIds,
+  UNKNOWN_BILLING_FIELDS,
 } from '../_lib/entitlements.js';
 import { syncMemberRoles } from '../_lib/discord-bot.js';
 import { onEntitlementActivated } from '../_lib/engage.js';
@@ -152,23 +153,27 @@ async function grantDiscordAccess(email, fallbackRow) {
     return;
   }
 
-  const mints = await findActiveMintsByEmail(email).catch(() => [fallbackRow]);
-  const grantMint = pickGrantableMint(mints?.length ? mints : [fallbackRow], memberFields);
-  if (!grantMint) {
+  // Every pass the member holds, plus the row just minted (in case the lookup
+  // failed or has not seen the update yet).
+  const found = await findActiveMintsByEmail(email).catch(() => []);
+  const mints = [...(found ?? [])];
+  if (!mints.some((m) => m?.id === fallbackRow.id)) mints.push(fallbackRow);
+
+  const keys = grantableEntitlements(mints, memberFields);
+  if (!keys.length) {
     console.warn(`${LOG} no grantable pass (lapsed/cancelled monthly) — no role granted`);
     return;
   }
-  const nftType = grantMint.fields?.['NFT Type'] ?? '';
-  const roleKey = resolveEntitlementFromNftType(nftType);
-  const roleId = roleKey ? getRoleId(roleKey) : null;
-  if (!roleId) {
-    await sendAlert('discord.role_grant_failed', { roleKey, status: 'role_not_configured' });
+  const roleKey = keys.join(',');
+  const roleIds = grantableRoleIds(mints, memberFields);
+  if (!roleIds.length) {
+    // grantableRoleIds already raised discord.role_not_configured per entitlement.
     await updateDiscordSyncStatus(email, 'pending', { error: `No Discord role configured for ${roleKey}` }).catch(() => {});
     return;
   }
 
   try {
-    await syncMemberRoles(discordId, roleId);
+    await syncMemberRoles(discordId, roleIds, obsoleteRoleIds(mints, memberFields));
   } catch (err) {
     console.error(`${LOG} Discord role grant failed roleKey=${roleKey}`);
     await sendAlert('discord.role_grant_failed', { roleKey, status: discordStatus(err) });
@@ -177,16 +182,25 @@ async function grantDiscordAccess(email, fallbackRow) {
   }
 
   const now = new Date().toISOString();
-  await updateNftMint(grantMint.id, { 'Discord Synced': true, 'Discord Synced At': now });
+  const grantedMints = mints.filter((m) => m?.id && keys.includes(resolveEntitlementFromNftType(m.fields?.['NFT Type'] ?? '')));
+  for (const m of grantedMints) {
+    await updateNftMint(m.id, { 'Discord Synced': true, 'Discord Synced At': now });
+  }
   await updateDiscordSyncStatus(email, 'synced');
-  console.log(`${LOG} Discord role granted roleKey=${roleKey}`);
-  onEntitlementActivated({
-    email,
-    name: member?.fields?.['Customer Name'] ?? '',
-    entitlementType: roleKey,
-    nftType,
-    serial: grantMint.fields?.['Reference'] ?? '',
-  }).catch(() => {});
+  console.log(`${LOG} Discord roles granted roleKey=${roleKey}`);
+
+  // Engage: the pass this mint delivered (when it is one of those granted).
+  const nftType = fallbackRow.fields?.['NFT Type'] ?? '';
+  const mintedKey = resolveEntitlementFromNftType(nftType);
+  if (mintedKey && keys.includes(mintedKey)) {
+    onEntitlementActivated({
+      email,
+      name: member?.fields?.['Customer Name'] ?? '',
+      entitlementType: mintedKey,
+      nftType,
+      serial: fallbackRow.fields?.['Reference'] ?? '',
+    }).catch(() => {});
+  }
 }
 
 // ── Event handlers ───────────────────────────────────────────────────────────

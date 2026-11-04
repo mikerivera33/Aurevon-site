@@ -30,8 +30,11 @@ import {
   listFailedMints, listUndeliveredMints, findMintByPaymentId, findPaymentByTransactionId, listPaymentTransactionIds,
   recordOpsEvent, updateDiscordSyncStatus, updateNftMint, createNftMint, dbConfigured,
 } from '../_lib/db.js';
-import { addRoleToMember, removeRoleFromMember } from '../_lib/discord-bot.js';
-import { ENTITLEMENT_MAP, resolveEntitlementFromNftType, resolveEntitlementFromSku, getRoleId, shouldRevokeAccess, pickGrantableMint } from '../_lib/entitlements.js';
+import { syncMemberRoles, removeRoleFromMember } from '../_lib/discord-bot.js';
+import {
+  ENTITLEMENT_MAP, resolveEntitlementFromNftType, resolveEntitlementFromSku, getRoleId, shouldRevokeAccess,
+  grantableEntitlements, grantableRoleIds, obsoleteRoleIds,
+} from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
 import { sendDiscordAccessLink, sendNftDelivery } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
@@ -427,8 +430,10 @@ async function handleReconcile() {
     try {
       const mints = await findActiveMintsByEmail(email);
       if (!mints.length) continue;
-      const mintRecord = pickGrantableMint(mints, member.fields);
-      if (!mintRecord) {
+      // Every pass still grantable — a new mint (fulfil re-queues the member as
+      // 'pending') adds its role alongside the ones already held.
+      const keys = grantableEntitlements(mints, member.fields);
+      if (!keys.length) {
         // Mark it so the row leaves the pending window (listPendingDiscordSync
         // caps the batch) instead of crowding out members who can be granted.
         console.log(`[Reconcile] Pending sync denied for lapsed monthly member=${member.id} — marking revoked`);
@@ -436,14 +441,16 @@ async function handleReconcile() {
         continue;
       }
 
-      const nftType        = mintRecord.fields['NFT Type'] ?? '';
-      const entitlementKey = resolveEntitlementFromNftType(nftType);
-      const roleId         = entitlementKey ? getRoleId(entitlementKey) : null;
-      if (!roleId) continue;
+      const roleIds = grantableRoleIds(mints, member.fields);
+      if (!roleIds.length) continue;
 
-      await addRoleToMember(discordId, roleId);
+      await syncMemberRoles(discordId, roleIds, obsoleteRoleIds(mints, member.fields));
       await updateDiscordSyncStatus(email, 'synced');
-      await updateNftMint(mintRecord.id, { 'Discord Synced': true, 'Discord Synced At': now });
+      for (const mint of mints) {
+        if (keys.includes(resolveEntitlementFromNftType(mint.fields?.['NFT Type'] ?? ''))) {
+          await updateNftMint(mint.id, { 'Discord Synced': true, 'Discord Synced At': now });
+        }
+      }
       report.roleAssigned++;
       console.log(`[Reconcile] Role assigned member=${member.id}`);
     } catch (err) {

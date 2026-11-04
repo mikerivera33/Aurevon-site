@@ -12,6 +12,8 @@
  * SKU aliases cover every tier key used in stripe/checkout.js, webhooks, and PayPal.
  */
 
+import { sendAlert } from './alert.js';
+
 /** @typedef {'monthly_membership'|'lifetime_membership'|'product_a_reward'|'product_b_reward'|'product_c_reward'} EntitlementKey */
 
 /** @type {Record} */
@@ -247,16 +249,83 @@ export function buildMintRecipient({ email = null, walletAddress = null, chain =
  */
 export const UNKNOWN_BILLING_FIELDS = Object.freeze({ 'Billing State': 'unknown' });
 
+const mintEntitlement = (mint) => resolveEntitlementFromNftType(mint?.fields?.['NFT Type'] ?? '');
+
 /**
- * From a member's active mints, the first whose entitlement may still be
- * granted given their billing fields — so a lapsed monthly
- * Genesis row never hides a still-valid permanent pass. Null when none.
+ * Every entitlement a member's active mints still grant, given their billing
+ * fields — unique, in mint order. A lapsed monthly Genesis row is skipped, never
+ * hiding a permanent pass; a member with Chrome + Insider gets both.
+ * @param {Array<{fields?: Record<string, unknown>}>} mints
+ * @param {Record<string, unknown>|null|undefined} memberFields
+ * @returns {EntitlementKey[]}
+ */
+export function grantableEntitlements(mints, memberFields) {
+  const keys = [];
+  for (const mint of mints ?? []) {
+    const key = mintEntitlement(mint);
+    if (!key || keys.includes(key)) continue;
+    if (mayGrantPaidAccessFromMember(key, memberFields)) keys.push(key);
+  }
+  return keys;
+}
+
+/**
+ * Discord role ids for grantableEntitlements (unique, same order). An
+ * entitlement whose DISCORD_ROLE_* env is unset is dropped and raises a
+ * `discord.role_not_configured` alert; the rest are still returned.
+ * @param {Array<{fields?: Record<string, unknown>}>} mints
+ * @param {Record<string, unknown>|null|undefined} memberFields
+ * @returns {string[]}
+ */
+export function grantableRoleIds(mints, memberFields) {
+  const ids = [];
+  for (const key of grantableEntitlements(mints, memberFields)) {
+    const roleId = getRoleId(key);
+    if (!roleId) {
+      console.error(`[entitlements] no Discord role configured for ${key} (${ENTITLEMENT_MAP[key].discordRoleEnv})`);
+      // Best-effort and not awaited: keeps this a plain function for every caller.
+      try {
+        Promise.resolve(sendAlert('discord.role_not_configured',
+          { entitlement: key, env: ENTITLEMENT_MAP[key].discordRoleEnv },
+          { severity: 'high', dedupeKey: key })).catch(() => {});
+      } catch { /* alerting never blocks a grant */ }
+      continue;
+    }
+    if (!ids.includes(roleId)) ids.push(roleId);
+  }
+  return ids;
+}
+
+/**
+ * Roles to take away while granting: only revocable (monthly) entitlements the
+ * member holds a mint for but that billing no longer grants. A permanent or
+ * lifetime pass's role is never returned, nor any role that is also granted.
+ * @param {Array<{fields?: Record<string, unknown>}>} mints
+ * @param {Record<string, unknown>|null|undefined} memberFields
+ * @returns {string[]}
+ */
+export function obsoleteRoleIds(mints, memberFields) {
+  const granted = grantableEntitlements(mints, memberFields);
+  const grantedRoles = new Set(granted.map(getRoleId).filter(Boolean));
+  const ids = [];
+  for (const mint of mints ?? []) {
+    const key = mintEntitlement(mint);
+    if (!key || !ENTITLEMENT_MAP[key].revokeOnCancel || granted.includes(key)) continue;
+    const roleId = getRoleId(key);
+    if (roleId && !grantedRoles.has(roleId) && !ids.includes(roleId)) ids.push(roleId);
+  }
+  return ids;
+}
+
+/**
+ * The first active mint whose entitlement may still be granted (the mint behind
+ * grantableEntitlements()[0]). Kept for callers that need one row. Null when none.
  * @param {Array<{fields?: Record<string, unknown>}>} mints
  * @param {Record<string, unknown>|null|undefined} memberFields
  */
 export function pickGrantableMint(mints, memberFields) {
   for (const mint of mints ?? []) {
-    const key = resolveEntitlementFromNftType(mint?.fields?.['NFT Type'] ?? '');
+    const key = mintEntitlement(mint);
     if (!key) continue;
     if (mayGrantPaidAccessFromMember(key, memberFields)) return mint;
   }

@@ -1,4 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+vi.mock('../alert.js', () => ({ sendAlert: vi.fn().mockResolvedValue({ ok: true }) }));
+
+import { sendAlert } from '../alert.js';
 import {
   ENTITLEMENT_MAP,
   resolveEntitlementFromSku,
@@ -8,6 +12,9 @@ import {
   mayGrantPaidAccessFromMember,
   buildMintRecipient,
   pickGrantableMint,
+  grantableEntitlements,
+  grantableRoleIds,
+  obsoleteRoleIds,
   UNKNOWN_BILLING_FIELDS,
 } from '../entitlements.js';
 
@@ -273,5 +280,91 @@ describe('pickGrantableMint', () => {
   it('fails closed for monthly but not permanent when billing is unknown', () => {
     expect(pickGrantableMint([genesis], UNKNOWN_BILLING_FIELDS)).toBeNull();
     expect(pickGrantableMint([genesis, insider], UNKNOWN_BILLING_FIELDS)).toBe(insider);
+  });
+});
+
+describe('grantableEntitlements / grantableRoleIds / obsoleteRoleIds (every grantable role)', () => {
+  const ROLE_ENV = {
+    DISCORD_ROLE_MONTHLY: 'role_genesis',
+    DISCORD_ROLE_LIFETIME: 'role_chrome',
+    DISCORD_ROLE_PRODUCT_A: 'role_insider',
+    DISCORD_ROLE_PRODUCT_B: 'role_ember',
+    DISCORD_ROLE_PRODUCT_C: 'role_obsidian',
+  };
+  const SAVED = { ...process.env };
+  beforeEach(() => { vi.clearAllMocks(); Object.assign(process.env, ROLE_ENV); });
+  afterEach(() => { process.env = { ...SAVED }; });
+
+  const mint = (id, nftType) => ({ id, fields: { 'NFT Type': nftType } });
+  const genesis = mint('g', '001 Genesis');
+  const chrome = mint('c', '004 Chrome');
+  const insider = mint('i', 'Aurevon Insider');
+  const ember = mint('e', 'Aurevon Ember');
+  const obsidian = mint('o', 'Aurevon Obsidian Executive');
+  const lapsed = { 'Billing State': 'cancelled', 'Entitlement Expires At': '2020-01-01T00:00:00Z' };
+
+  it('lapsed Genesis + Chrome + Insider → exactly [DISCORD_ROLE_LIFETIME, DISCORD_ROLE_PRODUCT_A]', () => {
+    expect(grantableEntitlements([genesis, chrome, insider], lapsed)).toEqual(['lifetime_membership', 'product_a_reward']);
+    expect(grantableRoleIds([genesis, chrome, insider], lapsed)).toEqual([ROLE_ENV.DISCORD_ROLE_LIFETIME, ROLE_ENV.DISCORD_ROLE_PRODUCT_A]);
+  });
+
+  it('all five passes, active billing → all five roles, in mint order', () => {
+    const mints = [obsidian, genesis, ember, chrome, insider];
+    expect(grantableEntitlements(mints, { 'Billing State': 'active' })).toEqual([
+      'product_c_reward', 'monthly_membership', 'product_b_reward', 'lifetime_membership', 'product_a_reward',
+    ]);
+    expect(grantableRoleIds(mints, { 'Billing State': 'active' })).toEqual([
+      'role_obsidian', 'role_genesis', 'role_ember', 'role_chrome', 'role_insider',
+    ]);
+  });
+
+  it('dedupes repeated passes (two Insider rows → one role)', () => {
+    expect(grantableEntitlements([insider, { ...insider, id: 'i2' }], null)).toEqual(['product_a_reward']);
+    expect(grantableRoleIds([insider, { ...insider, id: 'i2' }], null)).toEqual(['role_insider']);
+  });
+
+  it('ignores unknown NFT types and empty input', () => {
+    expect(grantableEntitlements([mint('x', 'Web3 Starter'), chrome], null)).toEqual(['lifetime_membership']);
+    expect(grantableEntitlements([], null)).toEqual([]);
+    expect(grantableEntitlements(null, null)).toEqual([]);
+    expect(grantableRoleIds(undefined, null)).toEqual([]);
+  });
+
+  it('unknown billing fails closed for monthly only', () => {
+    expect(grantableEntitlements([genesis, chrome], UNKNOWN_BILLING_FIELDS)).toEqual(['lifetime_membership']);
+  });
+
+  it('missing role env → that role dropped, discord.role_not_configured alert (high, dedupe = entitlement), rest kept', () => {
+    delete process.env.DISCORD_ROLE_PRODUCT_A;
+    expect(grantableRoleIds([chrome, insider], null)).toEqual(['role_chrome']);
+    expect(sendAlert).toHaveBeenCalledTimes(1);
+    expect(sendAlert).toHaveBeenCalledWith('discord.role_not_configured',
+      expect.objectContaining({ entitlement: 'product_a_reward' }),
+      { severity: 'high', dedupeKey: 'product_a_reward' });
+  });
+
+  it('no alert when every grantable role is configured', () => {
+    grantableRoleIds([genesis, chrome, insider], lapsed);
+    expect(sendAlert).not.toHaveBeenCalled();
+  });
+
+  it('pickGrantableMint returns the mint behind the first grantable entitlement', () => {
+    expect(pickGrantableMint([genesis, chrome, insider], lapsed)).toBe(chrome);
+  });
+
+  it('obsoleteRoleIds: a lapsed Genesis role is removed; permanent roles never are', () => {
+    expect(obsoleteRoleIds([genesis, chrome, insider], lapsed)).toEqual(['role_genesis']);
+    expect(obsoleteRoleIds([genesis, chrome, insider], { 'Billing State': 'active' })).toEqual([]);
+    // Permanent passes have no revocable role even when billing is cancelled.
+    expect(obsoleteRoleIds([chrome, insider, ember, obsidian], lapsed)).toEqual([]);
+  });
+
+  it('obsoleteRoleIds: only roles the member could hold (no Genesis mint → nothing to remove)', () => {
+    expect(obsoleteRoleIds([chrome], lapsed)).toEqual([]);
+  });
+
+  it('obsoleteRoleIds never returns a role that is also granted (shared role id)', () => {
+    process.env.DISCORD_ROLE_MONTHLY = 'role_chrome';
+    expect(obsoleteRoleIds([genesis, chrome], lapsed)).toEqual([]);
   });
 });
