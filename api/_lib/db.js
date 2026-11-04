@@ -500,15 +500,18 @@ export async function findPaymentByTransactionId(transactionId) {
 }
 
 /**
- * Earliest Payments row recorded for a PayPal subscription (`Token` =
- * `subscr:<subscr_id>`, written by api/webhooks/paypal.js), or null. A hit
+ * Earliest Payments row recorded for a PayPal subscription, or null. PayPal
+ * writes `Token` = `subscr:<subscr_id>` (Subscribe buttons, kind 'subscr') or
+ * `rpp:<recurring_payment_id>` (recurring-payment profiles, kind 'rpp'). A hit
  * means the subscription's first payment is already recorded, so a later
- * subscr_payment is a renewal (no mint).
+ * payment is a renewal (no mint) — the webhook and the orphan sweep both rely
+ * on "earliest row = the one payment that may mint".
  */
-export async function findPaymentBySubscriptionId(subscrId) {
+export async function findPaymentBySubscriptionId(subscrId, kind = 'subscr') {
   if (!subscrId) return null;
+  if (kind !== 'subscr' && kind !== 'rpp') throw new Error(`findPaymentBySubscriptionId: unknown kind ${kind}`);
   return one('payments',
-    from('payments').eq('token', `subscr:${String(subscrId)}`).order('payment_date', { ascending: true }),
+    from('payments').eq('token', `${kind}:${String(subscrId)}`).order('payment_date', { ascending: true }),
     'findPaymentBySubscriptionId');
 }
 

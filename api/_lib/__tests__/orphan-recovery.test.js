@@ -28,6 +28,7 @@ vi.mock('../db.js', () => ({
   findMintByPaymentId: vi.fn().mockResolvedValue(null),
   // claim.js (retry-mints / reconcile):
   listUndeliveredMints: vi.fn(), findPaymentByTransactionId: vi.fn(), listPaymentTransactionIds: vi.fn(),
+  findPaymentBySubscriptionId: vi.fn().mockResolvedValue(null),
   recordOpsEvent: vi.fn(), listLapsedMonthlyWithoutExpiry: vi.fn(),
 }));
 vi.mock('../airtable-import.js', () => ({ importHasProblems: vi.fn(() => false), airtableImportEnabled: vi.fn(() => false), importFromAirtable: vi.fn() }));
@@ -156,11 +157,12 @@ describe('recoverOrphanPayments', () => {
     expect(JSON.stringify([...log.mock.calls, ...err.mock.calls])).not.toContain('private.orphan@example.com');
   });
 
-  it('re-infers an NFT tier from the amount when Pass Type is unknown (F1 durability)', async () => {
+  it('re-infers an NFT tier from the amount when a STRIPE Pass Type is unknown (F1 durability)', async () => {
     // Webhook stored 'unknown' because tier inference failed at the time, but the
     // amount matches an NFT tier — this is a dropped mint and MUST be recovered.
+    // (Task 10: Stripe rows only — a PayPal row's tier is never re-inferred.)
     db.listPaymentsSince.mockResolvedValueOnce([
-      { id: 'pay4', fields: { 'Customer Email': 'lost@example.com', 'Pass Type': 'unknown', 'Amount': 2499, 'Transaction ID': 'pp_lost' } },
+      { id: 'pay4', fields: { 'Customer Email': 'lost@example.com', 'Pass Type': 'unknown', 'Amount': 2499, 'Transaction ID': 'pp_lost', 'Payment Provider': 'Stripe Card' } },
     ]);
     db.findMintByPaymentId.mockResolvedValueOnce(null);
 
@@ -180,7 +182,7 @@ describe('recoverOrphanPayments', () => {
 
   it('does NOT recover an unknown-tier payment whose amount is a no-NFT add-on', async () => {
     db.listPaymentsSince.mockResolvedValueOnce([
-      { id: 'pay5', fields: { 'Customer Email': 'addon2@example.com', 'Pass Type': 'unknown', 'Amount': 99, 'Transaction ID': 'pp_addon' } },
+      { id: 'pay5', fields: { 'Customer Email': 'addon2@example.com', 'Pass Type': 'unknown', 'Amount': 99, 'Transaction ID': 'pp_addon', 'Payment Provider': 'Stripe Card' } },
     ]);
 
     const result = await recoverOrphanPayments({ sinceDays: 3 });
@@ -200,4 +202,63 @@ describe('recoverOrphanPayments', () => {
     expect(db.findMintByPaymentId).not.toHaveBeenCalled();
     expect(db.createNftMint).not.toHaveBeenCalled();
   });
+
+  // ── Task 10 Fix round 1 ──
+  it('never re-infers a tier for a PayPal row (the IPN handler decided it against the money)', async () => {
+    db.listPaymentsSince.mockResolvedValueOnce([
+      { id: 'pp1', fields: { 'Customer Email': 'pp@example.com', 'Pass Type': 'unknown', 'Amount': 250, 'Transaction ID': 'PPUNKNOWN1', 'Payment Provider': 'PayPal' } },
+    ]);
+    const result = await recoverOrphanPayments({ sinceDays: 3 });
+    expect(result.recovered).toBe(0);
+    expect(db.createNftMint).not.toHaveBeenCalled();
+  });
+
+  it('never re-infers for a row with no provider or a non-"unknown" unmapped label', async () => {
+    db.listPaymentsSince.mockResolvedValueOnce([
+      { id: 'np1', fields: { 'Customer Email': 'a@example.com', 'Pass Type': 'unknown', 'Amount': 2499, 'Transaction ID': 'NOPROV1' } },
+      { id: 'np2', fields: { 'Customer Email': 'b@example.com', 'Pass Type': 'mystery', 'Amount': 2499, 'Transaction ID': 'cs_test_mystery', 'Payment Provider': 'Stripe Card' } },
+    ]);
+    const result = await recoverOrphanPayments({ sinceDays: 3 });
+    expect(result.recovered).toBe(0);
+    expect(db.createNftMint).not.toHaveBeenCalled();
+  });
+
+  it("skips Pass Type 'addons' (multi-item cart) whatever the amount or provider", async () => {
+    db.listPaymentsSince.mockResolvedValueOnce([
+      { id: 'ad1', fields: { 'Customer Email': 'c@example.com', 'Pass Type': 'addons', 'Amount': 250, 'Transaction ID': 'PPCART1', 'Payment Provider': 'PayPal' } },
+      { id: 'ad2', fields: { 'Customer Email': 'c@example.com', 'Pass Type': 'addons', 'Amount': 250, 'Transaction ID': 'cs_test_cart', 'Payment Provider': 'Stripe Card' } },
+    ]);
+    const result = await recoverOrphanPayments({ sinceDays: 3 });
+    expect(result.recovered).toBe(0);
+    expect(db.findMintByPaymentId).not.toHaveBeenCalled();
+  });
+
+  it.each([['subscr', 'I-SUB1'], ['rpp', 'I-RPP1']])(
+    'a %s renewal row is never dead-lettered; the earliest row for the subscription is',
+    async (kind, id) => {
+      const firstRow = { id: 'r1', fields: { 'Customer Email': 'g@example.com', 'Pass Type': 'comm_monthly', 'Transaction ID': 'PPFIRST1', 'Payment Provider': 'PayPal', 'Token': `${kind}:${id}` } };
+      const renewalRow = { id: 'r2', fields: { ...firstRow.fields, 'Transaction ID': 'PPRENEW1' } };
+      db.listPaymentsSince.mockResolvedValueOnce([firstRow, renewalRow]);
+      db.findPaymentBySubscriptionId.mockResolvedValue(firstRow);
+
+      const result = await recoverOrphanPayments({ sinceDays: 3 });
+
+      expect(db.findPaymentBySubscriptionId).toHaveBeenCalledWith(id, kind);
+      expect(result.recovered).toBe(1);
+      expect(db.createNftMint).toHaveBeenCalledTimes(1);
+      expect(db.createNftMint).toHaveBeenCalledWith(expect.objectContaining({ paymentTransactionId: 'PPFIRST1', nftType: '001 Genesis' }));
+      db.findPaymentBySubscriptionId.mockResolvedValue(null);
+    },
+  );
+
+  it('a failed subscription lookup skips the row and counts an error', async () => {
+    db.listPaymentsSince.mockResolvedValueOnce([
+      { id: 'r3', fields: { 'Customer Email': 'g@example.com', 'Pass Type': 'comm_monthly', 'Transaction ID': 'PPLOOKUP1', 'Payment Provider': 'PayPal', 'Token': 'subscr:I-SUB2' } },
+    ]);
+    db.findPaymentBySubscriptionId.mockRejectedValueOnce(new Error('Supabase timeout'));
+    const result = await recoverOrphanPayments({ sinceDays: 3 });
+    expect(result).toEqual({ recovered: 0, errors: 1 });
+    expect(db.createNftMint).not.toHaveBeenCalled();
+  });
 });
+

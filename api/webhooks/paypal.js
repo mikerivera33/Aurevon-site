@@ -8,10 +8,11 @@
  * Same downstream pipeline as Stripe: Payments marker → fulfilNft (Crossmint → NFT_Mints → Resend).
  *
  * txn_type routing (missing txn_type = web_accept):
- *   web_accept / express_checkout / cart / subscr_payment → fulfilment
- *     (a subscr_payment for a subscr_id already on a Payments row is a renewal:
- *      recorded, monthly billing extended, never minted)
- *   subscr_cancel / subscr_eot / subscr_failed → monthly billing cancelled only
+ *   web_accept / express_checkout / cart / subscr_payment / recurring_payment → fulfilment
+ *     (a subscr_payment / recurring_payment whose subscription already has a
+ *      Payments row is a renewal: recorded, monthly billing extended, never minted)
+ *   subscr_cancel / subscr_eot / subscr_failed and the recurring-profile
+ *     cancel / expired / suspended types → monthly billing cancelled only
  *   anything else (subscr_signup, adjustments, …) → logged, nothing written
  */
 
@@ -21,7 +22,7 @@ import { resolveEntitlementFromSku } from '../_lib/entitlements.js';
 import { fulfilNft } from '../_lib/fulfil.js';
 import {
   createPayment, findPaymentByTransactionId, findPaymentBySubscriptionId,
-  findMemberByEmail, listPaymentsByEmail, updateEntitlementState,
+  listPaymentsByEmail, updateEntitlementState,
 } from '../_lib/db.js';
 import { sendPurchaseConfirmation } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
@@ -38,9 +39,15 @@ const SUBSCRIPTION_PERIOD_DAYS = 31;
 // ---------------------------------------------------------------------------
 
 /** Payment types that may fulfil (mint / confirm). Everything else never does. */
-const FULFIL_TXN_TYPES = new Set(['web_accept', 'express_checkout', 'cart', 'subscr_payment']);
+const FULFIL_TXN_TYPES = new Set(['web_accept', 'express_checkout', 'cart', 'subscr_payment', 'recurring_payment']);
+/** Recurring payments: the first one for a subscription fulfils, later ones are renewals. */
+const RECURRING_PAYMENT_TYPES = new Set(['subscr_payment', 'recurring_payment']);
 /** Subscription lifecycle types: billing state only, no Payments row, no txn_id needed. */
-const LIFECYCLE_TXN_TYPES = new Set(['subscr_cancel', 'subscr_eot', 'subscr_failed']);
+const LIFECYCLE_TXN_TYPES = new Set([
+  'subscr_cancel', 'subscr_eot', 'subscr_failed',
+  'recurring_payment_profile_cancel', 'recurring_payment_expired',
+  'recurring_payment_suspended', 'recurring_payment_suspended_due_to_max_failed_payment',
+]);
 
 /**
  * The IPN's txn_type, lower-cased. A missing txn_type is treated as
@@ -62,7 +69,17 @@ function cleanSubscrId(v) {
   return /^[A-Za-z0-9-]{1,64}$/.test(s) ? s : null;
 }
 
-const subscriptionToken = (subscrId) => `subscr:${subscrId}`;
+/**
+ * The subscription an IPN belongs to: Subscribe-button IPNs (subscr_*) carry
+ * subscr_id → Token `subscr:<id>`; recurring-payment-profile IPNs
+ * (recurring_payment*) carry recurring_payment_id → Token `rpp:<id>`.
+ * @returns {{ kind: 'subscr'|'rpp', id: string, token: string }|null}
+ */
+function subscriptionOf(ipn, txnType) {
+  const kind = txnType.startsWith('recurring_payment') ? 'rpp' : 'subscr';
+  const id = cleanSubscrId(kind === 'rpp' ? ipn.recurring_payment_id : ipn.subscr_id);
+  return id ? { kind, id, token: `${kind}:${id}` } : null;
+}
 
 // ---------------------------------------------------------------------------
 // IPN Verification
@@ -147,10 +164,13 @@ function isMultiItem(ipn) {
   return Number.isFinite(n) && n > 1;
 }
 
-/** Amount inference only for a single-item, non-cart payment. */
+/**
+ * Amount inference only for a single-item payment: num_cart_items absent or
+ * '1' — and for a cart, num_cart_items must say '1' explicitly.
+ */
 function amountInferenceAllowed(ipn) {
-  if (ipnTxnType(ipn) === 'cart') return false;
   const n = rawCartCount(ipn);
+  if (ipnTxnType(ipn) === 'cart') return n === '1';
   return n === '' || n === '1';
 }
 
@@ -171,7 +191,8 @@ function mappedTierFromItem(ipn) {
  *   more than one item           → 'addons' (never an NFT, whatever custom says)
  *   custom tier                  → only if USD paid is within $1 of its price
  *   PAYPAL_ITEM_TIERS[item]      → only if USD paid is within $1 of its price
- *   amount inference             → only when txn_type !== 'cart' and num_cart_items is absent or 1
+ *   amount inference             → only for a single item (num_cart_items absent or 1;
+ *                                  a cart must say num_cart_items=1)
  */
 export function inferTierFromIPN(ipn) {
   // Catalog prices are USD. mc_gross is in mc_currency — a 2499 JPY/MXN/HUF
@@ -237,62 +258,27 @@ async function receiverIsUs(receiver, alertDetail) {
 // Subscription billing (monthly membership only)
 // ---------------------------------------------------------------------------
 
+const isMonthlyTier = (tier) => resolveEntitlementFromSku(tier) === 'monthly_membership';
+
 /**
- * A paid subscr_payment keeps a monthly (Genesis) member's billing active for
- * one more period. Ember / Obsidian are permanent passes — their member row is
- * never touched here (a write would clobber a Genesis member's entitlement).
+ * A paid Genesis (comm_monthly) payment — one-off, first subscription payment
+ * or renewal — keeps the member's billing active for one more period. Callers
+ * only call it for a monthly tier: Ember / Obsidian are permanent passes and
+ * their member row is never touched (a write would clobber a Genesis member's
+ * entitlement). Never throws.
  */
-async function extendMonthlyBilling(email, tier, { txnId, subscrId, renewal }) {
-  const entitlementKey = resolveEntitlementFromSku(tier);
-  if (entitlementKey !== 'monthly_membership') {
-    console.log(`[PayPal IPN] subscr_payment ${txnId} (${subscrId}) tier=${tier}: not a monthly membership — no billing write`);
-    return;
-  }
+async function activateMonthlyBilling(email, { txnId, subscriptionId = null, source }) {
   const expiresAt = new Date(Date.now() + SUBSCRIPTION_PERIOD_DAYS * DAY_MS).toISOString();
   try {
     await updateEntitlementState(email, {
-      entitlementType: entitlementKey, status: 'active', billingState: 'active', expiresAt,
+      entitlementType: 'monthly_membership', status: 'active', billingState: 'active', expiresAt,
     });
-    console.log(`[PayPal IPN] Monthly billing active through ${expiresAt} (subscription ${subscrId})`);
+    console.log(`[PayPal IPN] Monthly billing active through ${expiresAt} (${source} ${txnId})`);
   } catch (err) {
-    console.error(`[PayPal IPN] updateEntitlementState (${renewal ? 'renewal' : 'first payment'}) failed: ${err.message}`);
+    console.error(`[PayPal IPN] updateEntitlementState (${source}) failed: ${err.message}`);
     await sendAlert('paypal.entitlement_write_failed', {
-      txnId, subscrId, source: renewal ? 'subscr_payment.renewal' : 'subscr_payment.first', error: err.message,
+      txnId, subscriptionId, source, error: err.message,
     }).catch(() => {});
-  }
-}
-
-/** USD regular amount (mc_amount3 / amount3) a lifecycle IPN carries, or null if absent. */
-function lifecycleRegularAmount(ipn) {
-  const raw = ipn.mc_amount3 ?? ipn.amount3;
-  if (raw === undefined || raw === null || String(raw).trim() === '') return null;
-  return parseFloat(raw);
-}
-
-/**
- * Is this subscription the monthly membership? Decided by, in order:
- *   1. its first payment's Payments row (Pass Type) — final when present;
- *   2. the regular amount the IPN carries (USD only) — final when present;
- *   3. the member row's Entitlement Type (legacy subscriptions with neither).
- * @returns {Promise<boolean|null>} null = could not decide (lookup failed; alerted)
- */
-async function subscriptionIsMonthly(ipn, row, email, detail) {
-  if (row) {
-    return resolveEntitlementFromSku(canonicalTier(row.fields?.['Pass Type'] ?? '')) === 'monthly_membership';
-  }
-  const regular = lifecycleRegularAmount(ipn);
-  if (regular !== null) {
-    if (!ipnCurrencyIsUsd(ipn) || !Number.isFinite(regular) || regular <= 0) return false;
-    const tier = inferTierFromAmount(Math.round(regular * 100));
-    return tier === 'comm_monthly';
-  }
-  try {
-    const member = await findMemberByEmail(email);
-    return member?.fields?.['Entitlement Type'] === 'monthly_membership';
-  } catch (err) {
-    console.error(`[PayPal IPN] ${detail.txnType}: member lookup failed: ${err.message}`);
-    await sendAlert('paypal.subscription_lifecycle_failed', { ...detail, step: 'member_lookup', error: err.message }).catch(() => {});
-    return null;
   }
 }
 
@@ -302,14 +288,13 @@ async function subscriptionIsMonthly(ipn, row, email, detail) {
  * subscription after starting a new one must not cancel the member.
  * @returns {Promise<boolean>} true = hold (also when the scan fails)
  */
-async function anotherMonthlySubscriptionActive(email, subscrId, detail) {
+async function anotherMonthlySubscriptionActive(email, own, detail) {
   try {
-    const own = subscrId ? subscriptionToken(subscrId) : null;
     const cutoff = Date.now() - SUBSCRIPTION_PERIOD_DAYS * DAY_MS;
     const payments = await listPaymentsByEmail(email, 50);
     return (payments ?? []).some((p) => {
       const token = String(p?.fields?.['Token'] ?? '');
-      if (!token.startsWith('subscr:') || token === own) return false;
+      if (!/^(subscr|rpp):/.test(token) || token === own) return false;
       if (resolveEntitlementFromSku(canonicalTier(p.fields?.['Pass Type'] ?? '')) !== 'monthly_membership') return false;
       const paidAt = Date.parse(p.fields?.['Payment Date'] ?? '');
       return Number.isFinite(paidAt) && paidAt > cutoff;
@@ -322,45 +307,56 @@ async function anotherMonthlySubscriptionActive(email, subscrId, detail) {
 }
 
 /**
- * subscr_cancel / subscr_eot / subscr_failed — billing state only. A monthly
- * (Genesis) member is marked cancelled; Discord role removal happens in the
- * nightly reconcile. Ember / Obsidian subscriptions are permanent passes: log
- * only. Idempotent; no txn_id required; no Payments row written.
+ * subscr_cancel / subscr_eot / subscr_failed and the recurring-profile
+ * cancel / expired / suspended types — billing state only. A monthly (Genesis)
+ * subscription marks its member's billing cancelled; Discord role removal
+ * happens in the nightly reconcile. Ember / Obsidian subscriptions are
+ * permanent passes: log only.
+ *
+ * A subscription with no Payments row of its own is a no-op: billing is never
+ * cancelled for an email on the IPN's word (amount, payer_email) alone, and no
+ * member row is created for someone who never paid us through it.
+ * Idempotent; no txn_id required; no Payments row written.
  */
 async function handleSubscriptionLifecycle(ipn, txnType) {
-  const subscrId = cleanSubscrId(ipn.subscr_id);
-  const detail = { txnType, subscrId };
-  const tag = `[PayPal IPN] ${txnType}${subscrId ? ` ${subscrId}` : ''}`;
+  const sub = subscriptionOf(ipn, txnType);
+  const detail = { txnType, subscriptionId: sub?.token ?? null };
+  const tag = `[PayPal IPN] ${txnType}${sub ? ` ${sub.token}` : ''}`;
 
   // Subscription notices may carry `business` instead of `receiver_email`.
   if (!(await receiverIsUs(ipn.receiver_email || ipn.business, detail))) return;
 
-  let row = null;
-  if (subscrId) {
-    try {
-      row = await findPaymentBySubscriptionId(subscrId);
-    } catch (err) {
-      console.error(`${tag}: subscription lookup failed: ${err.message} — no change`);
-      await sendAlert('paypal.subscription_lifecycle_failed', { ...detail, step: 'subscription_lookup', error: err.message }).catch(() => {});
-      return;
-    }
+  if (!sub) {
+    console.log(`${tag}: no subscription id — nothing to change`);
+    return;
   }
 
-  const email = String(ipn.payer_email || row?.fields?.['Customer Email'] || '').trim();
+  let row;
+  try {
+    row = await findPaymentBySubscriptionId(sub.id, sub.kind);
+  } catch (err) {
+    console.error(`${tag}: subscription lookup failed: ${err.message} — no change`);
+    await sendAlert('paypal.subscription_lifecycle_failed', { ...detail, step: 'subscription_lookup', error: err.message }).catch(() => {});
+    return;
+  }
+  if (!row) {
+    console.log(`${tag}: no Payments row for this subscription — not ours to change`);
+    return;
+  }
+  if (!isMonthlyTier(canonicalTier(row.fields?.['Pass Type'] ?? ''))) {
+    console.log(`${tag}: not a monthly membership (permanent pass or no NFT) — no billing change`);
+    return;
+  }
+
+  // The member is whoever this subscription's first payment was recorded for.
+  const email = String(row.fields?.['Customer Email'] || ipn.payer_email || '').trim();
   if (!email) {
-    console.warn(`${tag}: no payer email — cannot resolve the member`);
+    console.warn(`${tag}: no customer email on the subscription's Payments row`);
     await sendAlert('paypal.subscription_lifecycle_failed', { ...detail, step: 'no_email' }).catch(() => {});
     return;
   }
 
-  const monthly = await subscriptionIsMonthly(ipn, row, email, detail);
-  if (monthly === null) return;
-  if (!monthly) {
-    console.log(`${tag}: not a monthly membership (permanent pass or not ours) — no billing change`);
-    return;
-  }
-
-  if (await anotherMonthlySubscriptionActive(email, subscrId, detail)) {
+  if (await anotherMonthlySubscriptionActive(email, sub.token, detail)) {
     console.log(`${tag}: another monthly subscription is paid up for this member — holding`);
     await sendAlert('paypal.monthly_change_held', detail, { severity: 'info' }).catch(() => {});
     return;
@@ -436,30 +432,30 @@ export async function handleVerifiedIPN(ipn) {
   const tier = inferTierFromIPN(ipn);
   const passType = canonicalTier(tier ?? 'unknown');
 
-  // Subscriptions: only the FIRST subscr_payment for a subscr_id fulfils. A
-  // renewal (new txn_id each month) is recorded and extends billing — no mint.
-  let subscrId = null;
+  // Subscriptions: only the FIRST payment for a subscription fulfils. A
+  // renewal (new txn_id each period) is recorded and extends billing — no mint.
+  let sub = null;
   let renewal = false;
-  if (txnType === 'subscr_payment') {
-    subscrId = cleanSubscrId(ipn.subscr_id);
-    if (!subscrId) {
+  if (RECURRING_PAYMENT_TYPES.has(txnType)) {
+    sub = subscriptionOf(ipn, txnType);
+    if (!sub) {
       // Without the subscription id a renewal can't be told from a first
-      // payment, and minting every month is worse than a manual review.
-      console.error(`[PayPal IPN] subscr_payment ${txnId} has no usable subscr_id — refusing to fulfil`);
-      await sendAlert('paypal.subscr_id_missing', { txnId, tier: passType }).catch(() => {});
+      // payment, and minting every period is worse than a manual review.
+      console.error(`[PayPal IPN] ${txnType} ${txnId} has no usable subscription id — refusing to fulfil`);
+      await sendAlert('paypal.subscr_id_missing', { txnId, txnType, tier: passType }).catch(() => {});
       return;
     }
     try {
-      renewal = Boolean(await findPaymentBySubscriptionId(subscrId));
+      renewal = Boolean(await findPaymentBySubscriptionId(sub.id, sub.kind));
     } catch (err) {
       // Fail closed: guessing "first payment" could mint again.
-      console.error(`[PayPal IPN] subscription lookup failed for ${subscrId}: ${err.message} — aborting before marker`);
-      await sendAlert('paypal.subscription_lookup_failed', { txnId, subscrId, error: err.message }).catch(() => {});
+      console.error(`[PayPal IPN] subscription lookup failed for ${sub.token}: ${err.message} — aborting before marker`);
+      await sendAlert('paypal.subscription_lookup_failed', { txnId, subscriptionId: sub.token, error: err.message }).catch(() => {});
       return;
     }
   }
 
-  const token = subscrId ? subscriptionToken(subscrId) : `paid_${passType}_${Date.now()}`;
+  const token = sub ? sub.token : `paid_${passType}_${Date.now()}`;
 
   // Write Payments row — this is the idempotency MARKER and must land before the
   // irreversible Crossmint mint. If it fails we abort: minting without a persisted
@@ -487,23 +483,31 @@ export async function handleVerifiedIPN(ipn) {
     return;
   }
 
+  // Genesis billing (+31 days) for EVERY paid comm_monthly payment — one-off,
+  // first subscription payment or renewal — and BEFORE fulfilNft so nothing
+  // the mint path does can skip it.
+  const monthly = isMonthlyTier(passType);
+  if (monthly) {
+    const source = renewal ? `${txnType}.renewal` : (sub ? `${txnType}.first` : txnType);
+    await activateMonthlyBilling(customerEmail, { txnId, subscriptionId: sub?.token ?? null, source });
+  }
+
   if (renewal) {
     // Recorded above (own txn_id). No mint, no NFT email, no confirmation.
     if (tier === null) {
       // Money arrived for a known subscription at a price that matches no tier.
-      console.warn(`[PayPal IPN] Renewal ${txnId} for ${subscrId}: amount matches no tier — billing not extended`);
-      await sendAlert('paypal.subscription_renewal_unmatched', { txnId, subscrId, gross: ipn.mc_gross ?? null }).catch(() => {});
+      console.warn(`[PayPal IPN] Renewal ${txnId} for ${sub.token}: amount matches no tier — billing not extended`);
+      await sendAlert('paypal.subscription_renewal_unmatched', { txnId, subscriptionId: sub.token, gross: ipn.mc_gross ?? null }).catch(() => {});
       return;
     }
-    await extendMonthlyBilling(customerEmail, passType, { txnId, subscrId, renewal: true });
-    console.log(`[PayPal IPN] Renewal ${txnId} for subscription ${subscrId} recorded — no mint`);
+    if (!monthly) console.log(`[PayPal IPN] Renewal ${txnId} tier=${passType}: permanent pass — no billing write`);
+    console.log(`[PayPal IPN] Renewal ${txnId} for subscription ${sub.token} recorded — no mint`);
     return;
   }
 
   // NFT fulfilment (mint → NFT_Mints row → delivery email) or, for tiers
   // without an NFT (bogo / single / add-ons / unknown), a purchase confirmation.
   const result = await fulfilNft({ transactionId: txnId, email: customerEmail, customerName, tier: passType, provider: 'paypal' });
-  if (subscrId) await extendMonthlyBilling(customerEmail, passType, { txnId, subscrId, renewal: false });
   if (result.reason === 'no_nft') {
     console.log(`[PayPal IPN] Tier "${passType}" has no NFT. Sending purchase confirmation.`);
     try {

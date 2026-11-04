@@ -211,7 +211,7 @@ describe('paypal txn_type gate + lifecycle receiver (fail-closed)', () => {
     db.findPaymentBySubscriptionId.mockResolvedValueOnce({ id: 'pay_1', fields: { 'Pass Type': 'comm_monthly' } });
     await handleVerifiedIPN({ txn_type: 'subscr_cancel', subscr_id: 'I-GEN1', payer_email: 'buyer@example.com', receiver_email: 'anyone@paypal.com' });
     expect(db.updateEntitlementState).not.toHaveBeenCalled();
-    expect(sendAlert).toHaveBeenCalledWith('paypal.business_email_unset', expect.objectContaining({ txnType: 'subscr_cancel', subscrId: 'I-GEN1' }));
+    expect(sendAlert).toHaveBeenCalledWith('paypal.business_email_unset', expect.objectContaining({ txnType: 'subscr_cancel', subscriptionId: 'subscr:I-GEN1' }));
   });
 
   it('subscr_cancel for a Genesis subscription to us → billing cancelled', async () => {

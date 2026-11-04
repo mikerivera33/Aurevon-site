@@ -28,7 +28,7 @@ import {
   findMemberByEmail, findActiveMintByEmail, findActiveMintsByEmail, listUnlinkedMintsBefore, listPaymentsSince,
   findLatestPaymentByEmailAndTier, listPendingDiscordSync, listOutOfSyncEntitlements, listLapsedMonthlyWithoutExpiry,
   listFailedMints, listUndeliveredMints, findMintByPaymentId, findPaymentByTransactionId, listPaymentTransactionIds,
-  recordOpsEvent, updateDiscordSyncStatus, updateNftMint, createNftMint, dbConfigured,
+  findPaymentBySubscriptionId, recordOpsEvent, updateDiscordSyncStatus, updateNftMint, createNftMint, dbConfigured,
 } from '../_lib/db.js';
 import { syncMemberRoles, removeRoleFromMember } from '../_lib/discord-bot.js';
 import {
@@ -217,7 +217,21 @@ async function handleClaim(req, res) {
 // Dedupe is by payment id only: a buyer may own two passes of one type (two
 // purchases), so an existing row for the same email + NFT type proves nothing.
 // A Refunded / Disputed payment is never dead-lettered.
+//
+// Tier: the stored Pass Type is authoritative. Only a Stripe row stored as
+// 'unknown' may be re-inferred from its amount. A PayPal row's tier was decided
+// by the IPN handler against the money (custom / item map / single-item amount;
+// a multi-item cart is 'addons'), so re-inferring from Amount here would undo
+// that — 2 × $125 add-ons would come back as a $250 Insider.
+//
+// Subscriptions: a PayPal subscription payment carries Token `subscr:<id>` or
+// `rpp:<id>`. Only the subscription's EARLIEST row may mint; every later row is
+// a renewal and is never dead-lettered.
 const REVERSED_PAYMENT = new Set(['Refunded', 'Disputed']);
+const SUBSCRIPTION_TOKEN_RE = /^(subscr|rpp):(.+)$/;
+
+const isPayPalRow = (p) => /paypal/i.test(String(p.fields?.['Payment Provider'] ?? ''));
+const isStripeRow = (p) => /^stripe/i.test(String(p.fields?.['Payment Provider'] ?? ''));
 
 export async function recoverOrphanPayments({ sinceDays = 3 } = {}) {
   const { TIER_NFT_MAP, inferTierFromAmount, canonicalTier } = await import('../_lib/tiers.js');
@@ -237,14 +251,14 @@ export async function recoverOrphanPayments({ sinceDays = 3 } = {}) {
     const txnId = p.fields?.['Transaction ID'] ?? '';
     if (!email || !storedTier || !txnId) continue;
     if (REVERSED_PAYMENT.has(p.fields?.['Status'])) continue; // refunded / disputed: never mint
+    if (storedTier === 'addons') continue; // multi-item cart: never an NFT
 
     let tier = storedTier;
     let nftType = TIER_NFT_MAP[tier]?.nft ?? null;
-    // If the stored tier doesn't map to an NFT it may be a payment whose tier
-    // inference failed at webhook time (stored as 'unknown' / an unmapped label).
-    // Re-infer from the paid amount before concluding it's a genuine no-NFT tier
-    // — otherwise an NFT-priced payment with a bad tier label is never recovered.
-    if (!nftType) {
+    // A Stripe payment whose tier inference failed at webhook time is stored as
+    // 'unknown': re-infer from the paid amount so an NFT-priced payment with a
+    // lost tier label is still recovered. Never for PayPal (see above).
+    if (!nftType && storedTier === 'unknown' && isStripeRow(p) && !isPayPalRow(p)) {
       const amount = parseFloat(p.fields?.['Amount']);
       if (amount > 0) {
         const reTier = inferTierFromAmount(Math.round(amount * 100));
@@ -253,6 +267,20 @@ export async function recoverOrphanPayments({ sinceDays = 3 } = {}) {
       }
     }
     if (!nftType) continue; // genuine no-NFT tier (add-on / second opinion) — nothing to recover
+
+    // Subscription renewal: only the subscription's first payment may mint.
+    const sub = SUBSCRIPTION_TOKEN_RE.exec(String(p.fields?.['Token'] ?? ''));
+    if (sub) {
+      let first;
+      try {
+        first = await findPaymentBySubscriptionId(sub[2], sub[1]);
+      } catch (err) {
+        console.error(`[Reconcile] subscription lookup failed for payment ${txnId}: ${err.message}`);
+        errors++;
+        continue;
+      }
+      if (first?.fields?.['Transaction ID'] !== txnId) continue; // renewal — never minted
+    }
 
     let existing;
     try {

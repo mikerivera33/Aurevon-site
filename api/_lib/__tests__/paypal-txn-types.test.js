@@ -31,12 +31,15 @@ let db;
 let sendAlert;
 let processIPN;
 let handleVerifiedIPN;
+let recoverOrphanPayments;
+let handleRetryMints;
 
 beforeAll(async () => {
   applyEnv(); // before crossmint.js first loads (reads CROSSMINT_ENV at import)
   db = await import('../db.js');
   ({ sendAlert } = await import('../alert.js'));
   ({ processIPN, handleVerifiedIPN } = await import('../../webhooks/paypal.js'));
+  ({ recoverOrphanPayments, handleRetryMints } = await import('../../member/claim.js'));
 });
 afterAll(() => { process.env = { ...SAVED }; vi.unstubAllGlobals(); });
 
@@ -112,15 +115,13 @@ describe('PAYPAL_ITEM_TIERS', () => {
     expect(payment('PPITEMFULL')['Pass Type']).toBe('full');
   });
 
-  it('a single-item cart (no amount inference) mints only through the item map', async () => {
-    await deliver({ txn_type: 'cart', txn_id: 'PPCART1NOMAP', mc_gross: '250.00', num_cart_items: '1', item_number1: 'AUR-FULL' });
+  it('a single-item cart resolves through the item map (item_number1), money-checked', async () => {
+    process.env.PAYPAL_ITEM_TIERS = JSON.stringify({ 'AUR-OBS': 'enterprise' });
+    await deliver({ txn_type: 'cart', txn_id: 'PPCART1MAP1', mc_gross: '1.00', num_cart_items: '1', item_number1: 'AUR-OBS' });
     expect(crossmintCalls(store)).toHaveLength(0);
-    expect(payment('PPCART1NOMAP')['Pass Type']).toBe('unknown');
-
-    process.env.PAYPAL_ITEM_TIERS = JSON.stringify({ 'AUR-FULL': 'full' });
-    await deliver({ txn_type: 'cart', txn_id: 'PPCART1MAP', mc_gross: '250.00', num_cart_items: '1', item_number1: 'AUR-FULL' });
+    await deliver({ txn_type: 'cart', txn_id: 'PPCART1MAP2', mc_gross: '2499.00', num_cart_items: '1', item_number1: 'AUR-OBS' });
     expect(crossmintCalls(store)).toHaveLength(1);
-    expect(store.mints[0].fields['NFT Type']).toBe('Aurevon Insider');
+    expect(store.mints[0].fields['NFT Type']).toBe('Aurevon Obsidian Executive');
   });
 
   it('item_number mapped to enterprise at $1 → no NFT', async () => {
@@ -268,22 +269,21 @@ describe('subscription lifecycle (billing only)', () => {
     expect(db.updateEntitlementState).not.toHaveBeenCalled();
   });
 
-  it('a legacy subscription with no Payments row is judged by its regular amount (mc_amount3)', async () => {
-    await deliver({ txn_type: 'subscr_cancel', subscr_id: 'I-LEGACY01', mc_amount3: '29.99' });
-    expect(db.updateEntitlementState).toHaveBeenCalledWith(BUYER, { entitlementType: 'monthly_membership', billingState: 'cancelled' });
-    vi.clearAllMocks();
-    await deliver({ txn_type: 'subscr_cancel', subscr_id: 'I-LEGACY02', mc_amount3: '2499.00' });
-    expect(db.updateEntitlementState).not.toHaveBeenCalled();
-  });
+  it.each(['subscr_cancel', 'subscr_eot', 'subscr_failed', 'recurring_payment_profile_cancel'])(
+    '%s for a subscription with no Payments row of its own is a no-op — even at the Genesis price, even for a monthly member',
+    async (txnType) => {
+      store.members.set(BUYER, { id: 'mem_1', fields: { 'Entitlement Type': 'monthly_membership', 'Billing State': 'active' } });
+      await deliver({ txn_type: txnType, subscr_id: 'I-NOTOURS01', recurring_payment_id: 'I-NOTOURS01', mc_amount3: '29.99', amount_per_cycle: '29.99' });
+      expect(db.updateEntitlementState).not.toHaveBeenCalled();
+      expect(db.upsertMemberByEmail).not.toHaveBeenCalled();
+      expect(db.createPayment).not.toHaveBeenCalled();
+    },
+  );
 
-  it('with neither a row nor an amount, only a monthly_membership member is cancelled', async () => {
-    store.members.set(BUYER, { id: 'mem_1', fields: { 'Entitlement Type': 'product_c_reward' } });
-    await deliver({ txn_type: 'subscr_cancel', subscr_id: 'I-LEGACY03' });
+  it('a lifecycle IPN with no subscription id at all is a no-op', async () => {
+    await deliver({ txn_type: 'subscr_cancel' });
     expect(db.updateEntitlementState).not.toHaveBeenCalled();
-
-    store.members.set(BUYER, { id: 'mem_1', fields: { 'Entitlement Type': 'monthly_membership' } });
-    await deliver({ txn_type: 'subscr_cancel', subscr_id: 'I-LEGACY03' });
-    expect(db.updateEntitlementState).toHaveBeenCalledWith(BUYER, { entitlementType: 'monthly_membership', billingState: 'cancelled' });
+    expect(db.findPaymentBySubscriptionId).not.toHaveBeenCalled();
   });
 
   it('cancelling an old Genesis subscription while a newer one is paid up is held', async () => {
@@ -319,7 +319,7 @@ describe('txn_type allow-list', () => {
     expect(db.findPaymentByTransactionId).not.toHaveBeenCalled();
   });
 
-  it.each(['send_money', 'adjustment', 'new_case', 'masspay', 'recurring_payment', 'virtual_terminal'])(
+  it.each(['send_money', 'adjustment', 'new_case', 'masspay', 'virtual_terminal', 'recurring_payment_profile_created', 'recurring_payment_failed'])(
     'txn_type=%s never fulfils, even with a txn_id and a catalog amount',
     async (txnType) => {
       await deliver({ txn_type: txnType, txn_id: `PP${txnType.replace(/_/g, '')}`.slice(0, 20), mc_gross: '2499.00' });
@@ -336,5 +336,154 @@ describe('txn_type allow-list', () => {
     await deliver({ txn_id: 'PPNOTYPE01', mc_gross: '250.00' });
     expect(crossmintCalls(store)).toHaveLength(1);
     expect(store.mints[0].fields['NFT Type']).toBe('Aurevon Insider');
+  });
+});
+
+describe('recurring-payment profiles (txn_type=recurring_payment, Fix round 1)', () => {
+  const RPP = 'I-RPPGENESIS1';
+  const first = { txn_type: 'recurring_payment', recurring_payment_id: RPP, txn_id: 'PPRPP001', mc_gross: '29.99' };
+
+  it('the first recurring_payment for a profile mints Genesis; Token is rpp:<id>', async () => {
+    await deliver(first);
+    expect(crossmintCalls(store)).toHaveLength(1);
+    expect(store.mints[0].fields['NFT Type']).toBe('001 Genesis');
+    expect(payment('PPRPP001')).toMatchObject({ 'Pass Type': 'comm_monthly', 'Token': `rpp:${RPP}` });
+    expect(db.updateEntitlementState).toHaveBeenCalledWith(BUYER, expect.objectContaining({
+      entitlementType: 'monthly_membership', billingState: 'active', expiresAt: expect.any(String),
+    }));
+  });
+
+  it('a later recurring_payment for the same profile is a renewal: recorded, billing active, no mint, no email', async () => {
+    await deliver(first);
+    const emails = resendCalls(store).length;
+    vi.clearAllMocks();
+    await deliver({ ...first, txn_id: 'PPRPP002' });
+    expect(crossmintCalls(store)).toHaveLength(1);
+    expect(db.createNftMint).not.toHaveBeenCalled();
+    expect(resendCalls(store)).toHaveLength(emails);
+    expect(payment('PPRPP002')).toMatchObject({ 'Pass Type': 'comm_monthly', 'Token': `rpp:${RPP}` });
+    expect(db.updateEntitlementState).toHaveBeenCalledWith(BUYER, expect.objectContaining({ billingState: 'active' }));
+  });
+
+  it('a subscr_id and a recurring_payment_id with the same value are different subscriptions', async () => {
+    await deliver({ txn_type: 'subscr_payment', subscr_id: RPP, txn_id: 'PPSAMEID01', mc_gross: '29.99' });
+    await deliver(first);
+    expect(crossmintCalls(store)).toHaveLength(2);
+  });
+
+  it('a recurring_payment without recurring_payment_id is refused (no marker) and alerted', async () => {
+    await deliver({ ...first, recurring_payment_id: '' });
+    expect(db.createPayment).not.toHaveBeenCalled();
+    expect(crossmintCalls(store)).toHaveLength(0);
+    expect(alerted('paypal.subscr_id_missing')).toHaveLength(1);
+  });
+
+  it.each([
+    'recurring_payment_profile_cancel', 'recurring_payment_expired',
+    'recurring_payment_suspended', 'recurring_payment_suspended_due_to_max_failed_payment',
+  ])('%s for a Genesis profile → monthly billing cancelled (billing only)', async (txnType) => {
+    await deliver(first);
+    const mints = crossmintCalls(store).length;
+    vi.clearAllMocks();
+    await deliver({ txn_type: txnType, recurring_payment_id: RPP, payment_status: '' });
+    expect(db.createPayment).not.toHaveBeenCalled();
+    expect(crossmintCalls(store)).toHaveLength(mints);
+    expect(db.updateEntitlementState).toHaveBeenCalledWith(BUYER, { entitlementType: 'monthly_membership', billingState: 'cancelled' });
+  });
+
+  it('recurring_payment_profile_cancel for an Obsidian profile only logs', async () => {
+    await deliver({ ...first, recurring_payment_id: 'I-RPPOBS1', txn_id: 'PPRPPOBS1', mc_gross: '2499.00' });
+    vi.clearAllMocks();
+    await deliver({ txn_type: 'recurring_payment_profile_cancel', recurring_payment_id: 'I-RPPOBS1' });
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+  });
+});
+
+describe('Genesis billing on every comm_monthly fulfilment (Fix round 1)', () => {
+  const daysOut = (iso) => (Date.parse(iso) - Date.now()) / 86_400_000;
+
+  it.each([
+    ['web_accept', { txn_type: 'web_accept' }],
+    ['express_checkout', { txn_type: 'express_checkout' }],
+    ['single-item cart', { txn_type: 'cart', num_cart_items: '1' }],
+  ])('%s $29.99 → Genesis minted AND billing active ~31 days out, written before the mint', async (_label, extra) => {
+    await deliver({ ...extra, txn_id: 'PPONEOFFGEN', mc_gross: '29.99' });
+
+    expect(store.mints.map((m) => m.fields['NFT Type'])).toEqual(['001 Genesis']);
+    expect(db.updateEntitlementState).toHaveBeenCalledTimes(1);
+    const [email, state] = db.updateEntitlementState.mock.calls[0];
+    expect(email).toBe(BUYER);
+    expect(state).toMatchObject({ entitlementType: 'monthly_membership', status: 'active', billingState: 'active' });
+    expect(daysOut(state.expiresAt)).toBeGreaterThan(30.9);
+    expect(daysOut(state.expiresAt)).toBeLessThan(31.1);
+    expect(db.updateEntitlementState.mock.invocationCallOrder[0])
+      .toBeLessThan(db.createNftMint.mock.invocationCallOrder[0]);
+  });
+
+  it('billing is written even when the Crossmint mint fails', async () => {
+    store.crossmintStatus = 503;
+    await deliver({ txn_type: 'web_accept', txn_id: 'PPGENFAIL1', mc_gross: '29.99' });
+    expect(store.mints[0].fields['Mint Status']).toBe('Failed');
+    expect(db.updateEntitlementState).toHaveBeenCalledWith(BUYER, expect.objectContaining({ billingState: 'active' }));
+  });
+
+  it('non-monthly passes never write member billing (Insider, Chrome)', async () => {
+    await deliver({ txn_type: 'web_accept', txn_id: 'PPINSIDER1', mc_gross: '250.00' });
+    await deliver({ txn_type: 'web_accept', txn_id: 'PPCHROME1', mc_gross: '349.99' });
+    expect(store.mints).toHaveLength(2);
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+  });
+});
+
+describe('orphan sweep + retry-mints never re-mint PayPal decisions (Fix round 1)', () => {
+  const sweep = async () => {
+    const report = await recoverOrphanPayments({ sinceDays: 3 });
+    await handleRetryMints();
+    return report;
+  };
+
+  it('first + second subscr_payment, then sweep + retry → exactly ONE Crossmint call', async () => {
+    const first = { txn_type: 'subscr_payment', subscr_id: SUB, txn_id: 'PPSWEEPS1', mc_gross: '29.99' };
+    await deliver(first);
+    await deliver({ ...first, txn_id: 'PPSWEEPS2' });
+    const report = await sweep();
+    expect(report.recovered).toBe(0);
+    expect(crossmintCalls(store)).toHaveLength(1);
+    expect(store.mints).toHaveLength(1);
+  });
+
+  it('the same holds for a recurring_payment profile renewal', async () => {
+    const first = { txn_type: 'recurring_payment', recurring_payment_id: 'I-RPPSWEEP', txn_id: 'PPSWEEPR1', mc_gross: '1499.00' };
+    await deliver(first);
+    await deliver({ ...first, txn_id: 'PPSWEEPR2' });
+    await sweep();
+    expect(crossmintCalls(store)).toHaveLength(1);
+  });
+
+  it('a dropped FIRST subscription mint is still recovered — and only that one', async () => {
+    const first = { txn_type: 'subscr_payment', subscr_id: SUB, txn_id: 'PPSWEEPD1', mc_gross: '29.99' };
+    await deliver(first);
+    await deliver({ ...first, txn_id: 'PPSWEEPD2' });
+    store.mints.length = 0; // the first payment's mint row was lost
+    const report = await recoverOrphanPayments({ sinceDays: 3 });
+    expect(report.recovered).toBe(1);
+    expect(store.mints.map((m) => m.fields['Payment Transaction ID'])).toEqual(['PPSWEEPD1']);
+  });
+
+  it('2 × $125 cart → sweep → retry → 0 Crossmint calls', async () => {
+    await deliver({ txn_type: 'cart', txn_id: 'PPSWEEPC1', mc_gross: '250.00', num_cart_items: '2' });
+    const report = await sweep();
+    expect(report.recovered).toBe(0);
+    expect(crossmintCalls(store)).toHaveLength(0);
+    expect(store.mints).toHaveLength(0);
+  });
+
+  it('a PayPal "unknown" $250 row → sweep → retry → 0 Crossmint calls (no re-inference)', async () => {
+    // A cart that does not state its item count: the webhook refuses amount inference.
+    await deliver({ txn_type: 'cart', txn_id: 'PPSWEEPU1', mc_gross: '250.00' });
+    expect(payment('PPSWEEPU1')['Pass Type']).toBe('unknown');
+    const report = await sweep();
+    expect(report.recovered).toBe(0);
+    expect(crossmintCalls(store)).toHaveLength(0);
   });
 });

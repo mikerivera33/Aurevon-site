@@ -82,9 +82,12 @@ describe('inferTierFromIPN — carts (Task 10)', () => {
     expect(inferTierFromIPN({ txn_type: 'express_checkout', num_cart_items: '3', mc_gross: '2499.00' })).toBe('addons');
   });
 
-  it('a cart never uses amount inference, even with one item', () => {
-    expect(inferTierFromIPN({ txn_type: 'cart', num_cart_items: '1', mc_gross: '250.00' })).toBeNull();
-    expect(inferTierFromIPN({ txn_type: 'cart', mc_gross: '250.00' })).toBeNull();
+  it('a cart uses amount inference only when num_cart_items is exactly "1" (same $1 bound)', () => {
+    expect(inferTierFromIPN({ txn_type: 'cart', num_cart_items: '1', mc_gross: '250.00' })).toBe('full');
+    expect(inferTierFromIPN({ txn_type: 'cart', num_cart_items: '1', mc_gross: '249.50' })).toBe('full');
+    expect(inferTierFromIPN({ txn_type: 'cart', num_cart_items: '1', mc_gross: '99.00' })).toBeNull(); // add-on price: not PayPal-eligible
+    expect(inferTierFromIPN({ txn_type: 'cart', mc_gross: '250.00' })).toBeNull(); // cart without a count
+    expect(inferTierFromIPN({ txn_type: 'cart', num_cart_items: '2', mc_gross: '250.00' })).toBe('addons');
   });
 
   it('a single-item cart still honours an amount-checked custom tier', () => {

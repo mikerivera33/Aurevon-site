@@ -56,11 +56,12 @@ export function makeFakeDb(store) {
       rec.fields['Status'] = status;
       return rec;
     }),
-    listPaymentsSince: vi.fn(async () => []),
+    listPaymentsSince: vi.fn(async () => [...store.payments.values()]),
     listPaymentTransactionIds: vi.fn(async (ids) => new Set((ids ?? []).filter((id) => store.payments.has(id)))),
     findLatestPaymentByEmailAndTier: vi.fn(async () => null),
-    findPaymentBySubscriptionId: vi.fn(async (subscrId) => [...store.payments.values()]
-      .find((r) => r.fields['Token'] === `subscr:${subscrId}`) ?? null),
+    // Earliest row for the subscription (Map keeps insertion order).
+    findPaymentBySubscriptionId: vi.fn(async (subscrId, kind = 'subscr') => [...store.payments.values()]
+      .find((r) => r.fields['Token'] === `${kind}:${subscrId}`) ?? null),
     listPaymentsByEmail: vi.fn(async (email) => [...store.payments.values()]
       .filter((r) => String(r.fields['Customer Email'] ?? '').toLowerCase() === String(email).toLowerCase())),
     // serials
