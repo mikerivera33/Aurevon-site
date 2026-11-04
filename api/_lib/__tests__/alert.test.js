@@ -15,7 +15,7 @@ vi.mock('../db.js', () => ({
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sendAlert, defaultSeverity, stripPii } from '../alert.js';
+import { sendAlert, defaultSeverity, stripPii, dedupeWindowMs } from '../alert.js';
 import * as db from '../db.js';
 
 const SAVED = { ...process.env };
@@ -233,6 +233,37 @@ describe('dedupe', () => {
     const again = await sendAlert('stripe.pipeline_crashed', { eventId: 'evt_1' }, { severity: 'critical', dedupeKey: 'evt_1' });
     expect(again.deduped).toBe(true);
     expect(calls).toHaveLength(2);
+  });
+
+  it('config-class alerts (webhook_unconfigured; webhook_rejected config/sig) use a 6-hour window (final fix 12)', async () => {
+    wireBothSinks();
+    const calls = stubFetch();
+    const ago = (min) => ({ id: 'o', fields: { 'Created At': new Date(Date.now() - min * 60_000).toISOString() } });
+
+    // 2 h after the last delivery: still suppressed (was 15 min for critical).
+    db.lastOpsEvent.mockResolvedValueOnce(ago(120));
+    const held = await sendAlert('crossmint.webhook_unconfigured', {}, { severity: 'critical', dedupeKey: 'config' });
+    expect(held.deduped).toBe(true);
+    db.lastOpsEvent.mockResolvedValueOnce(ago(120));
+    expect((await sendAlert('crossmint.webhook_rejected', { reason: 'bad_signature' }, { dedupeKey: 'sig' })).deduped).toBe(true);
+    expect(calls).toHaveLength(0);
+
+    // Past 6 h: delivered again.
+    db.lastOpsEvent.mockResolvedValueOnce(ago(6 * 60 + 1));
+    const again = await sendAlert('stripe.webhook_unconfigured', {}, { severity: 'critical', dedupeKey: 'config' });
+    expect(again.deduped).toBe(false);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('dedupeWindowMs: config class 6 h; other webhook_rejected keys and other events unchanged', () => {
+    const H = 3_600_000;
+    expect(dedupeWindowMs('stripe.webhook_unconfigured', 'config', 'critical')).toBe(6 * H);
+    expect(dedupeWindowMs('crossmint.webhook_unconfigured', undefined, 'critical')).toBe(6 * H);
+    expect(dedupeWindowMs('crossmint.webhook_rejected', 'sig', 'high')).toBe(6 * H);
+    expect(dedupeWindowMs('crossmint.webhook_rejected', 'config', 'critical')).toBe(6 * H);
+    expect(dedupeWindowMs('crossmint.webhook_rejected', 'evt_1', 'critical')).toBe(15 * 60_000);
+    expect(dedupeWindowMs('stripe.pipeline_crashed', 'config', 'critical')).toBe(15 * 60_000);
+    expect(dedupeWindowMs('retry_mints.errors', 'k', 'high')).toBe(H);
   });
 
   it('without a dedupeKey there is no lookup and every alert is delivered', async () => {

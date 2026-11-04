@@ -13,7 +13,8 @@
  * supplies the default (first match), else 'high'.
  *
  * Dedupe: with `opts.dedupeKey`, both sinks are skipped when the last DELIVERED
- * alert for (event, dedupeKey) is newer than 60 min (15 min for critical).
+ * alert for (event, dedupeKey) is newer than 60 min (15 min for critical;
+ * 6 h for config-class alerts — see dedupeWindowMs).
  * Suppressed repeats are still recorded, under `<dedupeKey>:suppressed`, so the
  * window is measured from the last delivery and a persisting fault re-alerts
  * once per window instead of never again.
@@ -41,7 +42,24 @@ const SEVERITY_ALIASES = { warning: 'warn', error: 'high' };
 const SINK_TIMEOUT_MS = 8000;
 // Dedupe lookup / ops_events write are on customer + money paths: bounded.
 const DB_TIMEOUT_MS = 2500;
-const DEDUPE_WINDOW_MS = { default: 60 * 60_000, critical: 15 * 60_000 };
+const DEDUPE_WINDOW_MS = { default: 60 * 60_000, critical: 15 * 60_000, config: 6 * 60 * 60_000 };
+
+/**
+ * Config-class alerts (a missing webhook secret, every delivery failing its
+ * signature) repeat on every request until the owner fixes the setting: one
+ * delivery per 6 hours, not per 15 minutes.
+ */
+function isConfigAlert(event, dedupeKey) {
+  const e = String(event);
+  if (/\.webhook_unconfigured$/.test(e)) return true;
+  return /\.webhook_rejected$/.test(e) && (dedupeKey === 'config' || dedupeKey === 'sig');
+}
+
+/** Dedupe window for an alert, by class then severity. */
+export function dedupeWindowMs(event, dedupeKey, severity) {
+  if (isConfigAlert(event, dedupeKey)) return DEDUPE_WINDOW_MS.config;
+  return severity === 'critical' ? DEDUPE_WINDOW_MS.critical : DEDUPE_WINDOW_MS.default;
+}
 
 /** Default severity by event name. Ordered: the first match wins. */
 export const SEVERITY_RULES = [
@@ -148,7 +166,7 @@ async function isDuplicate(event, dedupeKey, severity) {
     const last = await bounded(lastOpsEvent(event, { dedupeKey }), DB_TIMEOUT_MS, 'dedupe lookup');
     const at = Date.parse(last?.fields?.['Created At'] ?? '');
     if (!Number.isFinite(at)) return false;
-    const windowMs = severity === 'critical' ? DEDUPE_WINDOW_MS.critical : DEDUPE_WINDOW_MS.default;
+    const windowMs = dedupeWindowMs(event, dedupeKey, severity);
     return Date.now() - at < windowMs;
   } catch (err) {
     console.error(`[alert] dedupe lookup failed for "${event}": ${err.message}`);
