@@ -158,10 +158,14 @@ describe('callback', () => {
     expect(bot.addRoleToMember).not.toHaveBeenCalled();
   });
 
-  it('grantable pass with no role env configured → no_nft', async () => {
+  it('grantable pass with no role env configured → role_failed (not no_nft), awaited alert, link not burned', async () => {
     delete process.env.DISCORD_ROLE_LIFETIME;
     try {
-      expectError(await callback(), 'no_nft');
+      expectError(await callback(), 'role_failed');
+      expect(sendAlert).toHaveBeenCalledWith('discord.role_not_configured',
+        { entitlementKey: 'lifetime_membership' }, { severity: 'high', dedupeKey: 'lifetime_membership' });
+      expect(bot.addMemberToGuild).not.toHaveBeenCalled();
+      expect(db.markDiscordAuthNonceUsed).not.toHaveBeenCalled();
     } finally {
       process.env.DISCORD_ROLE_LIFETIME = 'role_l';
     }

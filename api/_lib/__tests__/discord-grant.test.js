@@ -159,6 +159,19 @@ describe('OAuth callback grants every grantable role', () => {
     expect(db.updateDiscordSyncStatus).not.toHaveBeenCalledWith(EMAIL, 'synced');
   });
 
+  it('one role env missing → others granted, success page, awaited alert, sync left pending', async () => {
+    delete process.env.DISCORD_ROLE_PRODUCT_A;
+    const res = await callback();
+    expect(bot.addRoleToMember.mock.calls).toEqual([['u_1', 'role_l']]);
+    const url = new URL(res.redirectedTo);
+    expect(url.searchParams.get('error')).toBeNull();
+    expect(url.searchParams.get('role')).toBe('004 Chrome');
+    expect(sendAlert).toHaveBeenCalledWith('discord.role_not_configured',
+      { entitlementKey: 'product_a_reward' }, { severity: 'high', dedupeKey: 'product_a_reward' });
+    expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'pending');
+    expect(db.updateDiscordSyncStatus).not.toHaveBeenCalledWith(EMAIL, 'synced');
+  });
+
   it('active monthly member: Genesis role granted alongside the permanent passes', async () => {
     store.members.set(EMAIL, { id: 'mem1', fields: { Email: EMAIL, 'Billing State': 'active' } });
     await callback();
@@ -184,6 +197,30 @@ describe('check-membership cron grants every grantable role (JSON API)', () => {
     expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'synced');
     expect(res.statusCode).toBe(200);
     expect(res.body.details.synced[0]).toEqual(expect.objectContaining({ roleIds: ['role_l', 'role_a'] }));
+  });
+
+  it('a missing role env keeps the member pending; a partial failure stays pending, not failed', async () => {
+    delete process.env.DISCORD_ROLE_PRODUCT_A;
+    db.listPendingDiscordSync.mockResolvedValue([{ id: 'mem1', fields: { Email: EMAIL, 'Discord ID': 'd_1' } }]);
+    db.findActiveMintsByEmail.mockResolvedValue([CHROME, INSIDER]);
+    const run = async () => {
+      const res = mockRes();
+      await discord.default({ method: 'GET', query: { action: 'check-membership' }, headers: { authorization: `Bearer ${SYNC}` } }, res);
+      return res;
+    };
+    await run();
+    expect(bot.syncMemberRoles).toHaveBeenCalledWith('d_1', ['role_l'], []);
+    expect(sendAlert).toHaveBeenCalledWith('discord.role_not_configured',
+      { entitlementKey: 'product_a_reward' }, { severity: 'high', dedupeKey: 'product_a_reward' });
+    expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'pending');
+    expect(db.updateDiscordSyncStatus).not.toHaveBeenCalledWith(EMAIL, 'synced');
+
+    process.env.DISCORD_ROLE_PRODUCT_A = 'role_a';
+    vi.clearAllMocks();
+    bot.syncMemberRoles.mockRejectedValueOnce(Object.assign(new Error('Discord bot (403): x'), { granted: ['role_l'] }));
+    await run();
+    expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'pending', expect.anything());
+    expect(db.updateDiscordSyncStatus).not.toHaveBeenCalledWith(EMAIL, 'failed', expect.anything());
   });
 
   it('lapsed monthly only → revoked, no grant', async () => {
@@ -229,6 +266,32 @@ describe('reconcile cron (pending Discord syncs) grants every grantable role', (
     expect(db.updateNftMint).not.toHaveBeenCalledWith('g', expect.objectContaining({ 'Discord Synced': true }));
   });
 
+  it('a missing role env: grants the rest, awaited alert, member stays pending (cron retries)', async () => {
+    delete process.env.DISCORD_ROLE_PRODUCT_A;
+    db.listPendingDiscordSync.mockResolvedValue([{ id: 'mem1', fields: { Email: EMAIL, 'Discord ID': 'd_1' } }]);
+    store.mints.push(CHROME, INSIDER);
+    db.findActiveMintsByEmail.mockResolvedValue([CHROME, INSIDER]);
+    await runReconcile();
+    expect(bot.syncMemberRoles).toHaveBeenCalledWith('d_1', ['role_l'], []);
+    expect(sendAlert).toHaveBeenCalledWith('discord.role_not_configured',
+      { entitlementKey: 'product_a_reward' }, { severity: 'high', dedupeKey: 'product_a_reward' });
+    expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'pending');
+    expect(db.updateDiscordSyncStatus).not.toHaveBeenCalledWith(EMAIL, 'synced');
+    expect(db.updateNftMint).toHaveBeenCalledWith('c', expect.objectContaining({ 'Discord Synced': true }));
+    expect(db.updateNftMint).not.toHaveBeenCalledWith('i', expect.objectContaining({ 'Discord Synced': true }));
+  });
+
+  it('a partial grant failure leaves the member pending, not failed', async () => {
+    db.listPendingDiscordSync.mockResolvedValue([{ id: 'mem1', fields: { Email: EMAIL, 'Discord ID': 'd_1' } }]);
+    db.findActiveMintsByEmail.mockResolvedValue([CHROME, INSIDER]);
+    bot.syncMemberRoles.mockRejectedValueOnce(Object.assign(new Error('Discord bot (403): Missing Permissions'),
+      { failedRoleIds: ['role_a'], granted: ['role_l'] }));
+    const res = await runReconcile();
+    expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'pending', expect.objectContaining({ error: expect.any(String) }));
+    expect(db.updateDiscordSyncStatus).not.toHaveBeenCalledWith(EMAIL, 'failed', expect.anything());
+    expect(res.body.report).toEqual(expect.objectContaining({ roleAssigned: 0, syncFailed: 1 }));
+  });
+
   it('a failed grant marks the member failed and counts it', async () => {
     db.listPendingDiscordSync.mockResolvedValue([{ id: 'mem1', fields: { Email: EMAIL, 'Discord ID': 'd_1' } }]);
     db.findActiveMintsByEmail.mockResolvedValue([CHROME, INSIDER]);
@@ -262,13 +325,26 @@ describe('Crossmint mint-success grants every grantable role', () => {
     expect(bot.syncMemberRoles).toHaveBeenCalledWith('d_1', ['role_l', 'role_a'], []);
   });
 
-  it('a missing role env alerts role_not_configured and still grants the others', async () => {
+  it('a missing role env: awaited role_not_configured alert, others granted, member left pending', async () => {
     delete process.env.DISCORD_ROLE_PRODUCT_A;
     db.findActiveMintsByEmail.mockResolvedValue([CHROME, NEW_ROW]);
     await crossmint.handleMintSuccess(success);
     expect(sendAlert).toHaveBeenCalledWith('discord.role_not_configured',
-      expect.objectContaining({ entitlement: 'product_a_reward' }), { severity: 'high', dedupeKey: 'product_a_reward' });
+      { entitlementKey: 'product_a_reward' }, { severity: 'high', dedupeKey: 'product_a_reward' });
     expect(bot.syncMemberRoles).toHaveBeenCalledWith('d_1', ['role_l'], []);
+    expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'pending');
+    expect(db.updateDiscordSyncStatus).not.toHaveBeenCalledWith(EMAIL, 'synced');
+    expect(db.updateNftMint).not.toHaveBeenCalledWith('i', expect.objectContaining({ 'Discord Synced': true }));
+  });
+
+  it('every role env missing: alert awaited, member left pending, nothing granted', async () => {
+    delete process.env.DISCORD_ROLE_PRODUCT_A;
+    delete process.env.DISCORD_ROLE_LIFETIME;
+    db.findActiveMintsByEmail.mockResolvedValue([CHROME, NEW_ROW]);
+    await crossmint.handleMintSuccess(success);
+    expect(sendAlert).toHaveBeenCalledTimes(2);
+    expect(bot.syncMemberRoles).not.toHaveBeenCalled();
+    expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'pending', expect.objectContaining({ error: expect.any(String) }));
   });
 });
 

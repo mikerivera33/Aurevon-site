@@ -14,6 +14,7 @@ import {
   pickGrantableMint,
   grantableEntitlements,
   grantableRoleIds,
+  alertMissingRoles,
   obsoleteRoleIds,
   UNKNOWN_BILLING_FIELDS,
 } from '../entitlements.js';
@@ -305,7 +306,9 @@ describe('grantableEntitlements / grantableRoleIds / obsoleteRoleIds (every gran
 
   it('lapsed Genesis + Chrome + Insider → exactly [DISCORD_ROLE_LIFETIME, DISCORD_ROLE_PRODUCT_A]', () => {
     expect(grantableEntitlements([genesis, chrome, insider], lapsed)).toEqual(['lifetime_membership', 'product_a_reward']);
-    expect(grantableRoleIds([genesis, chrome, insider], lapsed)).toEqual([ROLE_ENV.DISCORD_ROLE_LIFETIME, ROLE_ENV.DISCORD_ROLE_PRODUCT_A]);
+    expect(grantableRoleIds([genesis, chrome, insider], lapsed)).toEqual({
+      roleIds: [ROLE_ENV.DISCORD_ROLE_LIFETIME, ROLE_ENV.DISCORD_ROLE_PRODUCT_A], missing: [],
+    });
   });
 
   it('all five passes, active billing → all five roles, in mint order', () => {
@@ -313,39 +316,50 @@ describe('grantableEntitlements / grantableRoleIds / obsoleteRoleIds (every gran
     expect(grantableEntitlements(mints, { 'Billing State': 'active' })).toEqual([
       'product_c_reward', 'monthly_membership', 'product_b_reward', 'lifetime_membership', 'product_a_reward',
     ]);
-    expect(grantableRoleIds(mints, { 'Billing State': 'active' })).toEqual([
+    expect(grantableRoleIds(mints, { 'Billing State': 'active' }).roleIds).toEqual([
       'role_obsidian', 'role_genesis', 'role_ember', 'role_chrome', 'role_insider',
     ]);
   });
 
   it('dedupes repeated passes (two Insider rows → one role)', () => {
     expect(grantableEntitlements([insider, { ...insider, id: 'i2' }], null)).toEqual(['product_a_reward']);
-    expect(grantableRoleIds([insider, { ...insider, id: 'i2' }], null)).toEqual(['role_insider']);
+    expect(grantableRoleIds([insider, { ...insider, id: 'i2' }], null)).toEqual({ roleIds: ['role_insider'], missing: [] });
   });
 
   it('ignores unknown NFT types and empty input', () => {
     expect(grantableEntitlements([mint('x', 'Web3 Starter'), chrome], null)).toEqual(['lifetime_membership']);
     expect(grantableEntitlements([], null)).toEqual([]);
     expect(grantableEntitlements(null, null)).toEqual([]);
-    expect(grantableRoleIds(undefined, null)).toEqual([]);
+    expect(grantableRoleIds(undefined, null)).toEqual({ roleIds: [], missing: [] });
   });
 
   it('unknown billing fails closed for monthly only', () => {
     expect(grantableEntitlements([genesis, chrome], UNKNOWN_BILLING_FIELDS)).toEqual(['lifetime_membership']);
   });
 
-  it('missing role env → that role dropped, discord.role_not_configured alert (high, dedupe = entitlement), rest kept', () => {
+  it('missing role env → role left out and listed in missing; grantableRoleIds itself never alerts (pure)', () => {
     delete process.env.DISCORD_ROLE_PRODUCT_A;
-    expect(grantableRoleIds([chrome, insider], null)).toEqual(['role_chrome']);
-    expect(sendAlert).toHaveBeenCalledTimes(1);
-    expect(sendAlert).toHaveBeenCalledWith('discord.role_not_configured',
-      expect.objectContaining({ entitlement: 'product_a_reward' }),
-      { severity: 'high', dedupeKey: 'product_a_reward' });
+    expect(grantableRoleIds([chrome, insider], null)).toEqual({ roleIds: ['role_chrome'], missing: ['product_a_reward'] });
+    expect(sendAlert).not.toHaveBeenCalled();
   });
 
-  it('no alert when every grantable role is configured', () => {
-    grantableRoleIds([genesis, chrome, insider], lapsed);
+  it('alertMissingRoles awaits one discord.role_not_configured alert per key (high, dedupe = key)', async () => {
+    let settled = 0;
+    sendAlert.mockImplementation(() => new Promise((r) => setTimeout(() => { settled++; r({ ok: true }); }, 5)));
+    await alertMissingRoles(['product_a_reward', 'lifetime_membership']);
+    expect(settled).toBe(2); // both alerts finished before the call resolved
+    expect(sendAlert.mock.calls).toEqual([
+      ['discord.role_not_configured', { entitlementKey: 'product_a_reward' }, { severity: 'high', dedupeKey: 'product_a_reward' }],
+      ['discord.role_not_configured', { entitlementKey: 'lifetime_membership' }, { severity: 'high', dedupeKey: 'lifetime_membership' }],
+    ]);
+    sendAlert.mockResolvedValue({ ok: true });
+  });
+
+  it('alertMissingRoles: nothing missing → no alert; a throwing sink never propagates', async () => {
+    await alertMissingRoles([]);
     expect(sendAlert).not.toHaveBeenCalled();
+    sendAlert.mockRejectedValueOnce(new Error('sink down'));
+    await expect(alertMissingRoles(['product_a_reward'])).resolves.toBeUndefined();
   });
 
   it('pickGrantableMint returns the mint behind the first grantable entitlement', () => {

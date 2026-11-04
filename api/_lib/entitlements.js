@@ -270,30 +270,37 @@ export function grantableEntitlements(mints, memberFields) {
 }
 
 /**
- * Discord role ids for grantableEntitlements (unique, same order). An
- * entitlement whose DISCORD_ROLE_* env is unset is dropped and raises a
- * `discord.role_not_configured` alert; the rest are still returned.
+ * Discord role ids for grantableEntitlements (unique, same order). Pure: an
+ * entitlement whose DISCORD_ROLE_* env is unset is left out of `roleIds` and
+ * listed in `missing` — callers await alertMissingRoles(missing) and keep the
+ * member's sync 'pending' so the cron grants it once the env is set.
  * @param {Array<{fields?: Record<string, unknown>}>} mints
  * @param {Record<string, unknown>|null|undefined} memberFields
- * @returns {string[]}
+ * @returns {{ roleIds: string[], missing: EntitlementKey[] }}
  */
 export function grantableRoleIds(mints, memberFields) {
-  const ids = [];
+  const roleIds = [];
+  const missing = [];
   for (const key of grantableEntitlements(mints, memberFields)) {
     const roleId = getRoleId(key);
-    if (!roleId) {
-      console.error(`[entitlements] no Discord role configured for ${key} (${ENTITLEMENT_MAP[key].discordRoleEnv})`);
-      // Best-effort and not awaited: keeps this a plain function for every caller.
-      try {
-        Promise.resolve(sendAlert('discord.role_not_configured',
-          { entitlement: key, env: ENTITLEMENT_MAP[key].discordRoleEnv },
-          { severity: 'high', dedupeKey: key })).catch(() => {});
-      } catch { /* alerting never blocks a grant */ }
-      continue;
-    }
-    if (!ids.includes(roleId)) ids.push(roleId);
+    if (!roleId) { missing.push(key); continue; }
+    if (!roleIds.includes(roleId)) roleIds.push(roleId);
   }
-  return ids;
+  return { roleIds, missing };
+}
+
+/**
+ * One `discord.role_not_configured` alert per entitlement whose role env is
+ * unset (high, deduped on the entitlement key). Never throws.
+ * @param {EntitlementKey[]} missing
+ */
+export async function alertMissingRoles(missing) {
+  for (const key of missing ?? []) {
+    console.error(`[entitlements] no Discord role configured for ${key} (${ENTITLEMENT_MAP[key]?.discordRoleEnv ?? '?'})`);
+    try {
+      await sendAlert('discord.role_not_configured', { entitlementKey: key }, { severity: 'high', dedupeKey: key });
+    } catch { /* alerting never blocks a grant */ }
+  }
 }
 
 /**

@@ -17,8 +17,8 @@ import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 import { addRoleToMember, addMemberToGuild, syncMemberRoles } from './_lib/discord-bot.js';
 import { upsertDiscordLink, updateDiscordSyncStatus, findActiveMintsByEmail, findMemberByEmail, isDiscordAuthNonceUsed, markDiscordAuthNonceUsed, dbConfigured } from './_lib/db.js';
 import {
-  ENTITLEMENT_MAP, resolveEntitlementFromNftType, getRoleId,
-  grantableEntitlements, grantableRoleIds, obsoleteRoleIds, UNKNOWN_BILLING_FIELDS,
+  ENTITLEMENT_MAP, resolveEntitlementFromNftType,
+  grantableEntitlements, grantableRoleIds, obsoleteRoleIds, alertMissingRoles, UNKNOWN_BILLING_FIELDS,
 } from './_lib/entitlements.js';
 import { sendAlert } from './_lib/alert.js';
 import { onEntitlementActivated } from './_lib/engage.js';
@@ -245,11 +245,15 @@ async function handleCallback(req, res) {
     memberFields = UNKNOWN_BILLING_FIELDS;
   }
   const keys = grantableEntitlements(mints ?? [], memberFields);
-  const roleIds = grantableRoleIds(mints ?? [], memberFields);
-  if (!roleIds.length) {
-    console.warn(`[Discord] no grantable role (entitlements=${keys.join(',') || 'none'})`);
+  if (!keys.length) {
+    console.warn('[Discord] no grantable pass for this link');
     return redirectError(res, 'no_nft');
   }
+  // A paying member whose role env is unset is our config fault, not a missing
+  // membership: alert, show "couldn't link", and leave the link unburned.
+  const { roleIds, missing } = grantableRoleIds(mints, memberFields);
+  await alertMissingRoles(missing);
+  if (!roleIds.length) return redirectError(res, 'role_failed');
 
   // Join the guild with every role (no-op for members already in it), then add
   // each role explicitly — idempotent, and covers members who were already in.
@@ -269,11 +273,11 @@ async function handleCallback(req, res) {
     if (all) return redirectError(res, 'role_failed');
   }
 
-  // Persist the Discord link. A partial grant stays 'pending' so the reconcile
-  // cron retries the missing role(s).
+  // Persist the Discord link. A partial grant (failed add or unconfigured role)
+  // stays 'pending' so the reconcile cron grants the rest.
   try {
     await upsertDiscordLink(email, { discordId: user.id, discordUsername: user.username });
-    await updateDiscordSyncStatus(email, failed.length ? 'pending' : 'synced');
+    await updateDiscordSyncStatus(email, failed.length || missing.length ? 'pending' : 'synced');
   } catch (e) {
     console.error(`[Discord] member update failed: ${e.message}`);
   }
@@ -288,8 +292,9 @@ async function handleCallback(req, res) {
   }
 
   // Fire Engage events (non-fatal), one per pass granted.
-  const nftTypes = keys.filter((k) => getRoleId(k)).map((k) => ENTITLEMENT_MAP[k].nftType);
-  for (const key of keys) {
+  const grantedKeys = keys.filter((k) => !missing.includes(k));
+  const nftTypes = grantedKeys.map((k) => ENTITLEMENT_MAP[k].nftType);
+  for (const key of grantedKeys) {
     const mint = (mints ?? []).find((m) => resolveEntitlementFromNftType(m?.fields?.['NFT Type'] ?? '') === key);
     onEntitlementActivated({
       email,
@@ -341,17 +346,19 @@ async function handleSync(req, res) {
   const entitlementKeys = grantableEntitlements(mints, member.fields);
   if (!entitlementKeys.length) return res.status(403).json({ error: 'Membership is no longer active' });
 
-  const roleIds = grantableRoleIds(mints, member.fields);
+  const { roleIds, missing } = grantableRoleIds(mints, member.fields);
+  await alertMissingRoles(missing);
   if (!roleIds.length) {
-    return res.status(500).json({ error: `No Discord role configured for entitlement: ${entitlementKeys.join(',')}` });
+    return res.status(500).json({ error: `No Discord role configured for entitlement: ${missing.join(',')}` });
   }
 
   try {
     await syncMemberRoles(discordId, roleIds, obsoleteRoleIds(mints, member.fields));
-    await updateDiscordSyncStatus(email, 'synced');
-    return res.status(200).json({ ok: true, discordId, roleIds, entitlementKeys });
+    await updateDiscordSyncStatus(email, missing.length ? 'pending' : 'synced');
+    return res.status(200).json({ ok: true, discordId, roleIds, entitlementKeys, ...(missing.length ? { missing } : {}) });
   } catch (e) {
-    await updateDiscordSyncStatus(email, 'failed', { error: e.message }).catch(() => {});
+    const partial = (e.granted?.length ?? 0) > 0;
+    await updateDiscordSyncStatus(email, partial ? 'pending' : 'failed', { error: e.message }).catch(() => {});
     return res.status(502).json({ error: 'Role assignment failed', detail: e.message, roleIds, failedRoleIds: e.failedRoleIds ?? roleIds });
   }
 }
@@ -417,14 +424,17 @@ async function handleCheckMembership(req, res) {
           await updateSync(email, 'revoked');
           continue;
         }
-        const roleIds = grantableRoleIds(mints, member.fields);
-        if (!roleIds.length) continue;
+        const { roleIds, missing } = grantableRoleIds(mints, member.fields);
+        await alertMissingRoles(missing);
+        if (!roleIds.length) continue; // stays 'pending' until the role env is set
         await syncMemberRoles(discordId, roleIds, obsoleteRoleIds(mints, member.fields));
-        await updateSync(email, 'synced');
+        await updateSync(email, missing.length ? 'pending' : 'synced');
         synced.push({ email, discordId, roleIds, entitlementKeys });
       } catch (err) {
         errors.push({ email, error: err.message });
-        await updateSync(email, 'failed', { error: err.message }).catch(() => {});
+        // A partial grant stays 'pending' so the next run adds the rest.
+        const partial = (err.granted?.length ?? 0) > 0;
+        await updateSync(email, partial ? 'pending' : 'failed', { error: err.message }).catch(() => {});
       }
     }
   } catch (err) {

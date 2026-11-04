@@ -27,7 +27,7 @@ import {
 } from '../_lib/db.js';
 import {
   ENTITLEMENT_MAP, resolveEntitlementFromNftType, grantableEntitlements, grantableRoleIds, obsoleteRoleIds,
-  UNKNOWN_BILLING_FIELDS,
+  alertMissingRoles, UNKNOWN_BILLING_FIELDS,
 } from '../_lib/entitlements.js';
 import { syncMemberRoles } from '../_lib/discord-bot.js';
 import { onEntitlementActivated } from '../_lib/engage.js';
@@ -165,9 +165,9 @@ async function grantDiscordAccess(email, fallbackRow) {
     return;
   }
   const roleKey = keys.join(',');
-  const roleIds = grantableRoleIds(mints, memberFields);
+  const { roleIds, missing } = grantableRoleIds(mints, memberFields);
+  await alertMissingRoles(missing);
   if (!roleIds.length) {
-    // grantableRoleIds already raised discord.role_not_configured per entitlement.
     await updateDiscordSyncStatus(email, 'pending', { error: `No Discord role configured for ${roleKey}` }).catch(() => {});
     return;
   }
@@ -182,17 +182,19 @@ async function grantDiscordAccess(email, fallbackRow) {
   }
 
   const now = new Date().toISOString();
-  const grantedMints = mints.filter((m) => m?.id && keys.includes(resolveEntitlementFromNftType(m.fields?.['NFT Type'] ?? '')));
+  const grantedKeys = keys.filter((k) => !missing.includes(k));
+  const grantedMints = mints.filter((m) => m?.id && grantedKeys.includes(resolveEntitlementFromNftType(m.fields?.['NFT Type'] ?? '')));
   for (const m of grantedMints) {
     await updateNftMint(m.id, { 'Discord Synced': true, 'Discord Synced At': now });
   }
-  await updateDiscordSyncStatus(email, 'synced');
+  // An unconfigured role keeps the member 'pending' so reconcile grants it later.
+  await updateDiscordSyncStatus(email, missing.length ? 'pending' : 'synced');
   console.log(`${LOG} Discord roles granted roleKey=${roleKey}`);
 
   // Engage: the pass this mint delivered (when it is one of those granted).
   const nftType = fallbackRow.fields?.['NFT Type'] ?? '';
   const mintedKey = resolveEntitlementFromNftType(nftType);
-  if (mintedKey && keys.includes(mintedKey)) {
+  if (mintedKey && grantedKeys.includes(mintedKey)) {
     onEntitlementActivated({
       email,
       name: member?.fields?.['Customer Name'] ?? '',

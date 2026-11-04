@@ -33,7 +33,7 @@ import {
 import { syncMemberRoles, removeRoleFromMember } from '../_lib/discord-bot.js';
 import {
   ENTITLEMENT_MAP, resolveEntitlementFromNftType, resolveEntitlementFromSku, getRoleId, shouldRevokeAccess,
-  grantableEntitlements, grantableRoleIds, obsoleteRoleIds,
+  grantableEntitlements, grantableRoleIds, obsoleteRoleIds, alertMissingRoles,
 } from '../_lib/entitlements.js';
 import { onDiscordLinkReminder, onSubscriptionCancelled } from '../_lib/engage.js';
 import { sendDiscordAccessLink, sendNftDelivery } from '../_lib/email.js';
@@ -441,13 +441,16 @@ async function handleReconcile() {
         continue;
       }
 
-      const roleIds = grantableRoleIds(mints, member.fields);
-      if (!roleIds.length) continue;
+      const { roleIds, missing } = grantableRoleIds(mints, member.fields);
+      await alertMissingRoles(missing);
+      if (!roleIds.length) continue; // stays 'pending' until the role env is set
 
       await syncMemberRoles(discordId, roleIds, obsoleteRoleIds(mints, member.fields));
-      await updateDiscordSyncStatus(email, 'synced');
+      // An unconfigured role keeps the member 'pending' so a later run grants it.
+      await updateDiscordSyncStatus(email, missing.length ? 'pending' : 'synced');
+      const grantedKeys = keys.filter((k) => !missing.includes(k));
       for (const mint of mints) {
-        if (keys.includes(resolveEntitlementFromNftType(mint.fields?.['NFT Type'] ?? ''))) {
+        if (grantedKeys.includes(resolveEntitlementFromNftType(mint.fields?.['NFT Type'] ?? ''))) {
           await updateNftMint(mint.id, { 'Discord Synced': true, 'Discord Synced At': now });
         }
       }
@@ -456,7 +459,9 @@ async function handleReconcile() {
     } catch (err) {
       report.syncFailed++;
       report.errors.push(`sync member=${member.id}: ${err.message}`);
-      await updateDiscordSyncStatus(email, 'failed', { error: err.message }).catch(() => {});
+      // A partial grant stays 'pending' (like the OAuth callback) so the next run adds the rest.
+      const partial = (err.granted?.length ?? 0) > 0;
+      await updateDiscordSyncStatus(email, partial ? 'pending' : 'failed', { error: err.message }).catch(() => {});
     }
   }
 

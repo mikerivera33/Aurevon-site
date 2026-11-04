@@ -113,6 +113,16 @@ describe('handleSync (JSON API) grants and reports every grantable role', () => 
     expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'synced');
   });
 
+  it('a missing role env → grants the rest, JSON lists missing, member stays pending', async () => {
+    delete process.env.DISCORD_ROLE_PRODUCT_A;
+    const res = await sync();
+    expect(syncMemberRoles).toHaveBeenCalledWith('d_1', ['role_l'], ['role_m']);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual(expect.objectContaining({ roleIds: ['role_l'], missing: ['product_a_reward'] }));
+    expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'pending');
+    expect(db.updateDiscordSyncStatus).not.toHaveBeenCalledWith(EMAIL, 'synced');
+  });
+
   it('only a lapsed monthly pass → 403 JSON, nothing granted', async () => {
     db.findActiveMintsByEmail.mockResolvedValue([mint('001 Genesis')]);
     const res = await sync();
