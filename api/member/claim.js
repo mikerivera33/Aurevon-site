@@ -800,7 +800,16 @@ function retryTier(fields) {
  * 2. Minted/Sent rows whose delivery email never went out are re-sent.
  * 3. Heartbeat `cron.retry_mints.ok` in ops_events.
  */
-export async function handleRetryMints() {
+// Vercel cuts the function off; stop picking new rows well before that so the
+// resend pass and the heartbeat still run.
+const RETRY_MINTS_BUDGET_MS = 45_000;
+
+/**
+ * @param {{ budgetMs?: number, clock?: () => number }} [opts] test seams
+ */
+export async function handleRetryMints({ budgetMs = RETRY_MINTS_BUDGET_MS, clock = Date.now } = {}) {
+  const startedAt = clock();
+  const outOfTime = () => clock() - startedAt >= budgetMs;
   if (!dbConfigured()) {
     return { skipped: true, reason: 'Database not configured', retried: 0, errors: 0 };
   }
@@ -829,8 +838,16 @@ export async function handleRetryMints() {
       { severity: 'high', dedupeKey: 'errors:listFailedMints' }).catch(() => {});
   }
   let firstFailedId = null;
+  let unpicked = 0;
 
-  for (const row of failedRows) {
+  for (const [i, row] of failedRows.entries()) {
+    if (outOfTime()) {
+      // Time budget spent: the rest wait for the next run (every 15 min).
+      unpicked = failedRows.length - i;
+      stats.budgetExhausted = true;
+      console.warn(`[retry-mints] time budget spent — ${unpicked} row(s) left for the next run`);
+      break;
+    }
     const f = row.fields ?? {};
     const email = f['Email'] ?? '';
     if (!email) continue;
@@ -927,13 +944,18 @@ export async function handleRetryMints() {
   // tracking) and rows under 10 minutes old (a live run may still be sending),
   // so neither can fill the 20-row window ahead of a deliverable row.
   let undelivered = [];
-  try {
-    undelivered = await listUndeliveredMints({
-      maxRecords: 20,
-      createdBefore: new Date(Date.now() - UNDELIVERED_MIN_AGE_MS).toISOString(),
-    });
-  } catch (err) {
-    console.error(`[retry-mints] listUndeliveredMints failed: ${err.message}`);
+  if (outOfTime()) {
+    stats.budgetExhausted = true;
+    console.warn('[retry-mints] time budget spent — undelivered resend skipped this run');
+  } else {
+    try {
+      undelivered = await listUndeliveredMints({
+        maxRecords: 20,
+        createdBefore: new Date(Date.now() - UNDELIVERED_MIN_AGE_MS).toISOString(),
+      });
+    } catch (err) {
+      console.error(`[retry-mints] listUndeliveredMints failed: ${err.message}`);
+    }
   }
   // A row that can never be sent leaves the window: flagged delivered, with why.
   const skipForGood = async (row, reason) => {
@@ -944,6 +966,10 @@ export async function handleRetryMints() {
     });
   };
   for (const row of undelivered) {
+    if (outOfTime()) {
+      stats.budgetExhausted = true;
+      break;
+    }
     const f = row.fields ?? {};
     if (touched.has(row.id)) continue;                       // handled by the retry above
     if (!['Sent', 'Minted'].includes(f['Mint Status'])) continue;
@@ -986,6 +1012,7 @@ export async function handleRetryMints() {
   // Rows from this batch still queued for a later run.
   stats.remaining = stats.failed - stats.gaveUp + stats.skippedLookupErrors;
   if (stats.remaining < 0) stats.remaining = 0;
+  stats.remaining += unpicked; // never picked: the time budget ran out
 
   if (stats.failed > 0) {
     await sendAlert('retry_mints.errors', { count: stats.failed, retried: stats.retried, firstRowId: firstFailedId },
@@ -996,6 +1023,7 @@ export async function handleRetryMints() {
   // monitor watching cron.retry_mints.ok must not count it.
   await heartbeat(listFailed ? 'cron.retry_mints.degraded' : 'cron.retry_mints.ok', {
     retried, minted, failed, gaveUp, delivered, remaining, ...(listFailed ? { listFailed: true } : {}),
+    ...(stats.budgetExhausted ? { budgetExhausted: true } : {}),
   }, listFailed ? 'high' : 'info');
 
   return { ...stats, ...(listFailed ? { listFailed: true } : {}), errors: stats.failed + (listFailed ? 1 : 0) };

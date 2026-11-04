@@ -454,6 +454,56 @@ describe('handleRetryMints', () => {
     });
   });
 
+  describe('45-second time budget (final fix 10)', () => {
+    const ember = (id, txn) => failedRow(id, {
+      Email: `${id}@example.com`, 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Payment Transaction ID': txn,
+    });
+    // A clock that jumps `step` ms on every read after the first.
+    const steppingClock = (step) => { let t = 0; let first = true; return () => { if (first) { first = false; return t; } t += step; return t; }; };
+
+    it('stops picking rows once the budget is spent, reports them as remaining, skips the resend when out of time, writes the heartbeat', async () => {
+      ember('recB1', 'cs_live_B1');
+      ember('recB2', 'cs_live_B2');
+      ember('recB3', 'cs_live_B3');
+      store.mints.push({ id: 'recUndel', fields: {
+        'Mint Status': 'Sent', 'Email Delivered': false, Email: 'u@example.com', 'NFT Type': 'Aurevon Ember',
+        Reference: 'EMBER_020', 'Payment Transaction ID': 'cs_live_U1',
+      } });
+      // Clock reads: start 0 → row 1 at 20 s → row 2 at 40 s → row 3 at 60 s (stop)
+      // → resend gate at 80 s (skipped: no time left).
+      const report = await handleRetryMints({ budgetMs: 45_000, clock: steppingClock(20_000) });
+
+      expect(crossmint.mintToEmail).toHaveBeenCalledTimes(2);
+      expect(report).toEqual(expect.objectContaining({ retried: 2, minted: 2, remaining: 1, budgetExhausted: true }));
+      expect(row('recB3').fields['Retry Count']).toBe(0);
+      expect(sendNftDelivery).toHaveBeenCalledTimes(2); // the two retried mints only
+      expect(db.recordOpsEvent).toHaveBeenCalledWith({
+        event: 'cron.retry_mints.ok', severity: 'info',
+        detail: expect.objectContaining({ retried: 2, remaining: 1, budgetExhausted: true }),
+      });
+    });
+
+    it('runs the undelivered resend when time is left after the retries', async () => {
+      ember('recC1', 'cs_live_C1');
+      store.mints.push({ id: 'recUndel2', fields: {
+        'Mint Status': 'Sent', 'Email Delivered': false, Email: 'u2@example.com', 'NFT Type': 'Aurevon Ember',
+        Reference: 'EMBER_021', 'Payment Transaction ID': 'cs_live_U2',
+      } });
+      const report = await handleRetryMints({ budgetMs: 45_000, clock: steppingClock(1_000) });
+      expect(report).toEqual(expect.objectContaining({ retried: 1, delivered: 1, remaining: 0 }));
+      expect(report.budgetExhausted).toBeUndefined();
+    });
+
+    it('an exhausted budget before any row: nothing picked, everything remaining, heartbeat still written', async () => {
+      ember('recD1', 'cs_live_D1');
+      ember('recD2', 'cs_live_D2');
+      const report = await handleRetryMints({ budgetMs: 0 });
+      expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+      expect(report).toEqual(expect.objectContaining({ retried: 0, remaining: 2, budgetExhausted: true }));
+      expect(db.recordOpsEvent).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('a heartbeat write failure is logged, never thrown', async () => {
     db.recordOpsEvent.mockRejectedValueOnce(new Error('Supabase 503'));
 
