@@ -723,7 +723,7 @@ export async function handleRetryMints() {
   const giveUp = async (rowId, reason) => {
     stats.gaveUp++;
     console.error(`[retry-mints] row ${rowId} gave up (${reason}) — needs an operator`);
-    await sendAlert('retry_mints.gave_up', { rowId, reason }, { severity: 'high', dedupeKey: `gave_up:${rowId}` }).catch(() => {});
+    await sendAlert('retry_mints.gave_up', { rowId, reason }, { dedupeKey: `gave_up:${rowId}` }).catch(() => {});
   };
 
   // A list failure must not cost the resend and the heartbeat: alert, carry on.
@@ -883,7 +883,7 @@ export async function handleRetryMints() {
       stats.emailFailed++;
       console.error(`[retry-mints] delivery email failed for row ${row.id}: ${err.message}`);
       await sendAlert('retry_mints.email_failed', { rowId: row.id, transactionId, error: err.message },
-        { severity: 'warning', dedupeKey: `email:${row.id}` }).catch(() => {});
+        { dedupeKey: `email:${row.id}` }).catch(() => {});
       continue;
     }
     stats.delivered++;

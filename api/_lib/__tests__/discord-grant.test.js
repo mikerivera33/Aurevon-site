@@ -154,7 +154,7 @@ describe('OAuth callback grants every grantable role', () => {
     const res = await callback();
 
     expect(new URL(res.redirectedTo).searchParams.get('error')).toBeNull();
-    expect(sendAlert).toHaveBeenCalledWith('discord.role_grant_failed', { status: 403, count: 1 }, { severity: 'high' });
+    expect(sendAlert).toHaveBeenCalledWith('discord.role_grant_failed', { status: 403, count: 1 }, { severity: 'critical' });
     expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'pending');
     expect(db.updateDiscordSyncStatus).not.toHaveBeenCalledWith(EMAIL, 'synced');
   });

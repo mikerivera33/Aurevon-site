@@ -12,6 +12,9 @@ vi.mock('../db.js', () => ({
   recordOpsEvent: vi.fn().mockResolvedValue({ id: 'ops_1', fields: {} }),
 }));
 
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { sendAlert, defaultSeverity, stripPii } from '../alert.js';
 import * as db from '../db.js';
 
@@ -150,7 +153,7 @@ describe('severity routing', () => {
   it("an explicit 'warning' is the warn level (webhook only), and an unknown level falls back to the map", async () => {
     wireBothSinks();
     const calls = stubFetch();
-    const res = await sendAlert('retry_mints.email_failed', { rowId: 'r1' }, { severity: 'warning' });
+    const res = await sendAlert('retry_mints.legacy_row_skipped', { rowId: 'r1' }, { severity: 'warning' });
     expect(res.severity).toBe('warn');
     expect(calls.map((c) => c.url)).toEqual([WEBHOOK]);
     const unknown = await sendAlert('stripe.mint_failed', {}, { severity: 'bogus' });
@@ -317,5 +320,32 @@ describe('privacy', () => {
     expect(stripPii({ Email: 'a@b.co', CustomerEmail: 'a@b.co', id: 'x' })).toEqual({ id: 'x' });
     expect(stripPii(null)).toEqual({});
     expect(stripPii('nope')).toEqual({});
+  });
+});
+
+describe('call sites', () => {
+  it('no caller passes an explicit severity that downgrades a map-critical event', () => {
+    const root = fileURLToPath(new URL('../../', import.meta.url)); // api/
+    const files = [];
+    const walk = (d) => {
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        if (e.isDirectory()) { if (e.name !== '__tests__' && e.name !== 'node_modules') walk(join(d, e.name)); }
+        else if (e.name.endsWith('.js')) files.push(join(d, e.name));
+      }
+    };
+    walk(root);
+    const offenders = [];
+    for (const f of files) {
+      const src = readFileSync(f, 'utf8');
+      const re = /sendAlert\(\s*'([^']+)'/g;
+      let m;
+      while ((m = re.exec(src))) {
+        if (defaultSeverity(m[1]) !== 'critical') continue;
+        const call = src.slice(m.index, m.index + 400).split('.catch')[0].split(');')[0];
+        const sev = /severity:\s*([^,}\n]+)/.exec(call);
+        if (sev && sev[1].trim() !== "'critical'") offenders.push(`${f.slice(root.length)}: ${m[1]} → ${sev[1].trim()}`);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });

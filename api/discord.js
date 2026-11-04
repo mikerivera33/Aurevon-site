@@ -269,7 +269,8 @@ async function handleCallback(req, res) {
     const all = failed.length === roleIds.length;
     console.error(`[Discord] role grant failed for ${failed.length}/${roleIds.length} role(s): ${failed[0].message}`);
     await sendAlert('discord.role_grant_failed', { status: discordStatus(failed[0]), count: failed.length },
-      { severity: all ? 'critical' : 'high' });
+      // Any missing paid role is critical (partial or total).
+      { severity: 'critical' });
     if (all) return redirectError(res, 'role_failed');
   }
 
