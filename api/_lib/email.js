@@ -9,6 +9,8 @@ import { isIntakeTier, STRIPE_SESSION_RE, PAYPAL_TXN_RE } from './tiers.js';
 import { sendAlert } from './alert.js';
 
 const RESEND_BASE_URL = 'https://api.resend.com';
+// A hung Resend call must not stall a webhook / cron: a timeout is a send failure.
+const RESEND_TIMEOUT_MS = 8000;
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 
 /**
@@ -529,6 +531,7 @@ export async function sendNftDelivery({ email, customerName, nftType, mintId, nf
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: globalThis.AbortSignal.timeout(RESEND_TIMEOUT_MS),
     });
   } catch (err) {
     console.error(`[Resend] Network error sending NFT delivery email:`, err.message);
@@ -577,6 +580,7 @@ export async function sendPurchaseConfirmation({ email, customerName, tier, tran
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: globalThis.AbortSignal.timeout(RESEND_TIMEOUT_MS),
     });
   } catch (err) {
     console.error(`[Resend] Network error sending purchase confirmation email:`, err.message);
@@ -659,6 +663,7 @@ export async function sendDiscordAccessLink({ email }) {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: globalThis.AbortSignal.timeout(RESEND_TIMEOUT_MS),
     });
   } catch (err) {
     console.error(`[Resend] Network error sending Discord access link:`, err.message);

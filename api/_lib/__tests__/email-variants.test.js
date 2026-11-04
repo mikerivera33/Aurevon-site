@@ -204,6 +204,31 @@ describe('Discord access-link email (final fix 8)', () => {
   });
 });
 
+describe('Resend calls time out after 8 s (final fix 9)', () => {
+  const timeoutErr = () => Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+
+  it('every send passes an AbortSignal', async () => {
+    const timeout = vi.spyOn(globalThis.AbortSignal, 'timeout');
+    await sendNftDelivery({ email: 'x@example.com', ...BASE, nftType: '004 Chrome' });
+    await sendPurchaseConfirmation({ email: 'x@example.com', customerName: 'Pat', tier: 'single' });
+    await sendDiscordAccessLink({ email: 'x@example.com' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    for (const [, opts] of fetchMock.mock.calls) expect(opts.signal).toBeInstanceOf(globalThis.AbortSignal);
+    expect(timeout).toHaveBeenCalledTimes(3);
+    expect(timeout.mock.calls.every(([ms]) => ms === 8000)).toBe(true);
+    timeout.mockRestore();
+  });
+
+  it('a timeout is a send failure under each function\'s contract', async () => {
+    fetchMock.mockRejectedValue(timeoutErr());
+    await expect(sendNftDelivery({ email: 'x@example.com', ...BASE, nftType: '004 Chrome' })).rejects.toThrow(/timeout/);
+    await expect(sendPurchaseConfirmation({ email: 'x@example.com', customerName: 'Pat', tier: 'single' }))
+      .resolves.toEqual({ ok: false, error: expect.stringMatching(/timeout/) });
+    await expect(sendDiscordAccessLink({ email: 'x@example.com' }))
+      .resolves.toEqual({ ok: false, error: expect.stringMatching(/timeout/) });
+  });
+});
+
 describe('unsigned Discord link', () => {
   it('discordLinkIsSigned', () => {
     expect(discordLinkIsSigned('https://www.aurevonvc.com/api/discord?action=auth&token=abc')).toBe(true);
