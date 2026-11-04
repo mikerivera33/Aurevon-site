@@ -39,6 +39,8 @@ const RANK = { info: 0, warn: 1, high: 2, critical: 3 };
 // Spellings callers already use for an explicit severity.
 const SEVERITY_ALIASES = { warning: 'warn', error: 'high' };
 const SINK_TIMEOUT_MS = 8000;
+// Dedupe lookup / ops_events write are on customer + money paths: bounded.
+const DB_TIMEOUT_MS = 2500;
 const DEDUPE_WINDOW_MS = { default: 60 * 60_000, critical: 15 * 60_000 };
 
 /** Default severity by event name. Ordered: the first match wins. */
@@ -97,9 +99,45 @@ export function stripPii(detail) {
   return out;
 }
 
+/** JSON.stringify that never throws: BigInt → string, circular refs → '[Circular]'. */
+export function safeStringify(value) {
+  const seen = new WeakSet();
+  try {
+    return JSON.stringify(value, (_k, v) => {
+      if (typeof v === 'bigint') return v.toString();
+      if (v && typeof v === 'object') {
+        if (seen.has(v)) return '[Circular]';
+        seen.add(v);
+      }
+      return v;
+    }) ?? 'null';
+  } catch {
+    return '"[unserializable]"';
+  }
+}
+
+/** Plain-JSON, PII-stripped copy of `detail`; never throws. */
+function safeDetail(detail) {
+  try {
+    const plain = JSON.parse(safeStringify(stripPii(detail)));
+    return plain && typeof plain === 'object' && !Array.isArray(plain) ? plain : {};
+  } catch {
+    return { detail: '[unserializable]' };
+  }
+}
+
+/** Resolve `promise`, or reject after `ms`; the timer never outlives the race. */
+function bounded(promise, ms, what) {
+  let t;
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => { t = setTimeout(() => rej(new Error(`${what} timed out after ${ms} ms`)), ms); }),
+  ]).finally(() => clearTimeout(t));
+}
+
 function summarize(detail) {
   return Object.entries(detail)
-    .map(([k, v]) => `${k}=${v && typeof v === 'object' ? JSON.stringify(v) : v}`)
+    .map(([k, v]) => `${k}=${v && typeof v === 'object' ? safeStringify(v) : v}`)
     .join(' ');
 }
 
@@ -107,7 +145,7 @@ async function isDuplicate(event, dedupeKey, severity) {
   if (!dedupeKey) return false;
   try {
     if (!dbConfigured()) return false;
-    const last = await lastOpsEvent(event, { dedupeKey });
+    const last = await bounded(lastOpsEvent(event, { dedupeKey }), DB_TIMEOUT_MS, 'dedupe lookup');
     const at = Date.parse(last?.fields?.['Created At'] ?? '');
     if (!Number.isFinite(at)) return false;
     const windowMs = severity === 'critical' ? DEDUPE_WINDOW_MS.critical : DEDUPE_WINDOW_MS.default;
@@ -121,7 +159,7 @@ async function isDuplicate(event, dedupeKey, severity) {
 async function record(event, severity, dedupeKey, detail) {
   try {
     if (!dbConfigured()) return;
-    await recordOpsEvent({ event, severity, dedupeKey, detail });
+    await bounded(recordOpsEvent({ event, severity, dedupeKey, detail }), DB_TIMEOUT_MS, 'ops_events write');
   } catch (err) {
     console.error(`[alert] ops_events write failed for "${event}": ${err.message}`);
   }
@@ -147,7 +185,7 @@ async function postOwnerEmail(event, severity, detail) {
     `Severity: ${severity}`,
     `Time: ${new Date().toISOString()}`,
     '',
-    ...Object.entries(detail).map(([k, v]) => `${k}: ${v && typeof v === 'object' ? JSON.stringify(v) : v}`),
+    ...Object.entries(detail).map(([k, v]) => `${k}: ${v && typeof v === 'object' ? safeStringify(v) : v}`),
   ];
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -172,12 +210,13 @@ export async function sendAlert(event, detail = {}, opts = {}) {
   let deduped = false;
   let error;
   try {
-    const explicit = SEVERITY_ALIASES[opts?.severity] ?? opts?.severity;
-    severity = explicit && explicit in RANK ? explicit : defaultSeverity(event);
+    const given = opts?.severity;
+    const explicit = typeof given === 'string' && Object.hasOwn(SEVERITY_ALIASES, given) ? SEVERITY_ALIASES[given] : given;
+    severity = typeof explicit === 'string' && Object.hasOwn(RANK, explicit) ? explicit : defaultSeverity(event);
     const dedupeKey = opts?.dedupeKey ? String(opts.dedupeKey) : undefined;
-    const safe = stripPii(detail);
+    const safe = safeDetail(detail);
 
-    console.error('[ALERT]', event, severity, JSON.stringify(safe));
+    console.error('[ALERT]', event, severity, safeStringify(safe));
 
     deduped = await isDuplicate(event, dedupeKey, severity);
 

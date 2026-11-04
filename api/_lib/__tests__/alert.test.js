@@ -295,6 +295,60 @@ describe('never throws', () => {
   });
 });
 
+describe('bounded database calls (2.5 s)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('a dedupe lookup that never resolves: sendAlert resolves within ~3 s and both sinks fire', async () => {
+    vi.useFakeTimers();
+    wireBothSinks();
+    const calls = stubFetch();
+    db.lastOpsEvent.mockReturnValue(new Promise(() => {}));
+    let settled = null;
+    const p = sendAlert('stripe.mint_failed', { id: 1 }, { dedupeKey: 'k' }).then((r) => { settled = r; });
+    await vi.advanceTimersByTimeAsync(2400);
+    expect(settled).toBeNull(); // still waiting on the bounded lookup
+    await vi.advanceTimersByTimeAsync(600);
+    await p;
+    expect(settled.deduped).toBe(false);
+    expect(settled.sinks).toEqual({ webhook: 'sent', email: 'sent' });
+    expect(calls).toHaveLength(2);
+  });
+
+  it('an ops_events write that never resolves does not hold sendAlert past ~3 s', async () => {
+    vi.useFakeTimers();
+    process.env.ALERT_WEBHOOK_URL = WEBHOOK;
+    stubFetch();
+    db.recordOpsEvent.mockReturnValue(new Promise(() => {}));
+    let settled = null;
+    const p = sendAlert('reconcile.errors', { count: 1 }).then((r) => { settled = r; });
+    await vi.advanceTimersByTimeAsync(3000);
+    await p;
+    expect(settled.sinks.webhook).toBe('sent');
+    expect(settled.ok).toBe(true);
+  });
+});
+
+describe('robust detail serialisation', () => {
+  it('a BigInt or circular detail still logs [ALERT] and reaches the sinks', async () => {
+    wireBothSinks();
+    const calls = stubFetch();
+    const circ = { id: 'c1' };
+    circ.self = circ;
+    const res = await sendAlert('stripe.mint_failed', { amount: 10n, circ });
+    expect(errSpy.mock.calls.some((c) => c[0] === '[ALERT]' && c[1] === 'stripe.mint_failed')).toBe(true);
+    expect(res.sinks).toEqual({ webhook: 'sent', email: 'sent' });
+    const hook = calls.find((c) => c.url === WEBHOOK).body;
+    expect(hook.detail.amount).toBe('10');
+    expect(hook.detail.circ.id).toBe('c1');
+  });
+
+  it('prototype names are not severities (Object.hasOwn)', async () => {
+    stubFetch();
+    expect((await sendAlert('stripe.mint_failed', {}, { severity: 'constructor' })).severity).toBe('critical');
+    expect((await sendAlert('reconcile.errors', {}, { severity: 'toString' })).severity).toBe('high');
+  });
+});
+
 describe('privacy', () => {
   it('the Discord/Slack payload contains no email address (keys stripped, one level deep; strings redacted)', async () => {
     wireBothSinks();
