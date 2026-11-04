@@ -26,35 +26,37 @@ jobs:
           # Optional. When set, the authed readiness report is requested (503 = not ready).
           INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
         run: |
+          # The body goes to a runner-temp file only. It is never put in step
+          # outputs, env or logs; the parse step reads the file and prints names/states.
+          BODY_FILE="$RUNNER_TEMP/health.json"
           if [ -n "$INTERNAL_API_SECRET" ]; then
             MODE=authed
-            RESPONSE=$(curl -s --max-time 30 -w "\n%{http_code}" \
-              -H "Authorization: Bearer $INTERNAL_API_SECRET" "$PRODUCTION_URL/api/health")
+            HTTP_STATUS=$(curl -s --max-time 30 -o "$BODY_FILE" -w "%{http_code}" \
+              -H "Authorization: Bearer $INTERNAL_API_SECRET" "$PRODUCTION_URL/api/health" || true)
           else
             MODE=public
-            RESPONSE=$(curl -s --max-time 30 -w "\n%{http_code}" "$PRODUCTION_URL/api/health")
+            HTTP_STATUS=$(curl -s --max-time 30 -o "$BODY_FILE" -w "%{http_code}" "$PRODUCTION_URL/api/health" || true)
           fi
-          HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | head -1)
+          HTTP_STATUS=${HTTP_STATUS:-000}
           echo "status=$HTTP_STATUS" >> $GITHUB_OUTPUT
           echo "mode=$MODE" >> $GITHUB_OUTPUT
-          EOF_MARKER=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "body<<$EOF_MARKER" >> $GITHUB_OUTPUT
-          echo "$BODY" >> $GITHUB_OUTPUT
-          echo "$EOF_MARKER" >> $GITHUB_OUTPUT
-          # The body is not echoed: the parse step prints names/states only.
           echo "Mode: $MODE   HTTP Status: $HTTP_STATUS"
 
       - name: Parse health response
         id: parse
         env:
-          HEALTH_BODY: ${{ steps.health.outputs.body }}
           HEALTH_MODE: ${{ steps.health.outputs.mode }}
           HEALTH_HTTP: ${{ steps.health.outputs.status }}
         run: |
           python3 << 'PYEOF'
           import sys, json, os
-          raw = os.environ.get('HEALTH_BODY', '')
+          path = os.path.join(os.environ.get('RUNNER_TEMP', '.'), 'health.json')
+          try:
+              with open(path, encoding='utf-8') as fh:
+                  raw = fh.read()
+          except OSError as e:
+              print(f"::error::No health response body to parse (HTTP {os.environ.get('HEALTH_HTTP', '')}): {e.strerror}")
+              sys.exit(1)
           mode = os.environ.get('HEALTH_MODE', 'public')
           http = os.environ.get('HEALTH_HTTP', '')
           try:
