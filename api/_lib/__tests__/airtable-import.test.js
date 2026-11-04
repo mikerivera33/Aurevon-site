@@ -40,6 +40,19 @@ describe('mapAirtableRecord', () => {
     expect(row).not.toHaveProperty('Unknown');
   });
 
+  it('parks a Failed mint that reached the old 5-retry cap at 8 so retry-mints never resurrects it', () => {
+    const mint = (status, count) => mapAirtableRecord('nft_mints', {
+      id: `rec_${status}_${count}`, fields: { 'Email': 'a@b.com', 'Mint Status': status, 'Retry Count': count },
+    }).retry_count;
+    expect(mint('Failed', 5)).toBe(8);
+    expect(mint('Failed', 7)).toBe(8);
+    expect(mint('Failed', '6')).toBe(8);
+    expect(mint('Failed', 9)).toBe(8);
+    expect(mint('Failed', 4)).toBe(4);   // still retryable
+    expect(mint('Failed', undefined)).toBe(0);
+    expect(mint('Sent', 5)).toBe(5);     // only Failed rows are parked
+  });
+
   it('drops values that do not fit the column instead of failing the batch', () => {
     const row = mapAirtableRecord('leads', { id: 'rec2', fields: { 'Name': 'X', 'Purchase Price': 'about 1.2M' } });
     expect(row.purchase_price).toBeUndefined();

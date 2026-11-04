@@ -580,9 +580,9 @@ async function handleReconcile() {
 }
 
 /** Cron heartbeat for the ops log. A failed write is logged, never thrown. */
-async function heartbeat(event, detail) {
+async function heartbeat(event, detail, severity = 'info') {
   try {
-    await recordOpsEvent({ event, severity: 'info', detail });
+    await recordOpsEvent({ event, severity, detail });
   } catch (err) {
     console.error(`[cron] heartbeat ${event} not recorded: ${err.message}`);
   }
@@ -861,9 +861,11 @@ export async function handleRetryMints() {
       { dedupeKey: `errors:${firstFailedId}` }).catch(() => {});
   }
   const { retried, minted, failed, gaveUp, delivered, remaining } = stats;
-  await heartbeat('cron.retry_mints.ok', {
+  // A run that could not read the Failed queue is not healthy: a staleness
+  // monitor watching cron.retry_mints.ok must not count it.
+  await heartbeat(listFailed ? 'cron.retry_mints.degraded' : 'cron.retry_mints.ok', {
     retried, minted, failed, gaveUp, delivered, remaining, ...(listFailed ? { listFailed: true } : {}),
-  });
+  }, listFailed ? 'high' : 'info');
 
   return { ...stats, ...(listFailed ? { listFailed: true } : {}), errors: stats.failed + (listFailed ? 1 : 0) };
 }

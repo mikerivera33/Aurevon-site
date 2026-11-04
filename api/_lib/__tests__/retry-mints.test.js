@@ -431,9 +431,12 @@ describe('handleRetryMints', () => {
       ]);
       expect(sendNftDelivery).toHaveBeenCalledTimes(1);
       expect(report).toEqual(expect.objectContaining({ delivered: 1, listFailed: true, errors: 1 }));
-      expect(db.recordOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
-        event: 'cron.retry_mints.ok', detail: expect.objectContaining({ delivered: 1, listFailed: true }),
-      }));
+      // Degraded, not ok: a staleness monitor on cron.retry_mints.ok must not count this run.
+      expect(db.recordOpsEvent).toHaveBeenCalledTimes(1);
+      expect(db.recordOpsEvent).toHaveBeenCalledWith({
+        event: 'cron.retry_mints.degraded', severity: 'high',
+        detail: expect.objectContaining({ delivered: 1, listFailed: true }),
+      });
     });
   });
 
