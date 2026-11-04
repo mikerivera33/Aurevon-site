@@ -92,6 +92,9 @@ export function makeFakeDb(store) {
     updateNftMint: vi.fn(async (id, fields) => {
       const rec = store.mints.find((r) => r.id === id);
       if (!rec) throw new Error(`no mint ${id}`);
+      const other = (col) => fields[col] && store.mints.some((r) => r.id !== id && r.fields[col] === fields[col]);
+      if (other('Payment Transaction ID')) throw dup('DUPLICATE_PAYMENT_MINT');
+      if (other('Reference')) throw dup('DUPLICATE_REFERENCE');
       Object.assign(rec.fields, fields);
       return rec;
     }),

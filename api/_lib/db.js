@@ -294,8 +294,17 @@ export async function findMintByActionId(actionId) {
   return one('nft_mints', from('nft_mints').eq('crossmint_action_id', String(actionId)), 'findMintByActionId');
 }
 
+/** Patch a mint row. A Reference / payment collision throws DUPLICATE_REFERENCE / DUPLICATE_PAYMENT_MINT. */
 export async function updateNftMint(recordId, fields) {
-  return update('nft_mints', recordId, fields);
+  try {
+    return await update('nft_mints', recordId, fields);
+  } catch (err) {
+    if (err.code === '23505') {
+      if (/nft_mints_payment_txn_key/.test(err.message)) err.code = 'DUPLICATE_PAYMENT_MINT';
+      else if (/nft_mints_reference_key/.test(err.message)) err.code = 'DUPLICATE_REFERENCE';
+    }
+    throw err;
+  }
 }
 
 export async function findMintByTokenId(tokenId) {

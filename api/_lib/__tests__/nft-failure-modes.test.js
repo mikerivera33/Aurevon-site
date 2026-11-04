@@ -202,25 +202,65 @@ describe('fulfilNft recovery paths', () => {
     expect(resendCalls(store)).toHaveLength(0);
   });
 
-  it('the _r fallback stays retryable: a later retry reuses PREFIX_NNN (the serial the first PUT carried)', async () => {
+  // Behaviour change (fix round 1): an `_r` row never minted and its PREFIX_NNN
+  // belongs to another row, so the retry no longer reuses it.
+  const rFallbackRow = async () => {
     store.crossmintStatus = 500;
     store.mints.push({ id: 'mint_old', fields: { 'Reference': 'EMBER_001', 'Payment Transaction ID': 'cs_test_older' } });
     db.nextSerial.mockResolvedValueOnce(1).mockRejectedValueOnce(new Error('rpc next_serial unavailable'));
     await fulfilNft({ transactionId: 'cs_test_rfallback', email: BUYER, tier: 'retainer', provider: 'stripe' });
-
     const row = store.mints.find((r) => r.fields['Payment Transaction ID'] === 'cs_test_rfallback');
     expect(row.fields['Reference']).toBe('EMBER_001_rback');
     expect(row.fields['Mint Status']).toBe('Failed');
-
     store.crossmintStatus = 200;
+    return row;
+  };
+
+  it('a retry of an _r fallback row reserves a fresh serial: Crossmint Serial, Reference and email carry it, never one another row holds', async () => {
+    const row = await rFallbackRow();
+    store.serials.EMBER = 1; // the counter is past EMBER_001 now
+
     const res = await fulfilNft({ transactionId: 'cs_test_rfallback', email: BUYER, tier: 'retainer', provider: 'retry' });
 
-    expect(res).toEqual(expect.objectContaining({ minted: true, serial: 'EMBER_001', rowId: row.id }));
+    expect(res).toEqual(expect.objectContaining({ minted: true, serial: 'EMBER_002', rowId: row.id }));
+    expect(row.fields['Reference']).toBe('EMBER_002');
+    expect(row.fields['Mint Status']).toBe('Sent');
     const mints = crossmintCalls(store);
     expect(mints).toHaveLength(2);
-    expect(mints[1].url).toBe(mints[0].url);
-    expect(mints[1].body.metadata.attributes).toEqual(expect.arrayContaining([{ trait_type: 'Serial', value: 'EMBER_001' }]));
-    expect(resendCalls(store).at(-1).body.subject).toMatch(/#001/);
+    expect(mints[1].url).toBe(mints[0].url); // same idempotency key
+    const serials = mints[1].body.metadata.attributes.filter((a) => a.trait_type === 'Serial');
+    expect(serials).toEqual([{ trait_type: 'Serial', value: 'EMBER_002' }]);
+    const email = resendCalls(store).at(-1).body;
+    expect(email.subject).toMatch(/#002/);
+    expect(email.html).toContain('EMBER_002');
+    expect(email.html).not.toContain('EMBER_001');
+    // Only mint_old holds EMBER_001.
+    expect(store.mints.filter((r) => serialFromReference(r.fields['Reference'], 'EMBER') === 'EMBER_001')).toHaveLength(1);
+  });
+
+  it('a retry of an _r row whose fresh serial collides on claim keeps the old reference and mints with no serial', async () => {
+    const row = await rFallbackRow(); // counter still at 0 → the fresh reservation is EMBER_001 again
+
+    const res = await fulfilNft({ transactionId: 'cs_test_rfallback', email: BUYER, tier: 'retainer', provider: 'retry' });
+
+    expect(res).toEqual(expect.objectContaining({ minted: true, serial: null, rowId: row.id }));
+    expect(row.fields['Reference']).toBe('EMBER_001_rback');
+    const mints = crossmintCalls(store);
+    expect(mints[1].body.metadata.attributes.filter((a) => a.trait_type === 'Serial')).toEqual([{ trait_type: 'Serial', value: '' }]);
+    expect(resendCalls(store).at(-1).body.html).not.toContain('EMBER_001');
+    expect(alerted('retry.serial_collision')).toHaveLength(1);
+  });
+
+  it('a retry of an _r row mints with no serial when the fresh reservation fails', async () => {
+    const row = await rFallbackRow();
+    store.serialFails = true;
+
+    const res = await fulfilNft({ transactionId: 'cs_test_rfallback', email: BUYER, tier: 'retainer', provider: 'retry' });
+
+    expect(res).toEqual(expect.objectContaining({ minted: true, serial: null }));
+    expect(row.fields['Reference']).toBe('EMBER_001_rback');
+    expect(crossmintCalls(store)[1].body.metadata.attributes.filter((a) => a.trait_type === 'Serial')).toEqual([{ trait_type: 'Serial', value: '' }]);
+    expect(alerted('retry.serial_failed')).toHaveLength(1);
   });
 
   it('a retry of a MINT_ fallback row emails no serial (never the fallback reference), and a failed retry emails nothing', async () => {
@@ -272,7 +312,7 @@ describe('serialFromReference', () => {
   it.each([
     ['EMBER_007', 'EMBER_007'],
     ['EMBER_007_dupab12', 'EMBER_007'],
-    ['EMBER_007_r9xYz', 'EMBER_007'],
+    ['EMBER_007_r9xYz', null],  // never minted; EMBER_007 is another row's (fix round 1)
     ['MINT_12345678_EMBER', null],
     ['RECOVER_cs_live_X', null],
     ['INSIDER_007', null],      // another prefix

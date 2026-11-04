@@ -384,6 +384,15 @@ describe('createNftMint (mint idempotency marker)', () => {
     const err = await db.createNftMint(args).catch((e) => e);
     expect(err.code).toBe('23502');
   });
+
+  it("updateNftMint maps 23505 on the reference / payment keys to 'DUPLICATE_REFERENCE' / 'DUPLICATE_PAYMENT_MINT'", async () => {
+    respond({ data: null, error: { message: 'duplicate key value violates unique constraint "nft_mints_reference_key"', code: '23505' } });
+    expect((await db.updateNftMint('m1', { Reference: 'EMBER_002' }).catch((e) => e)).code).toBe('DUPLICATE_REFERENCE');
+    respond({ data: null, error: { message: 'duplicate key value violates unique constraint "nft_mints_payment_txn_key"', code: '23505' } });
+    expect((await db.updateNftMint('m1', { 'Payment Transaction ID': 'cs_1' }).catch((e) => e)).code).toBe('DUPLICATE_PAYMENT_MINT');
+    respond({ data: null, error: { message: 'boom', code: '23502' } });
+    expect((await db.updateNftMint('m1', { Notes: 'x' }).catch((e) => e)).code).toBe('23502');
+  });
 });
 
 describe('nextSerial', () => {
