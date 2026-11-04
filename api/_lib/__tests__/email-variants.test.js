@@ -12,6 +12,8 @@ import {
   buildNftDeliveryText,
   buildPurchaseConfirmHtml,
   sendNftDelivery,
+  sendPurchaseConfirmation,
+  sendDiscordAccessLink,
   discordLinkIsSigned,
 } from '../email.js';
 
@@ -188,6 +190,17 @@ describe('send failures throw', () => {
   it('missing RESEND_API_KEY rejects', async () => {
     delete process.env.RESEND_API_KEY;
     await expect(sendNftDelivery({ email: 'x@example.com', ...BASE, nftType: '004 Chrome' })).rejects.toThrow('Missing RESEND_API_KEY');
+  });
+});
+
+describe('Discord access-link email (final fix 8)', () => {
+  it('the CONNECT DISCORD button text on the blue gradient is white', async () => {
+    await expect(sendDiscordAccessLink({ email: 'member@example.com' })).resolves.toEqual({ ok: true, id: 'email_1' });
+    const { html } = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const button = html.match(/<a [^>]*>CONNECT DISCORD/)[0];
+    expect(button).toContain('linear-gradient(90deg,#1E3A8A,#3B82F6)');
+    expect(button).toContain('color:#FFFFFF');
+    expect(button).not.toContain('color:#0A0A0A');
   });
 });
 

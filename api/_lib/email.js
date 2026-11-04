@@ -614,7 +614,7 @@ function buildDiscordAccessHtml(discordAccessUrl) {
           <p style="margin:0 0 24px;font-size:16px;color:#d4d4d8;line-height:1.6;">Click below to connect your Discord account and unlock your member role. This secure link is tied to your email, expires soon, and can be used once.</p>
         </td></tr>
         <tr><td align="center" style="padding:0 40px 32px;">
-          <a href="${discordAccessUrl}" style="display:inline-block;padding:14px 36px;background:linear-gradient(90deg,#1E3A8A,#3B82F6);border-radius:8px;font-family:'Archivo Black',Impact,sans-serif;font-size:15px;font-weight:900;color:#0A0A0A;text-decoration:none;letter-spacing:0.5px;">CONNECT DISCORD &rarr;</a>
+          <a href="${discordAccessUrl}" style="display:inline-block;padding:14px 36px;background:linear-gradient(90deg,#1E3A8A,#3B82F6);border-radius:8px;font-family:'Archivo Black',Impact,sans-serif;font-size:15px;font-weight:900;color:#FFFFFF;text-decoration:none;letter-spacing:0.5px;">CONNECT DISCORD &rarr;</a>
         </td></tr>
         <tr><td style="padding:0 40px 32px;">
           <p style="margin:0;font-size:13px;color:#52525b;line-height:1.6;">If you did not request this, you can safely ignore this email — no changes were made to your account.</p>
