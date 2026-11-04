@@ -11,29 +11,30 @@
  * (timing-safe, length-guarded) and FAILS CLOSED when the secret is unset.
  *
  * The minimal body carries one extra coarse field, `database`
- * ('ok' | 'unconfigured' | 'unavailable'), and nothing else.
+ * ('ok' | 'unconfigured' | 'unavailable'), and nothing else — not even when the
+ * authed readiness check would answer 503 (readiness is never public).
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('../db.js', () => ({
   dbConfigured: vi.fn(() => true),
   ping: vi.fn().mockResolvedValue(true),
+  countMints: vi.fn().mockResolvedValue(0),
+  countPendingDiscordSyncOlderThan: vi.fn().mockResolvedValue(0),
+  countUndeliveredEmails: vi.fn().mockResolvedValue(0),
+  lastOpsEvent: vi.fn().mockResolvedValue(null),
+  recordOpsEvent: vi.fn().mockResolvedValue(null),
 }));
+
+const stripeList = vi.hoisted(() => vi.fn());
+vi.mock('stripe', () => ({ default: vi.fn(function Stripe() { return { webhookEndpoints: { list: stripeList } }; }) }));
 
 import handler, { _resetHealthCache } from '../../health.js';
 import * as db from '../db.js';
+import {
+  SECRET, HEALTHY_ENV, applyEnv, healthyFetch, freshHeartbeats, endpointList, mockRes,
+} from './helpers/health-fixtures.js';
 
-function mockRes() {
-  return {
-    statusCode: 0,
-    body: null,
-    status(c) { this.statusCode = c; return this; },
-    json(b) { this.body = b; return this; },
-    end() { return this; },
-  };
-}
-
-const SECRET = 'health_diag_secret_0123456789';
 const MINIMAL_KEYS = ['database', 'ok', 'status'];
 
 const SAVED = { ...process.env };
@@ -42,8 +43,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   db.dbConfigured.mockReturnValue(true);
   db.ping.mockResolvedValue(true);
+  db.countMints.mockResolvedValue(0);
+  db.countPendingDiscordSyncOlderThan.mockResolvedValue(0);
+  db.countUndeliveredEmails.mockResolvedValue(0);
+  db.lastOpsEvent.mockImplementation(freshHeartbeats());
+  stripeList.mockResolvedValue(endpointList());
+  healthyFetch();
 });
-afterEach(() => { process.env = { ...SAVED }; vi.useRealTimers(); });
+afterEach(() => { process.env = { ...SAVED }; vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 async function get(headers = {}) {
   const res = mockRes();
@@ -76,16 +83,54 @@ describe('GET /api/health — info disclosure (L1)', () => {
   });
 
   it('a correct bearer secret returns the full diagnostic body', async () => {
-    process.env.INTERNAL_API_SECRET = SECRET;
+    applyEnv(HEALTHY_ENV);
     const res = await get({ authorization: `Bearer ${SECRET}` });
 
     expect(res.statusCode).toBe(200);
+    expect(res.body.ok).toBe(true);
     expect(res.body.status).toBe('healthy');
+    expect(res.body.problems).toEqual([]);
     expect(res.body.version).toBeDefined();
     expect(res.body).toHaveProperty('env');
-    expect(res.body).toHaveProperty('missing_required');
+    expect(res.body.env).toEqual({ complete: true, missing_required: [], misnamed: [] });
     expect(res.body.database).toBe('ok');
     expect(res.body.function_limit).toBe(100);
+    for (const k of ['mint', 'stripe', 'email', 'discord', 'crons', 'queue', 'alerts']) expect(res.body).toHaveProperty(k);
+  });
+
+  it('the authed body never contains an env VALUE', async () => {
+    applyEnv(HEALTHY_ENV);
+    const res = await get({ authorization: `Bearer ${SECRET}` });
+    const raw = JSON.stringify(res.body);
+    for (const [k, v] of Object.entries(HEALTHY_ENV)) {
+      expect(raw, k).not.toContain(v);
+    }
+  });
+
+  it('public body stays exactly { ok, status, database } with HTTP 200 even when the pipeline is NOT ready', async () => {
+    applyEnv({ INTERNAL_API_SECRET: SECRET }); // nearly everything missing → authed would be 503
+    stripeList.mockResolvedValue(endpointList(['checkout.session.completed']));
+    db.lastOpsEvent.mockResolvedValue(null);
+    db.countMints.mockResolvedValue(7);
+
+    const pub = await get();
+    expect(pub.statusCode).toBe(200);
+    expect(pub.body).toEqual({ ok: true, status: 'healthy', database: 'ok' });
+    expect(Object.keys(pub.body).sort()).toEqual(MINIMAL_KEYS);
+
+    const authed = await get({ authorization: `Bearer ${SECRET}` });
+    expect(authed.statusCode).toBe(503);
+    expect(authed.body.ok).toBe(false);
+  });
+
+  it('public requests never run the readiness probes (no Stripe / Crossmint / Discord calls)', async () => {
+    applyEnv(HEALTHY_ENV);
+    const fetchSpy = healthyFetch();
+    await get();
+    await get({ authorization: 'Bearer wrong-secret' });
+    expect(stripeList).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(db.countMints).not.toHaveBeenCalled();
   });
 
   it('diagnostic: Supabase URL + a secret key are required; Airtable vars are not', async () => {
@@ -96,17 +141,18 @@ describe('GET /api/health — info disclosure (L1)', () => {
     delete process.env.AIRTABLE_PAT;
     delete process.env.AIRTABLE_BASE_ID;
     let res = await get({ authorization: `Bearer ${SECRET}` });
-    expect(res.body.env).toBe('partial');
-    expect(res.body.missing_required).toEqual(expect.arrayContaining(['SUPABASE_URL', 'SUPABASE_SECRET_KEY']));
-    expect(res.body.missing_required).not.toContain('AIRTABLE_PAT');
-    expect(res.body.missing_required).not.toContain('AIRTABLE_BASE_ID');
+    expect(res.body.env.complete).toBe(false);
+    expect(res.body.env.missing_required).toEqual(expect.arrayContaining(['SUPABASE_URL', 'SUPABASE_SECRET_KEY']));
+    expect(res.body.env.missing_required).not.toContain('AIRTABLE_PAT');
+    expect(res.body.env.missing_required).not.toContain('AIRTABLE_BASE_ID');
 
     // The legacy service-role key satisfies the key requirement.
     process.env.SUPABASE_URL = 'https://x.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'srk';
+    _resetHealthCache();
     res = await get({ authorization: `Bearer ${SECRET}` });
-    expect(res.body.missing_required).not.toContain('SUPABASE_URL');
-    expect(res.body.missing_required).not.toContain('SUPABASE_SECRET_KEY');
+    expect(res.body.env.missing_required).not.toContain('SUPABASE_URL');
+    expect(res.body.env.missing_required).not.toContain('SUPABASE_SECRET_KEY');
   });
 
   it('fails closed: when INTERNAL_API_SECRET is unset, even a bearer request gets the minimal body', async () => {
