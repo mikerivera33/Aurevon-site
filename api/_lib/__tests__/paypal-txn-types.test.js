@@ -30,6 +30,7 @@ const SAVED = { ...process.env };
 let db;
 let sendAlert;
 let processIPN;
+let ipnHandler;
 let handleVerifiedIPN;
 let recoverOrphanPayments;
 let handleRetryMints;
@@ -38,7 +39,7 @@ beforeAll(async () => {
   applyEnv(); // before crossmint.js first loads (reads CROSSMINT_ENV at import)
   db = await import('../db.js');
   ({ sendAlert } = await import('../alert.js'));
-  ({ processIPN, handleVerifiedIPN } = await import('../../webhooks/paypal.js'));
+  ({ processIPN, handleVerifiedIPN, default: ipnHandler } = await import('../../webhooks/paypal.js'));
   ({ recoverOrphanPayments, handleRetryMints } = await import('../../member/claim.js'));
 });
 afterAll(() => { process.env = { ...SAVED }; vi.unstubAllGlobals(); });
@@ -48,6 +49,7 @@ beforeEach(() => {
   applyEnv();
   delete process.env.PAYPAL_ITEM_TIERS;
   vi.clearAllMocks();
+  sendAlert.mockResolvedValue({ ok: true });
   installFetch(store);
 });
 
@@ -485,5 +487,118 @@ describe('orphan sweep + retry-mints never re-mint PayPal decisions (Fix round 1
     const report = await sweep();
     expect(report.recovered).toBe(0);
     expect(crossmintCalls(store)).toHaveLength(0);
+  });
+});
+
+describe('HTTP handler', () => {
+  const mkRes = () => {
+    const res = { code: null, payload: null };
+    res.status = vi.fn((c) => { res.code = c; return res; });
+    res.send = vi.fn((b) => { res.payload = b; return res; });
+    res.json = vi.fn((b) => { res.payload = b; return res; });
+    return res;
+  };
+  const mkReq = (method, body, error) => {
+    const handlers = {};
+    return {
+      method,
+      on(evt, fn) { handlers[evt] = fn; return this; },
+      start() {
+        if (error) return handlers.error(error);
+        handlers.data(Buffer.from(body.slice(0, 5)));
+        handlers.data(Buffer.from(body.slice(5)));
+        handlers.end();
+      },
+    };
+  };
+
+  it('rejects non-POST with 405 and writes nothing', async () => {
+    const res = mkRes();
+    await ipnHandler({ method: 'GET' }, res);
+    expect(res.code).toBe(405);
+    expectNoWrites();
+  });
+
+  it('a body read failure returns 400 and writes nothing', async () => {
+    const res = mkRes();
+    const req = mkReq('POST', '', new Error('socket reset'));
+    const p = ipnHandler(req, res);
+    req.start();
+    await p;
+    expect(res.code).toBe(400);
+    expect(res.payload).toBe('Failed to read body');
+    expectNoWrites();
+  });
+
+  it('acks 200 "OK" with the reassembled body, then runs the pipeline to a recorded payment', async () => {
+    const body = new URLSearchParams(ipn({
+      txn_type: 'subscr_payment', subscr_id: SUB, txn_id: 'PPHTTP0001', mc_gross: '29.99',
+    })).toString();
+    const res = mkRes();
+    const req = mkReq('POST', body);
+    const p = ipnHandler(req, res);
+    req.start();
+    await p;
+    expect(res.code).toBe(200);
+    expect(res.payload).toBe('OK');
+    await vi.waitFor(() => expect(payment('PPHTTP0001')).toMatchObject({ 'Status': 'Succeeded' }));
+    expect(crossmintCalls(store)).toHaveLength(1);
+  });
+});
+
+describe('alert transport failure never breaks the webhook', () => {
+  it('subscr_id_missing: refusal stands (no marker, no mint) even when the alert send rejects', async () => {
+    sendAlert.mockRejectedValue(new Error('alert webhook down'));
+    await expect(deliver({
+      txn_type: 'subscr_payment', subscr_id: '', txn_id: 'PPALERTDN1', mc_gross: '29.99',
+    })).resolves.toBeUndefined();
+    expect(alerted('paypal.subscr_id_missing')).toHaveLength(1);
+    expect(db.createPayment).not.toHaveBeenCalled();
+    expect(crossmintCalls(store)).toHaveLength(0);
+  });
+
+  it('renewal_unmatched: renewal still recorded, billing not extended, when the alert send rejects', async () => {
+    const first = { txn_type: 'subscr_payment', subscr_id: SUB, txn_id: 'PPALERTDN2', mc_gross: '29.99' };
+    await deliver(first);
+    vi.clearAllMocks();
+    sendAlert.mockRejectedValue(new Error('alert webhook down'));
+    await expect(deliver({ ...first, txn_id: 'PPALERTDN3', mc_gross: '1.00', custom: '' })).resolves.toBeUndefined();
+    expect(payment('PPALERTDN3')['Pass Type']).toBe('unknown');
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+    expect(alerted('paypal.subscription_renewal_unmatched')).toHaveLength(1);
+  });
+
+  it('monthly_change_held: cancel of an old subscription is still held when the alert send rejects', async () => {
+    const genesis = { txn_type: 'subscr_payment', subscr_id: SUB, txn_id: 'PPALERTDN4', mc_gross: '29.99' };
+    await deliver(genesis);
+    await deliver({ ...genesis, subscr_id: 'I-GENESIS0002', txn_id: 'PPALERTDN5' });
+    vi.clearAllMocks();
+    sendAlert.mockRejectedValue(new Error('alert webhook down'));
+    await expect(deliver({ txn_type: 'subscr_cancel', subscr_id: SUB })).resolves.toBeUndefined();
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+    expect(alerted('paypal.monthly_change_held')).toHaveLength(1);
+  });
+});
+
+describe('alert transport failure on lookup / entitlement write errors', () => {
+  const first = { txn_type: 'subscr_payment', subscr_id: SUB, txn_id: 'PPALERTDN6', mc_gross: '29.99' };
+
+  it('subscription lookup failure still fails closed when the alert send rejects', async () => {
+    sendAlert.mockRejectedValue(new Error('alert webhook down'));
+    db.findPaymentBySubscriptionId.mockRejectedValueOnce(new Error('Supabase timeout'));
+    await expect(deliver(first)).resolves.toBeUndefined();
+    expect(db.createPayment).not.toHaveBeenCalled();
+    expect(crossmintCalls(store)).toHaveLength(0);
+    expect(alerted('paypal.subscription_lookup_failed')).toHaveLength(1);
+  });
+
+  it('a failed cancel write is alerted (entitlement_write_failed) and survives a rejecting alert send', async () => {
+    await deliver(first);
+    vi.clearAllMocks();
+    sendAlert.mockRejectedValue(new Error('alert webhook down'));
+    db.updateEntitlementState.mockRejectedValueOnce(new Error('write failed'));
+    await expect(deliver({ txn_type: 'subscr_cancel', subscr_id: SUB })).resolves.toBeUndefined();
+    expect(alerted('paypal.entitlement_write_failed')).toHaveLength(1);
+    expect(alerted('paypal.entitlement_write_failed')[0][1]).toMatchObject({ source: 'subscr_cancel', error: 'write failed' });
   });
 });
