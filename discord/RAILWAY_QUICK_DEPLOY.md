@@ -90,7 +90,7 @@ If any step fails, see `docs/AUREVON_INTEGRATION_MAP.md` → "Common failure mod
 The bot keeps no local state beyond Discord's own audit log. Railway restarts are safe. However:
 
 - [ ] In Railway → service → **Settings** → confirm **Restart policy** = `on_failure`, max retries `10` (already set in `railway.json`)
-- [ ] Optional: enable **Healthcheck** path = leave null for now (bot has no HTTP server by default; would require adding one)
+- [ ] In Railway → service → **Settings** → **Healthcheck path** = `/healthz` (already set in `railway.json`). The bot serves `GET /healthz` on `PORT` and answers 200 only once it is logged in to Discord.
 - [ ] Watch the first 24h of logs for any unhandled rejections
 
 ## Re-running the slash command deploy
