@@ -8,26 +8,12 @@
  * interpolated values.
  */
 import { describe, it, expect } from 'vitest';
-import { buildEmailHTML } from '../../email/send.js';
 import { buildNftDeliveryHtml, buildPurchaseConfirmHtml } from '../email.js';
 
 const PAYLOAD = `<b>x</b>"'&`;
 const ESCAPED = '&lt;b&gt;x&lt;/b&gt;';
 
 describe('email HTML escaping (L4)', () => {
-  it('escapes customerName in the pass confirmation email (send.js)', () => {
-    const html = buildEmailHTML('INSIDER', PAYLOAD, 'https://x/portal', null);
-    expect(html).not.toContain('<b>x</b>');
-    expect(html).toContain(ESCAPED);
-    expect(html).toContain('&quot;');
-    expect(html).toContain('&#39;');
-  });
-
-  it('falls back to "Member" when customerName is empty (behavior preserved)', () => {
-    const html = buildEmailHTML('INSIDER', '', 'https://x/portal', null);
-    expect(html).toContain('Member');
-  });
-
   it('escapes the customerName-derived name and nftType in the NFT delivery email (email.js)', () => {
     const html = buildNftDeliveryHtml({
       customerName: `${PAYLOAD} Smith`,

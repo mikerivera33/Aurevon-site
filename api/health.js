@@ -1,8 +1,11 @@
 /**
  * Health check endpoint — GET /api/health
  *
- * Returns pipeline status and confirms which env vars are wired.
- * Never reveals values — only presence (true/false).
+ * Public: a minimal liveness body { ok, status, database } (always 200).
+ * Authed (Bearer INTERNAL_API_SECRET): the full readiness report from
+ * _lib/health-checks.js — env names, Stripe webhook events, Crossmint, Discord,
+ * cron heartbeats, queue counts — HTTP 503 when the money path is not ready.
+ * Never reveals values — only names, presence and states.
  */
 
 import crypto from 'node:crypto';
@@ -10,8 +13,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dbConfigured, ping } from './_lib/db.js';
+import { envReport, runHealthChecks, readinessProblems, _resetHealthChecksCache } from './_lib/health-checks.js';
 
-const VERSION = '2.2.0';
+const VERSION = '2.3.0';
 
 // Vercel Pro: 100 serverless functions per project (Hobby is 12).
 const FUNCTION_LIMIT = 100;
@@ -41,9 +45,7 @@ const REQUIRED_ENV = [
       // Stripe
       'STRIPE_SECRET_KEY',
       'STRIPE_WEBHOOK_SECRET',
-      // PayPal
-      'PAYPAL_CLIENT_ID',
-      'PAYPAL_SECRET',
+      // PayPal (IPN only — the REST client id/secret are not read)
       'PAYPAL_BUSINESS_EMAIL',
       // Crossmint (core — required for any NFT mint)
       'CROSSMINT_API_KEY',
@@ -54,8 +56,13 @@ const REQUIRED_ENV = [
       // Resend
       'RESEND_API_KEY',
       'RESEND_FROM_EMAIL',
-      // Supabase (data layer)
+      // Supabase (data layer). SUPABASE_SERVICE_ROLE_KEY is accepted for the key.
       'SUPABASE_URL',
+      'SUPABASE_SECRET_KEY',
+      // Owner consoles (/api/admin/data)
+      'ADMIN_SECRET',
+      // Alerts: the pipeline's failures go nowhere without it
+      'ALERT_WEBHOOK_URL',
       // Discord
       'DISCORD_BOT_TOKEN',
       'DISCORD_CLIENT_ID',
@@ -82,12 +89,6 @@ const REQUIRED_ENV = [
     ];
 
 const OPTIONAL_ENV = [
-      // Crossmint optional — template IDs per tier (legacy single-collection mode)
-      'CROSSMINT_TEMPLATE_INSIDER',
-      'CROSSMINT_TEMPLATE_EMBER',
-      'CROSSMINT_TEMPLATE_OBSIDIAN',
-      'CROSSMINT_TEMPLATE_GENESIS',
-      'CROSSMINT_TEMPLATE_CHROME',
       // Crossmint optional — per-entitlement collection IDs (new entitlement system)
       'CROSSMINT_COLLECTION_MONTHLY',
       'CROSSMINT_COLLECTION_LIFETIME',
@@ -103,6 +104,9 @@ const OPTIONAL_ENV = [
       'COLLABLAND_COMMUNITY_ID',
       'ENTITLEMENT_GRACE_PERIOD_DAYS',
       'PAYPAL_SANDBOX',
+      'PAYPAL_ITEM_TIERS',
+      // Owner email sink for high/critical alerts (with RESEND_API_KEY + RESEND_FROM_EMAIL)
+      'OWNER_ALERT_EMAIL',
       'RESEND_FROM_NAME',
       'DISCORD_ROLE_VERIFIED',
       // Temporary Airtable → Supabase bridge (remove once the import reports nothing new)
@@ -131,7 +135,7 @@ async function databaseStatus() {
 }
 
 /** Test hook. */
-export function _resetHealthCache() { dbStatusCache = null; }
+export function _resetHealthCache() { dbStatusCache = null; _resetHealthChecksCache(); }
 
 export default async function handler(req, res) {
       if (req.method !== 'GET') {
@@ -168,20 +172,32 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, status: 'healthy', database });
   }
 
-  const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
-  if (!process.env.SUPABASE_SECRET_KEY && !process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SECRET_KEY');
-      const optionalPresent = OPTIONAL_ENV.filter((k) => Boolean(process.env[k])).length;
+  // Authed diagnostic: names and states only, never values. Not ready ⇒ 503
+  // (authed callers only — the public body above never reveals readiness).
+  const env = envReport(REQUIRED_ENV);
+  const checks = await runHealthChecks();
+  const problems = readinessProblems({ database, env, checks });
+  const ok = problems.length === 0;
+  const optionalPresent = OPTIONAL_ENV.filter((k) => Boolean(process.env[k])).length;
+  const ownerEmail = Boolean(process.env.OWNER_ALERT_EMAIL && process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL);
 
-  return res.status(200).json({
-          ok: true,
-          status: 'healthy',
+  return res.status(ok ? 200 : 503).json({
+          ok,
+          status: ok ? 'healthy' : 'degraded',
+          problems,
           version: VERSION,
           timestamp: new Date().toISOString(),
           pipeline: 'Aurevon NFT Membership + Discord Automation',
-          env: missing.length === 0 ? 'complete' : 'partial',
           database,
-          missing_required: missing,
+          env,
           optional_env: `${optionalPresent}/${OPTIONAL_ENV.length}`,
+          mint: checks.mint,
+          stripe: checks.stripe,
+          email: { resend_configured: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL) },
+          discord: checks.discord,
+          crons: checks.crons,
+          queue: checks.queue,
+          alerts: { webhook_configured: Boolean(process.env.ALERT_WEBHOOK_URL), owner_email_configured: ownerEmail },
           function_count: FUNCTION_COUNT,
           function_limit: FUNCTION_LIMIT,
   });

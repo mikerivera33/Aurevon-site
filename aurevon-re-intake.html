@@ -77,6 +77,9 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);min
 .form-status.ok{display:block;background:rgba(46,204,113,0.1);border:1px solid rgba(46,204,113,0.25);color:#2ecc71;}
 .form-status.err{display:block;background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.25);color:#e74c3c;}
 .form-status.info{display:block;background:rgba(30,58,138,0.1);border:1px solid rgba(30,58,138,0.25);color:var(--o2);}
+.form-status[hidden]{display:none;}
+#nftStatus{margin:0 0 1rem;}
+.form-status a{color:inherit;text-decoration:underline;}
 
 /* Footer */
 footer{padding:2rem 0;border-top:1px solid rgba(255,255,255,0.06);text-align:center;color:var(--text-muted);font-size:0.78rem;}
@@ -109,7 +112,27 @@ footer a{color:var(--o2);text-decoration:none;}
     if(tierInput && tier){ tierInput.value = tier; }
     var tokenInput = document.querySelector('input[name=payment_token]');
     if(tokenInput){ tokenInput.value = proof; }
+    renderNftStatus(document.getElementById('nftStatus'));
   }
+  // Only Full Package, Pro Retainer and Enterprise earn an NFT.
+  var NFT_NAMES = { full: 'Aurevon Insider', retainer: 'Aurevon Ember', enterprise: 'Aurevon Obsidian Executive' };
+  function nftNameFor(tier){
+    return NFT_NAMES[String(tier || '').replace(/^re_/, '')] || '';
+  }
+  // "Your … NFT and Discord link are on the way to your checkout email." + "Didn't get it?" → /member-claim
+  function renderNftStatus(el){
+    var info = window.BKT_PAID_INFO || {};
+    var name = nftNameFor(info.tier);
+    if(!el || !name) return false;
+    el.textContent = 'Your ' + name + ' NFT and Discord link are on the way to your checkout email. ';
+    var a = document.createElement('a');
+    a.href = '/member-claim';
+    a.textContent = "Didn't get it?";
+    el.appendChild(a);
+    el.hidden = false;
+    return true;
+  }
+  window.BKT_renderNftStatus = renderNftStatus;
   function setGateMsg(msg){
     var el = document.getElementById('bktGateMsg');
     if(el) el.textContent = msg;
@@ -233,6 +256,7 @@ footer a{color:var(--o2);text-decoration:none;}
 
 <div class="form-section">
   <div class="wrap">
+    <p class="form-status info" id="nftStatus" role="status" hidden></p>
     <form id="intakeForm" class="form-card" novalidate>
       <div class="form-row">
         <div class="field">
@@ -511,6 +535,11 @@ form.addEventListener('submit', async (e) => {
       form.reset();
       pickedFiles = []; renderFiles();
       setStatus('ok', '✓ Deal submitted successfully. Your underwriting is now in progress — expect delivery in 24–48 hours.');
+      if (window.BKT_renderNftStatus) {
+        const line = document.createElement('span');
+        line.style.display = 'block';
+        if (window.BKT_renderNftStatus(line)) statusEl.appendChild(line);
+      }
       submitBtn.textContent = 'Submitted ✓';
     } else {
       const j = await res.json().catch(() => ({}));

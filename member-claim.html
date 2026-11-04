@@ -5,18 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <link rel="icon" type="image/png" href="/assets/aurevon_logo_nav.png"><link rel="apple-touch-icon" href="/assets/aurevon_shield_logo_1k.png">
 <title>Claim Your Aurevon Access</title>
-<meta name="description" content="Activate your Aurevon membership — receive your NFT pass, Discord role, and member portal access.">
+<meta name="description" content="Get a new Discord access link for your Aurevon membership.">
 <link rel="canonical" href="https://www.aurevonvc.com/member-claim">
 <meta name="robots" content="noindex,follow">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Aurevon Ventures LLC">
 <meta property="og:title" content="Claim Your Aurevon Access">
-<meta property="og:description" content="Activate your Aurevon membership — receive your NFT pass, Discord role, and member portal access.">
+<meta property="og:description" content="Get a new Discord access link for your Aurevon membership.">
 <meta property="og:url" content="https://www.aurevonvc.com/member-claim">
 <meta property="og:image" content="https://www.aurevonvc.com/assets/aurevon_shield_logo_1k.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Claim Your Aurevon Access">
-<meta name="twitter:description" content="Activate your Aurevon membership — receive your NFT pass, Discord role, and member portal access.">
+<meta name="twitter:description" content="Get a new Discord access link for your Aurevon membership.">
 <meta name="twitter:image" content="https://www.aurevonvc.com/assets/aurevon_shield_logo_1k.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet"/>
 <style>
@@ -110,6 +110,12 @@ async function handleClaim(e) {
     btn.textContent = 'Email My Access Link';
   }
 }
+
+// Prefill from ?email= (e.g. a link from a support reply). Value only — never markup.
+(function () {
+  const prefill = new URLSearchParams(window.location.search).get('email');
+  if (prefill) document.getElementById('email').value = prefill.trim().slice(0, 254);
+})();
 
 function showResult(type, text) {
   const el = document.getElementById('result');

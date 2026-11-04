@@ -37,23 +37,7 @@
 ### 2. Missing Vercel Environment Variables (13 Missing)
 **Blocks:** NFT minting pipeline, email delivery, merch checkout, Discord automation
 
-From `/api/health` audit — currently configured: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `AIRTABLE_PAT`, `AIRTABLE_BASE_ID`
-
-| Env Var | What it enables | Where to get |
-|---------|----------------|-------------|
-| `PAYPAL_BUSINESS_EMAIL` | PayPal webhook processing | Your PayPal account email |
-| `CROSSMINT_API_KEY` | NFT minting via Crossmint | crossmint.com → Developer → API Keys |
-| `CROSSMINT_PROJECT_ID` | NFT project identifier | crossmint.com → Your project |
-| `CROSSMINT_COLLECTION_ID` | NFT collection | crossmint.com → Collections |
-| `CROSSMINT_TEMPLATE_INSIDER` | Insider NFT template ID | crossmint.com → Templates |
-| `CROSSMINT_TEMPLATE_EMBER` | Ember NFT template ID | crossmint.com → Templates |
-| `CROSSMINT_TEMPLATE_OBSIDIAN` | Obsidian NFT template ID | crossmint.com → Templates |
-| `CROSSMINT_TEMPLATE_GENESIS` | Genesis NFT template ID | crossmint.com → Templates |
-| `CROSSMINT_TEMPLATE_CHROME` | Chrome NFT template ID | crossmint.com → Templates |
-| `RESEND_API_KEY` | All transactional emails (magic links, NFT delivery, confirmations) | resend.com → API Keys |
-| `RESEND_FROM_EMAIL` | Email sender address | e.g. `mike@aurevonvc.com` (must be verified in Resend) |
-| `RESEND_FROM_NAME` | Email sender display name | e.g. `Aurevon Group` |
-| `DISCORD_INVITE_URL` | Discord link in NFT delivery emails | Your Discord server invite link |
+Superseded: the required env vars, by purpose, are in `docs/nft-pipeline-setup.md`; authed `GET /api/health` lists what's missing or misnamed. (Crossmint template env vars are no longer used.)
 
 **Add to Vercel:** `vercel.com → Aurevon-site project → Settings → Environment Variables`
 
@@ -67,7 +51,7 @@ From `/api/health` audit — currently configured: `STRIPE_SECRET_KEY`, `STRIPE_
 **Steps:**
 1. Go to `dashboard.stripe.com → Developers → Webhooks → Add endpoint`
 2. Endpoint URL: `https://www.aurevonvc.com/api/webhooks/stripe` (or your Vercel domain)
-3. Events to listen for: `checkout.session.completed`, `payment_intent.succeeded`
+3. Events to listen for: all 9 in `api/_lib/stripe-events.js` (see `docs/nft-pipeline-setup.md`)
 4. Copy the **Webhook Signing Secret** → Add to Vercel as `STRIPE_WEBHOOK_SECRET` (update if already set)
 
 **Once confirmed → I will:** Run a test purchase, verify signature validation passes, check Airtable Payment record creation.
@@ -215,7 +199,7 @@ From `/api/health` audit — currently configured: `STRIPE_SECRET_KEY`, `STRIPE_
 | 17 | Discord welcome automation | `discord-welcome.html` exists but no Discord bot webhook is configured. |
 | 18 | CRM integration | `aurevon-crm.html` is the canonical CRM. Verify Airtable CRM view is configured. |
 | 19 | Aurevon RE Intake form | `aurevon-re-intake.html` — form submission needs Airtable or email endpoint. |
-| 20 | `setup-wizard.html` completion | Walk-through wizard for initial config — verify all steps still align with current env vars. |
+| 20 | ~~`setup-wizard.html` completion~~ | Deleted Nov 2026 (stale 7-tier model). Owner setup steps live in `docs/nft-pipeline-setup.md`. |
 
 ---
 

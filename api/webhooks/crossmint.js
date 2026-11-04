@@ -1,161 +1,286 @@
 /**
  * Crossmint webhook handler — POST /api/webhooks/crossmint
  *
- * Crossmint sends events when mint status changes.
- * We listen for successful mints and trigger Discord role assignment.
+ * Crossmint delivers webhooks through Svix. Every delivery carries:
+ *   svix-id         unique message id
+ *   svix-timestamp  unix seconds
+ *   svix-signature  space-separated "v1,<base64>" entries
+ * The signed content is `${svix-id}.${svix-timestamp}.${rawBody}`, HMAC-SHA256
+ * keyed with the base64-decoded secret after its `whsec_` prefix, base64 output.
  *
- * Crossmint webhook event shapes (2022-06-09 API):
- *   { type: "action.succeeded", data: { id, actionId, onChain: { status } }, nft: { ... } }
- *   { type: "action.failed",    data: { ... } }
- *   { type: "nft.minted",       data: { ... } }
+ * Documented minting events (the only two we act on):
+ *   { type: 'nfts.create.succeeded', actionId, data: { chain, txId,
+ *       collection: { id, contractAddress }, recipient: { walletAddress, email },
+ *       token: { id, tokenId } } }
+ *   { type: 'nfts.create.failed', actionId, data: { ..., error: { reason, message } } }
  *
- * CROSSMINT_WEBHOOK_SECRET is REQUIRED. Verification is mandatory (fail-closed):
- * if the secret is unset the handler returns 500 (misconfigured) and processes
- * nothing; a present-but-invalid signature returns 401. This prevents a forged
- * `action.succeeded` from granting Discord roles / entitlements.
+ * CROSSMINT_WEBHOOK_SECRET is REQUIRED (fail-closed): unset → 500 and nothing is
+ * processed; a bad/missing/stale signature → 401. A forged success event must
+ * never be able to grant Discord roles.
  */
 
 import crypto from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
-import { updateNftMint, findMemberByEmail, findMintByTokenId, findActiveMintByEmail } from '../_lib/db.js';
-import { resolveEntitlementFromNftType, getRoleId } from '../_lib/entitlements.js';
-import { addRoleToMember } from '../_lib/discord-bot.js';
-import { updateDiscordSyncStatus } from '../_lib/db.js';
+import {
+  updateNftMint, findMemberByEmail, findMintByActionId, findMintByTokenId,
+  listActiveMintsByEmailAndTypeWithoutToken, findActiveMintsByEmail, updateDiscordSyncStatus,
+} from '../_lib/db.js';
+import {
+  ENTITLEMENT_MAP, resolveEntitlementFromNftType, grantableEntitlements, grantableRoleIds, obsoleteRoleIds,
+  alertMissingRoles, UNKNOWN_BILLING_FIELDS,
+} from '../_lib/entitlements.js';
+import { syncMemberRoles } from '../_lib/discord-bot.js';
 import { onEntitlementActivated } from '../_lib/engage.js';
+import { sendAlert } from '../_lib/alert.js';
 
-// ── Signature verification ───────────────────────────────────────────────────
+const TOLERANCE_SECONDS = 300;
+const LOG = '[Crossmint Webhook]';
 
-function verifyCrossmintSignature(rawBody, sigHeader) {
-  const secret = process.env.CROSSMINT_WEBHOOK_SECRET;
-  if (!secret) {
-    // Defensive: the handler guards on this before calling us, so this is
-    // unreachable in normal flow. Fail closed regardless — never treat an
-    // unconfigured secret as a passing signature.
-    console.error('[Crossmint Webhook] CROSSMINT_WEBHOOK_SECRET not set — rejecting');
-    return false;
-  }
-  if (!sigHeader) {
-    console.warn('[Crossmint Webhook] Missing crossmint-signature header');
-    return false;
-  }
-  // Crossmint signature header format: "t=<timestamp>,v1=<hex>"
-  const parts = Object.fromEntries(
-    sigHeader.split(',').map((p) => p.split('=').map((s) => s.trim()))
-  );
-  const timestamp = parts['t'];
-  const receivedSig = parts['v1'];
-  if (!timestamp || !receivedSig) {
-    console.warn('[Crossmint Webhook] Malformed signature header');
-    return false;
-  }
-  // Reject events older than 5 minutes
-  if (Math.abs(Date.now() / 1000 - parseInt(timestamp, 10)) > 300) {
-    console.warn('[Crossmint Webhook] Event timestamp too old — possible replay');
-    return false;
-  }
-  const signedPayload = `${timestamp}.${rawBody}`;
+// ── Signature verification (Svix scheme) ─────────────────────────────────────
+
+function headerValue(headers, name) {
+  const v = headers?.[name] ?? headers?.[name.toLowerCase()];
+  return Array.isArray(v) ? v[0] : v;
+}
+
+/**
+ * Verify a Svix-signed Crossmint delivery.
+ * @param {string} rawBody   exact request body as received
+ * @param {Record<string, string|string[]|undefined>} headers  lower-cased request headers
+ * @param {string} secret    CROSSMINT_WEBHOOK_SECRET (`whsec_<base64>`)
+ * @returns {boolean}
+ */
+export function verifyCrossmintSignature(rawBody, headers, secret) {
+  if (!secret) return false;
+  const id = headerValue(headers, 'svix-id');
+  const timestamp = headerValue(headers, 'svix-timestamp');
+  const signature = headerValue(headers, 'svix-signature');
+  if (!id || !timestamp || !signature) return false;
+
+  const ts = Number(timestamp);
+  if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > TOLERANCE_SECONDS) return false;
+
+  const key = Buffer.from(String(secret).replace(/^whsec_/, ''), 'base64');
+  if (key.length === 0) return false;
   const expected = crypto
-    .createHmac('sha256', secret)
-    .update(signedPayload, 'utf8')
-    .digest('hex');
+    .createHmac('sha256', key)
+    .update(`${id}.${timestamp}.${rawBody}`, 'utf8')
+    .digest();
+
+  for (const entry of String(signature).split(' ')) {
+    const [version, sig] = entry.split(',');
+    if (version !== 'v1' || !sig) continue;
+    const received = Buffer.from(sig, 'base64');
+    if (received.length !== expected.length) continue;
+    if (crypto.timingSafeEqual(received, expected)) return true;
+  }
+  return false;
+}
+
+// ── Correlation ──────────────────────────────────────────────────────────────
+
+/** The one NFT type whose collection env equals this collection id, else null (shared/unknown). */
+function nftTypeFromCollection(collectionId) {
+  if (!collectionId) return null;
+  const matches = Object.values(ENTITLEMENT_MAP)
+    .filter((cfg) => process.env[cfg.collectionEnv] && process.env[cfg.collectionEnv] === collectionId);
+  return matches.length === 1 ? matches[0].nftType : null;
+}
+
+const emptyToken = (row) => {
+  const t = row?.fields?.['Token ID'];
+  return t === null || t === undefined || t === '';
+};
+
+/**
+ * Find the nft_mints row an event refers to:
+ *   1. Crossmint Action ID
+ *   2. Token ID === actionId (rows written before the action id had its own column)
+ *   3. recipient email + NFT type (from the collection id): exactly one active token-less row
+ *   4. shared/unknown collection: email only, when exactly one active row is token-less
+ * Anything ambiguous returns null (→ unmatched alert) rather than guessing a row.
+ */
+async function findMintForEvent(event) {
+  const actionId = event?.actionId ?? null;
+  const data = event?.data ?? {};
+  if (actionId) {
+    const byAction = await findMintByActionId(actionId);
+    if (byAction) return byAction;
+    const byLegacyToken = await findMintByTokenId(actionId);
+    if (byLegacyToken) return byLegacyToken;
+  }
+  const email = data.recipient?.email;
+  if (!email) return null;
+  const nftType = nftTypeFromCollection(data.collection?.id);
+  if (nftType) {
+    const typed = (await listActiveMintsByEmailAndTypeWithoutToken(email, nftType)) ?? [];
+    return typed.length === 1 ? typed[0] : null;
+  }
+  const candidates = ((await findActiveMintsByEmail(email)) ?? []).filter(emptyToken);
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+async function alertUnmatched(event) {
+  console.warn(`${LOG} no nft_mints row for type=${event?.type} actionId=${event?.actionId ?? ''}`);
+  await sendAlert('crossmint.webhook_unmatched',
+    { type: event?.type ?? '', actionId: event?.actionId ?? '' },
+    { dedupeKey: event?.actionId ?? undefined });
+}
+
+// ── Discord grant ────────────────────────────────────────────────────────────
+
+function discordStatus(err) {
+  const msg = String(err?.message ?? '');
+  if (/not found in guild/.test(msg)) return 404;
+  const m = msg.match(/\((\d{3})\)/);
+  return m ? Number(m[1]) : 'error';
+}
+
+async function grantDiscordAccess(email, fallbackRow) {
+  let member = null;
+  let memberFields;
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(receivedSig, 'hex'),
-      Buffer.from(expected, 'hex'),
-    );
-  } catch {
-    console.warn('[Crossmint Webhook] Signature comparison failed (malformed hex in header) — rejecting');
-    return false;
+    member = await findMemberByEmail(email);
+    memberFields = member?.fields;
+  } catch (e) {
+    console.error(`${LOG} member lookup failed (fail-closed for revocable): ${e.message}`);
+    memberFields = UNKNOWN_BILLING_FIELDS;
   }
-}
-
-// ── Mint success handler ─────────────────────────────────────────────────────
-
-async function handleMintSuccess(event) {
-  const mintId = event.data?.id ?? event.data?.actionId ?? null;
-  const nftData = event.data?.nft ?? event.nft ?? {};
-  const recipientEmail = nftData.recipient?.email ?? event.data?.recipient?.email ?? null;
-  console.log(`[Crossmint Webhook] Mint success mintId=${mintId} email=${recipientEmail}`);
-
-  let mintRecord = null;
-  if (mintId) {
-    mintRecord = await findMintByTokenId(mintId);
-  }
-  if (!mintRecord && recipientEmail) {
-    mintRecord = await findActiveMintByEmail(recipientEmail);
-  }
-  if (!mintRecord) {
-    console.warn(`[Crossmint Webhook] No NFT_Mints record for mintId=${mintId} email=${recipientEmail}`);
-    return;
-  }
-
-  const recordId = mintRecord.id;
-  const email = mintRecord.fields['Email'] ?? recipientEmail ?? '';
-  const nftType = mintRecord.fields['NFT Type'] ?? nftData.metadata?.name ?? '';
-  const txHash = event.data?.onChain?.txId ?? '';
-  const now = new Date().toISOString();
-
-  await updateNftMint(recordId, {
-    'Mint Status': 'Minted',
-    'Mint Date': now,
-    'Transaction Hash': txHash,
-    'Token ID': mintId ?? mintRecord.fields['Token ID'] ?? '',
-  });
-  console.log(`[Crossmint Webhook] Updated NFT_Mints recordId=${recordId} → Minted`);
-
-  const entitlementKey = resolveEntitlementFromNftType(nftType);
-  if (!entitlementKey) {
-    console.warn(`[Crossmint Webhook] No entitlement key for nftType="${nftType}"`);
-    return;
-  }
-  const roleId = getRoleId(entitlementKey);
-  if (!roleId) {
-    console.warn(`[Crossmint Webhook] No roleId for entitlement="${entitlementKey}" — check env vars`);
-    return;
-  }
-  if (!email) {
-    console.warn('[Crossmint Webhook] No email available for Discord sync');
-    return;
-  }
-
-  const member = await findMemberByEmail(email).catch(() => null);
   const discordId = member?.fields?.['Discord ID'];
-  if (discordId) {
-    try {
-      await addRoleToMember(discordId, roleId);
-      await updateNftMint(recordId, { 'Discord Synced': true, 'Discord Synced At': now });
-      await updateDiscordSyncStatus(email, 'synced');
-      console.log(`[Crossmint Webhook] Discord role assigned discordId=${discordId} roleId=${roleId}`);
-      onEntitlementActivated({
-        email,
-        name: member?.fields?.['Customer Name'] ?? '',
-        entitlementType: entitlementKey,
-        nftType,
-        serial: mintRecord.fields['Reference'] ?? '',
-      }).catch(() => {});
-    } catch (err) {
-      console.error(`[Crossmint Webhook] Discord role assignment failed: ${err.message}`);
-      await updateDiscordSyncStatus(email, 'pending').catch(() => {});
-    }
-  } else {
-    console.log(`[Crossmint Webhook] No Discord ID for email=${email} — marking sync pending`);
+  if (!discordId) {
+    console.log(`${LOG} member has no Discord ID yet — sync pending`);
     await updateDiscordSyncStatus(email, 'pending').catch(() => {});
+    return;
+  }
+
+  // Every pass the member holds, plus the row just minted (in case the lookup
+  // failed or has not seen the update yet).
+  const found = await findActiveMintsByEmail(email).catch(() => []);
+  const mints = [...(found ?? [])];
+  if (!mints.some((m) => m?.id === fallbackRow.id)) mints.push(fallbackRow);
+
+  const keys = grantableEntitlements(mints, memberFields);
+  if (!keys.length) {
+    console.warn(`${LOG} no grantable pass (lapsed/cancelled monthly) — no role granted`);
+    return;
+  }
+  const roleKey = keys.join(',');
+  const { roleIds, missing } = grantableRoleIds(mints, memberFields);
+  await alertMissingRoles(missing);
+  if (!roleIds.length) {
+    await updateDiscordSyncStatus(email, 'pending', { error: `No Discord role configured for ${roleKey}` }).catch(() => {});
+    return;
+  }
+
+  try {
+    await syncMemberRoles(discordId, roleIds, obsoleteRoleIds(mints, memberFields));
+  } catch (err) {
+    console.error(`${LOG} Discord role grant failed roleKey=${roleKey}`);
+    await sendAlert('discord.role_grant_failed', { roleKey, status: discordStatus(err) });
+    await updateDiscordSyncStatus(email, 'pending', { error: String(err?.message ?? '').slice(0, 300) }).catch(() => {});
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const grantedKeys = keys.filter((k) => !missing.includes(k));
+  const grantedMints = mints.filter((m) => m?.id && grantedKeys.includes(resolveEntitlementFromNftType(m.fields?.['NFT Type'] ?? '')));
+  for (const m of grantedMints) {
+    await updateNftMint(m.id, { 'Discord Synced': true, 'Discord Synced At': now });
+  }
+  // An unconfigured role keeps the member 'pending' so reconcile grants it later.
+  await updateDiscordSyncStatus(email, missing.length ? 'pending' : 'synced');
+  console.log(`${LOG} Discord roles granted roleKey=${roleKey}`);
+
+  // Engage: the pass this mint delivered (when it is one of those granted).
+  const nftType = fallbackRow.fields?.['NFT Type'] ?? '';
+  const mintedKey = resolveEntitlementFromNftType(nftType);
+  if (mintedKey && grantedKeys.includes(mintedKey)) {
+    onEntitlementActivated({
+      email,
+      name: member?.fields?.['Customer Name'] ?? '',
+      entitlementType: mintedKey,
+      nftType,
+      serial: fallbackRow.fields?.['Reference'] ?? '',
+    }).catch(() => {});
   }
 }
 
-async function handleMintFailure(event) {
-  const mintId = event.data?.id ?? event.data?.actionId ?? null;
-  const errorMsg = event.data?.error?.message ?? JSON.stringify(event.data?.error ?? {});
-  console.warn(`[Crossmint Webhook] Mint failed mintId=${mintId} error=${errorMsg}`);
-  if (mintId) {
-    const rec = await findMintByTokenId(mintId).catch(() => null);
-    if (rec) {
-      await updateNftMint(rec.id, {
-        'Mint Status': 'Failed',
-        'Notes': `Crossmint failed: ${errorMsg}`,
-      }).catch((e) => console.error(`[Crossmint Webhook] mint row update failed: ${e.message}`));
-    }
+// ── Event handlers ───────────────────────────────────────────────────────────
+
+/**
+ * Apply a succeeded mint to its row: Minted + on-chain facts, then the Discord
+ * grant. Shared by the webhook and reconcile's Sent-row polling.
+ *
+ * A row already Revoked (refund / dispute landed before Crossmint finished)
+ * keeps its status: only the on-chain facts are recorded, nothing is granted,
+ * and the owner is told (the token exists on-chain for a refunded purchase).
+ */
+export async function settleMintSucceeded(row, event) {
+  const data = event?.data ?? {};
+  const tokenId = data.token?.tokenId ?? data.token?.id;
+  const onChain = {
+    'Transaction Hash': data.txId ?? '',
+    'Wallet Address': data.recipient?.walletAddress ?? '',
+  };
+  if (tokenId !== undefined && tokenId !== null && tokenId !== '') onChain['Token ID'] = String(tokenId);
+
+  if (row.fields?.['Mint Status'] === 'Revoked') {
+    await updateNftMint(row.id, onChain);
+    console.warn(`${LOG} row ${row.id} is Revoked — recorded on-chain facts only, no status change, no grant`);
+    await sendAlert('crossmint.revoked_row_minted', { rowId: row.id, actionId: event?.actionId ?? '' },
+      { severity: 'info', dedupeKey: row.id });
+    return;
   }
+
+  const fields = { 'Mint Status': 'Minted', 'Mint Date': new Date().toISOString(), ...onChain };
+  await updateNftMint(row.id, fields);
+  console.log(`${LOG} row ${row.id} → Minted actionId=${event?.actionId ?? ''}`);
+
+  const email = row.fields?.['Email'] || data.recipient?.email;
+  if (!email) {
+    console.warn(`${LOG} no email on row ${row.id} — skipping Discord sync`);
+    return;
+  }
+  await grantDiscordAccess(email, { ...row, fields: { ...row.fields, ...fields } });
+}
+
+/**
+ * Apply a failed mint to its row: Failed, the error, and a new Crossmint
+ * idempotency-key suffix — the failed action's key would only replay the
+ * failure, so the next retry-mints PUT uses `<payment>-r<n>`. A Revoked row
+ * stays Revoked (it must never re-enter the retry queue).
+ */
+export async function settleMintFailed(row, event) {
+  const err = event?.data?.error ?? {};
+  const message = err.message ?? 'unknown error';
+  const lastError = `${err.reason ? `${err.reason}: ` : ''}${message}`.slice(0, 500);
+  if (row.fields?.['Mint Status'] === 'Revoked') {
+    await updateNftMint(row.id, { 'Last Error': lastError });
+    return;
+  }
+  await updateNftMint(row.id, {
+    'Mint Status': 'Failed',
+    'Notes': `Crossmint failed: ${message}`,
+    'Last Error': lastError,
+    'Mint Key Suffix': (Number(row.fields?.['Mint Key Suffix']) || 0) + 1,
+  });
+}
+
+export async function handleMintSuccess(event) {
+  const row = await findMintForEvent(event);
+  if (!row) return alertUnmatched(event);
+  await settleMintSucceeded(row, event);
+}
+
+export async function handleMintFailure(event) {
+  const actionId = event?.actionId ?? '';
+  const err = event?.data?.error ?? {};
+  console.warn(`${LOG} mint failed actionId=${actionId} reason=${err.reason ?? ''}`);
+
+  const row = await findMintForEvent(event);
+  if (row) await settleMintFailed(row, event);
+  else await alertUnmatched(event);
+  await sendAlert('crossmint.mint_failed_webhook', { actionId }, { dedupeKey: actionId || undefined });
 }
 
 // ── Vercel handler ────────────────────────────────────────────────────────────
@@ -175,14 +300,15 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Failed to read body' });
   }
 
-  // Fail-closed: the webhook secret is mandatory. Missing config ⇒ 500 (don't
-  // process unverifiable events); present-but-invalid signature ⇒ 401.
-  if (!process.env.CROSSMINT_WEBHOOK_SECRET) {
-    console.error('[Crossmint Webhook] CROSSMINT_WEBHOOK_SECRET not configured — refusing to process');
+  const secret = process.env.CROSSMINT_WEBHOOK_SECRET;
+  if (!secret) {
+    console.error(`${LOG} CROSSMINT_WEBHOOK_SECRET not configured — refusing to process`);
+    await sendAlert('crossmint.webhook_unconfigured', {}, { severity: 'critical', dedupeKey: 'config' });
     return res.status(500).json({ error: 'Webhook verification not configured' });
   }
-  const sigHeader = req.headers['crossmint-signature'] ?? req.headers['x-crossmint-signature'] ?? '';
-  if (!verifyCrossmintSignature(rawBody, sigHeader)) {
+  if (!verifyCrossmintSignature(rawBody, req.headers ?? {}, secret)) {
+    console.warn(`${LOG} rejected delivery: bad signature`);
+    await sendAlert('crossmint.webhook_rejected', { reason: 'bad_signature' }, { dedupeKey: 'sig' });
     return res.status(401).json({ error: 'Invalid signature' });
   }
 
@@ -193,29 +319,19 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid JSON' });
   }
 
-  const eventType = event.type ?? '';
-  console.log(`[Crossmint Webhook] Received type="${eventType}"`);
-
-  // Acknowledge immediately
+  const eventType = event?.type ?? '';
   res.status(200).json({ received: true });
 
-  const isSuccess = ['action.succeeded', 'nft.minted', 'mint.succeeded'].includes(eventType);
-  const isFailure = ['action.failed', 'mint.failed'].includes(eventType);
-
-  // Register the post-ack work with waitUntil so Vercel keeps the function alive
-  // until it settles. Fired detached after res.json(), this work would otherwise
-  // be frozen after the response flushes — silently dropping the mint row update
-  // and Discord role assignment (the durability bug this branch targets).
-  if (isSuccess) {
+  // waitUntil keeps the function alive for the post-ack work (row update +
+  // Discord grant) instead of it being frozen once the response flushes.
+  if (eventType === 'nfts.create.succeeded') {
     waitUntil(handleMintSuccess(event).catch((e) =>
-      console.error(`[Crossmint Webhook] handleMintSuccess error: ${e.message}`, e.stack)
-    ));
-  } else if (isFailure) {
+      console.error(`${LOG} handleMintSuccess error: ${e.message}`)));
+  } else if (eventType === 'nfts.create.failed') {
     waitUntil(handleMintFailure(event).catch((e) =>
-      console.error(`[Crossmint Webhook] handleMintFailure error: ${e.message}`)
-    ));
+      console.error(`${LOG} handleMintFailure error: ${e.message}`)));
   } else {
-    console.log(`[Crossmint Webhook] Ignoring event type="${eventType}"`);
+    console.log(`${LOG} ignored event type="${eventType}"`);
   }
 }
 

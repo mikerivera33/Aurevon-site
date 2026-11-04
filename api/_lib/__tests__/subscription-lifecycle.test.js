@@ -15,6 +15,10 @@ vi.mock('../db.js', () => ({
   // referenced at stripe.js module load:
   createPayment: vi.fn(), createNftMint: vi.fn(), updateDiscordSyncStatus: vi.fn().mockResolvedValue({}),
   findMemberByEmail: vi.fn().mockResolvedValue(null), findPaymentByTransactionId: vi.fn(),
+  // fulfil.js (shared NFT fulfilment):
+  findMintByPaymentId: vi.fn().mockResolvedValue(null), updateNftMint: vi.fn().mockResolvedValue({}),
+  // refunds / disputes:
+  updatePaymentStatus: vi.fn().mockResolvedValue(null), findActiveMintsByEmail: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('../crossmint.js', () => ({ mintToEmail: vi.fn() }));
 vi.mock('../email.js', () => ({ sendNftDelivery: vi.fn(), sendPurchaseConfirmation: vi.fn() }));
@@ -67,6 +71,37 @@ describe('handleInvoicePaymentSucceeded', () => {
     await handleInvoicePaymentSucceeded({
       amount_paid: 149900,
       customer_email: 'retainer@example.com',
+      lines: { data: [{ period: { end: PERIOD_END } }] },
+    });
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+  });
+
+  it('reads the tier from subscription_details metadata before amount inference ($0 promo renewal)', async () => {
+    await handleInvoicePaymentSucceeded({
+      amount_paid: 0,
+      customer_email: 'promo@example.com',
+      subscription_details: { metadata: { tier: 'comm_monthly' } },
+      lines: { data: [{ period: { end: PERIOD_END } }] },
+    });
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('promo@example.com', {
+      entitlementType: 'monthly_membership', status: 'active', expiresAt: PERIOD_END_ISO, billingState: 'active',
+    });
+  });
+
+  it('falls back to the invoice line metadata tier', async () => {
+    await handleInvoicePaymentSucceeded({
+      amount_paid: 2399, // discounted — amount alone infers nothing
+      customer_email: 'line@example.com',
+      lines: { data: [{ metadata: { tier: 'comm_monthly' }, period: { end: PERIOD_END } }] },
+    });
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('line@example.com', expect.objectContaining({ billingState: 'active' }));
+  });
+
+  it('metadata tier for a non-monthly plan wins over a $29.99 amount', async () => {
+    await handleInvoicePaymentSucceeded({
+      amount_paid: 2999,
+      customer_email: 'ret@example.com',
+      subscription_details: { metadata: { tier: 're_retainer' } },
       lines: { data: [{ period: { end: PERIOD_END } }] },
     });
     expect(db.updateEntitlementState).not.toHaveBeenCalled();
@@ -185,6 +220,17 @@ describe('handleSubscriptionDeleted', () => {
     expect(customersRetrieve).toHaveBeenCalledWith('cus_1');
     expect(db.updateEntitlementState).toHaveBeenCalledWith('monthly@example.com', { billingState: 'cancelled' });
     expect(discordBot.removeRoleFromMember).toHaveBeenCalledWith('disc_1', 'role_monthly');
+    // Final fix 11: off the nightly out-of-sync list once revoked.
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('monthly@example.com', { status: 'revoked' });
+  });
+
+  it('a failed role removal leaves the entitlement active (nightly reconcile retries it)', async () => {
+    customersRetrieve.mockResolvedValue({ email: 'monthly@example.com' });
+    db.findMemberByEmail.mockResolvedValue({ fields: { 'Discord ID': 'disc_f', 'Entitlement Type': 'monthly_membership' } });
+    discordBot.removeRoleFromMember.mockRejectedValueOnce(new Error('Discord bot (500): x'));
+    await handleSubscriptionDeleted({ id: 'sub_fail', customer: 'cus_f', metadata: { tier: 'comm_monthly' } });
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('monthly@example.com', { billingState: 'cancelled' });
+    expect(db.updateEntitlementState).not.toHaveBeenCalledWith('monthly@example.com', { status: 'revoked' });
   });
 
   it('does not touch a monthly membership when an untagged $1,499 retainer is cancelled', async () => {
