@@ -29,6 +29,7 @@ import {
   findLatestPaymentByEmailAndTier, listPendingDiscordSync, listFailedDiscordSync, listOutOfSyncEntitlements, listLapsedMonthlyWithoutExpiry,
   listFailedMints, listUndeliveredMints, findMintByPaymentId, findPaymentByTransactionId, listPaymentTransactionIds,
   findPaymentBySubscriptionId, recordOpsEvent, updateDiscordSyncStatus, updateNftMint, createNftMint, dbConfigured,
+  listStuckSentMints,
 } from '../_lib/db.js';
 import { syncMemberRoles, removeRoleFromMember } from '../_lib/discord-bot.js';
 import {
@@ -40,6 +41,8 @@ import { sendDiscordAccessLink, sendNftDelivery } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
 import { fulfilNft, serialFromReference, nextRetryAt } from '../_lib/fulfil.js';
 import { airtableImportEnabled, importFromAirtable, importHasProblems } from '../_lib/airtable-import.js';
+import { getMintAction } from '../_lib/crossmint.js';
+import { settleMintSucceeded, settleMintFailed } from '../webhooks/crossmint.js';
 
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 
@@ -417,6 +420,49 @@ export async function recoverUnrecordedStripeSessions({ sinceDays = 3, budgetMs 
 
 // ── GET: reconcile ───────────────────────────────────────────────────────────
 
+const SENT_POLL_AFTER_MINUTES = 60;
+const SENT_POLL_BATCH = 20;
+
+/**
+ * Rows stuck in Sent (Crossmint accepted the PUT but no webhook outcome came
+ * back): ask Crossmint where each action stands and apply it exactly as the
+ * webhook would — settleMintSucceeded (Revoked rows keep their status) or
+ * settleMintFailed (new retry-key suffix). Pending actions are left alone.
+ */
+async function settleStuckSentMints(report) {
+  const out = { checked: 0, minted: 0, failed: 0, pending: 0, errors: 0 };
+  let rows;
+  try {
+    rows = await listStuckSentMints({ olderThanMinutes: SENT_POLL_AFTER_MINUTES, maxRecords: SENT_POLL_BATCH });
+  } catch (err) {
+    report.errors.push(`listStuckSentMints: ${err.message}`);
+    return out;
+  }
+  for (const row of rows) {
+    const actionId = row.fields?.['Crossmint Action ID'];
+    if (!actionId) continue;
+    out.checked++;
+    try {
+      const { status, event } = await getMintAction(actionId);
+      if (status === 'succeeded') {
+        await settleMintSucceeded(row, event);
+        out.minted++;
+      } else if (status === 'failed') {
+        await settleMintFailed(row, event);
+        out.failed++;
+        await sendAlert('reconcile.mint_failed', { rowId: row.id, actionId }, { dedupeKey: actionId }).catch(() => {});
+      } else {
+        out.pending++;
+      }
+    } catch (err) {
+      out.errors++;
+      report.errors.push(`poll mint=${row.id}: ${err.message}`);
+    }
+  }
+  if (out.checked) console.log(`[Reconcile] Sent-row poll: ${JSON.stringify(out)}`);
+  return out;
+}
+
 const DISCORD_SYNC_MAX_ATTEMPTS = 3;
 const DISCORD_RETRY_AFTER_HOURS = 6;
 const DISCORD_RETRY_BATCH = 20;
@@ -509,6 +555,9 @@ async function handleReconcile() {
       await sendAlert('reconcile.airtable_import_problems', report.airtableImport).catch(() => {});
     }
   }
+
+  // 0b. Settle mints stuck in Sent by asking Crossmint (the webhook never came).
+  report.sentPoll = await settleStuckSentMints(report);
 
   // 1. Find members with Discord linked but pending sync
   let pendingMembers = [];

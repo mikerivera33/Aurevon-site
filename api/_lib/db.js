@@ -375,6 +375,17 @@ export async function listMintsByEmail(email, maxRecords = 100) {
     'listMintsByEmail');
 }
 
+/**
+ * Rows stuck in Sent: a Crossmint action id but no webhook outcome after
+ * `olderThanMinutes`. Reconcile polls Crossmint for them, oldest first.
+ */
+export async function listStuckSentMints({ olderThanMinutes = 60, maxRecords = 20 } = {}) {
+  return many('nft_mints',
+    from('nft_mints').eq('mint_status', 'Sent').not('crossmint_action_id', 'is', null).neq('crossmint_action_id', '')
+      .lt('updated_at', minutesAgo(olderThanMinutes)).order('updated_at', { ascending: true }).limit(maxRecords),
+    'listStuckSentMints');
+}
+
 /** Minted/Sent but not yet Discord-synced. */
 export async function listUnsynced({ maxRecords = 50 } = {}) {
   return many('nft_mints',

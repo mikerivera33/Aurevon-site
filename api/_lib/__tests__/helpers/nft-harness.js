@@ -25,6 +25,8 @@ export function freshStore() {
     crossmintStatus: 200,
     resendFails: false,
     serialFails: false,
+    // GET /actions/{id} answers: { [actionId]: { status, data?, error? } }; unknown → 404.
+    crossmintActions: {},
   };
 }
 
@@ -152,6 +154,7 @@ export function makeFakeDb(store) {
     markDiscordAuthNonceUsed: vi.fn(async () => ({})),
     listPendingDiscordSync: vi.fn(async () => []),
     listFailedDiscordSync: vi.fn(async () => []),
+    listStuckSentMints: vi.fn(async () => []),
     listOutOfSyncEntitlements: vi.fn(async () => []),
     listLapsedMonthlyWithoutExpiry: vi.fn(async () => []),
     dbConfigured: vi.fn(() => true),
@@ -196,6 +199,12 @@ export function installFetch(store) {
     const call = { url: u, method: opts.method ?? 'GET', body };
     store.calls.push(call);
     if (u.includes('ipnpb')) return { ok: true, status: 200, text: async () => 'VERIFIED' };
+    if (u.includes('/2022-06-09/actions/')) {
+      const id = decodeURIComponent(u.split('/actions/')[1] ?? '');
+      const action = store.crossmintActions[id];
+      if (!action) return { ok: false, status: 404, json: async () => ({ message: 'not found' }) };
+      return { ok: true, status: 200, json: async () => ({ actionId: id, ...action }) };
+    }
     if (u.includes('/collections/') && u.includes('/nfts')) {
       if (store.crossmintStatus !== 200) {
         return { ok: false, status: store.crossmintStatus, json: async () => ({ message: 'crossmint unavailable' }) };

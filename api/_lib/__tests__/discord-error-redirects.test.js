@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vites
 vi.mock('../db.js', () => ({
   upsertDiscordLink: vi.fn(), updateDiscordSyncStatus: vi.fn(), findActiveMintsByEmail: vi.fn(),
   findMemberByEmail: vi.fn(), isDiscordAuthNonceUsed: vi.fn(), markDiscordAuthNonceUsed: vi.fn(),
-  dbConfigured: vi.fn(() => true), listPendingDiscordSync: vi.fn(), listFailedDiscordSync: vi.fn().mockResolvedValue([]),
+  dbConfigured: vi.fn(() => true), listPendingDiscordSync: vi.fn(), listFailedDiscordSync: vi.fn().mockResolvedValue([]), listStuckSentMints: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('../alert.js', () => ({ sendAlert: vi.fn().mockResolvedValue({ ok: true }) }));
 vi.mock('../discord-bot.js', () => ({

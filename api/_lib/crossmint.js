@@ -176,3 +176,42 @@ export async function mintToEmail({
     return { ok: false, error: err?.message || 'Crossmint request failed' };
   }
 }
+
+const ACTION_TIMEOUT_MS = 8000;
+
+/**
+ * Where a mint action stands — reconcile polls rows stuck in Sent (the webhook
+ * never arrived). GET {base}/2022-06-09/actions/{actionId}.
+ *
+ * @param {string} actionId
+ * @returns {Promise<{ status: 'succeeded'|'failed'|'pending', event: object }>}
+ *   `event` has the webhook shape ({ type, actionId, data }) so the Crossmint
+ *   webhook's settle functions apply it unchanged.
+ * @throws on a missing API key, network error, timeout or non-2xx response
+ */
+export async function getMintAction(actionId) {
+  const apiKey = process.env.CROSSMINT_API_KEY;
+  if (!apiKey) throw new Error('CROSSMINT_API_KEY not configured');
+  const safeId = encodeURIComponent(String(actionId ?? ''));
+  if (!safeId) throw new Error('actionId is required');
+
+  const response = await fetch(`${CROSSMINT_BASE_URL}/actions/${safeId}`, {
+    method: 'GET',
+    headers: { 'X-API-KEY': apiKey },
+    signal: globalThis.AbortSignal.timeout(ACTION_TIMEOUT_MS),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(`Crossmint action lookup ${response.status}`);
+
+  const raw = String(body?.status ?? '').toLowerCase();
+  const status = raw === 'succeeded' || raw === 'success' ? 'succeeded'
+    : raw === 'failed' || raw === 'error' ? 'failed'
+      : 'pending';
+  const data = body?.data ?? {};
+  const event = {
+    type: status === 'succeeded' ? 'nfts.create.succeeded' : status === 'failed' ? 'nfts.create.failed' : 'nfts.create.pending',
+    actionId: body?.actionId ?? String(actionId),
+    data: status === 'failed' && !data.error && body?.error ? { ...data, error: body.error } : data,
+  };
+  return { status, event };
+}
