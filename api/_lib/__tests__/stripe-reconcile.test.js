@@ -10,7 +10,7 @@
  * Harness: real stripe.js / fulfil / tiers / entitlements / crossmint / email;
  * in-memory db, faked Stripe SDK, alerts, Discord bot, Engage and fetch.
  */
-import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest';
 
 const store = vi.hoisted(() => ({}));
 const sessionsList = vi.hoisted(() => vi.fn());
@@ -341,5 +341,56 @@ describe('reconcile cron', () => {
     expect(db.updateDiscordSyncStatus).not.toHaveBeenCalledWith('fresh@example.com', 'revoked');
     const logged = JSON.stringify([...console.log.mock.calls, ...console.error.mock.calls]);
     expect(logged).not.toContain('old@example.com');
+  });
+
+  describe('nightly re-revocation (final fix 11)', () => {
+    const daysAgo = (d) => new Date(Date.now() - d * 86_400_000).toISOString();
+    // A tiny members table behind listOutOfSyncEntitlements / updateEntitlementState.
+    const installMembers = (rows) => {
+      const members = new Map(rows.map((r) => [r.fields.Email, r]));
+      db.listOutOfSyncEntitlements.mockImplementation(async () => [...members.values()]
+        .filter((m) => m.fields['Entitlement Status'] === 'active'));
+      db.updateEntitlementState.mockImplementation(async (email, { status }) => {
+        if (status !== undefined) members.get(email).fields['Entitlement Status'] = status;
+        return {};
+      });
+      return members;
+    };
+    afterEach(() => {
+      db.listOutOfSyncEntitlements.mockImplementation(async () => []);
+      db.updateEntitlementState.mockImplementation(async () => ({}));
+    });
+    const lapsed = (email, discordId) => ({ id: `mem_${discordId}`, fields: {
+      Email: email, 'Discord ID': discordId, 'Entitlement Type': 'monthly_membership', 'Entitlement Status': 'active',
+      'Billing State': 'cancelled', 'Entitlement Expires At': daysAgo(30),
+    } });
+
+    it('marks the entitlement revoked after a successful revocation, so a second run does not revoke again', async () => {
+      sessionsList.mockResolvedValue(page([]));
+      const members = installMembers([lapsed('gone@example.com', 'd_gone')]);
+
+      const first = await runReconcile();
+      expect(first.body.report).toEqual(expect.objectContaining({ revokeChecked: 1, revokeApplied: 1 }));
+      expect(db.updateEntitlementState).toHaveBeenCalledWith('gone@example.com', { status: 'revoked' });
+      expect(members.get('gone@example.com').fields['Entitlement Status']).toBe('revoked');
+
+      const second = await runReconcile();
+      expect(second.body.report).toEqual(expect.objectContaining({ revokeChecked: 0, revokeApplied: 0 }));
+      expect(discordBot.removeRoleFromMember).toHaveBeenCalledTimes(1);
+    });
+
+    it('a failed role removal stays active so the next run retries it', async () => {
+      sessionsList.mockResolvedValue(page([]));
+      const members = installMembers([lapsed('stuck@example.com', 'd_stuck')]);
+      discordBot.removeRoleFromMember.mockRejectedValueOnce(new Error('Discord bot (500): x'));
+
+      await runReconcile();
+      expect(db.updateEntitlementState).not.toHaveBeenCalledWith('stuck@example.com', { status: 'revoked' });
+      expect(members.get('stuck@example.com').fields['Entitlement Status']).toBe('active');
+
+      await runReconcile();
+      expect(discordBot.removeRoleFromMember).toHaveBeenCalledTimes(2);
+      expect(members.get('stuck@example.com').fields['Entitlement Status']).toBe('revoked');
+    });
   });
 });

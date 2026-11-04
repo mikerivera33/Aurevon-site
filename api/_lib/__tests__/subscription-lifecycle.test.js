@@ -220,6 +220,17 @@ describe('handleSubscriptionDeleted', () => {
     expect(customersRetrieve).toHaveBeenCalledWith('cus_1');
     expect(db.updateEntitlementState).toHaveBeenCalledWith('monthly@example.com', { billingState: 'cancelled' });
     expect(discordBot.removeRoleFromMember).toHaveBeenCalledWith('disc_1', 'role_monthly');
+    // Final fix 11: off the nightly out-of-sync list once revoked.
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('monthly@example.com', { status: 'revoked' });
+  });
+
+  it('a failed role removal leaves the entitlement active (nightly reconcile retries it)', async () => {
+    customersRetrieve.mockResolvedValue({ email: 'monthly@example.com' });
+    db.findMemberByEmail.mockResolvedValue({ fields: { 'Discord ID': 'disc_f', 'Entitlement Type': 'monthly_membership' } });
+    discordBot.removeRoleFromMember.mockRejectedValueOnce(new Error('Discord bot (500): x'));
+    await handleSubscriptionDeleted({ id: 'sub_fail', customer: 'cus_f', metadata: { tier: 'comm_monthly' } });
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('monthly@example.com', { billingState: 'cancelled' });
+    expect(db.updateEntitlementState).not.toHaveBeenCalledWith('monthly@example.com', { status: 'revoked' });
   });
 
   it('does not touch a monthly membership when an untagged $1,499 retainer is cancelled', async () => {

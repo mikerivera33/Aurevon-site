@@ -29,7 +29,7 @@ import {
   findLatestPaymentByEmailAndTier, listPendingDiscordSync, listFailedDiscordSync, listOutOfSyncEntitlements, listLapsedMonthlyWithoutExpiry,
   listFailedMints, listUndeliveredMints, findMintByPaymentId, findPaymentByTransactionId, listPaymentTransactionIds,
   findPaymentBySubscriptionId, recordOpsEvent, updateDiscordSyncStatus, updateNftMint, createNftMint, dbConfigured,
-  listStuckSentMints,
+  listStuckSentMints, updateEntitlementState,
 } from '../_lib/db.js';
 import { syncMemberRoles, removeRoleFromMember } from '../_lib/discord-bot.js';
 import {
@@ -601,10 +601,12 @@ async function handleReconcile() {
     report.revokeApplied++;
 
     // Remove the monthly role
+    let removed = true;
     if (discordId) {
       const roleId = getRoleId('monthly_membership');
       if (roleId) {
         await removeRoleFromMember(discordId, roleId).catch((err) => {
+          removed = false;
           report.errors.push(`removeRole member=${member.id}: ${err.message}`);
         });
       }
@@ -612,6 +614,13 @@ async function handleReconcile() {
 
     // Update member record
     await updateDiscordSyncStatus(email, 'revoked').catch(() => {});
+    // Done: leave the out-of-sync list (entitlement_status 'active') so the next
+    // run does not revoke again. A failed role removal stays listed for a retry.
+    if (removed) {
+      await updateEntitlementState(email, { status: 'revoked' }).catch((err) => {
+        report.errors.push(`entitlement status member=${member.id}: ${err.message}`);
+      });
+    }
 
     // Fire Engage event
     onSubscriptionCancelled({ email, entitlementType: 'monthly_membership' }).catch(() => {});

@@ -500,6 +500,7 @@ export async function handleSubscriptionDeleted(subscription) {
     });
   }
   const roleId = entitlementCfg?.revokeOnCancel ? getRoleId(entitlementKey) : null;
+  let removed = true;
   if (roleId) {
     try {
       const discordId = member?.fields?.['Discord ID'];
@@ -510,10 +511,20 @@ export async function handleSubscriptionDeleted(subscription) {
         console.log(`[Stripe] No Discord ID for subscription ${subscription?.id ?? 'unknown'} member — role removal skipped`);
       }
     } catch (err) {
+      removed = false;
       console.error(`[Stripe] Discord role removal failed: ${err.message}`);
     }
   } else {
     console.log(`[Stripe] Entitlement "${entitlementKey}" for tier="${tier}" is not revocable — Discord role retained`);
+  }
+
+  // Revocation done: entitlement_status 'revoked' takes the member off the
+  // nightly out-of-sync list (no repeat revocation). A failed role removal
+  // stays 'active' so reconcile retries it after the grace window.
+  if (entitlementCfg?.revokeOnCancel && removed) {
+    await updateEntitlementState(customerEmail, { status: 'revoked' }).catch((e) => {
+      console.error(`[Stripe] Failed to mark entitlement revoked: ${e.message}`);
+    });
   }
 }
 

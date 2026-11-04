@@ -15,7 +15,7 @@ vi.mock('../db.js', () => ({
   findActiveMintByEmail: vi.fn(),
   // referenced at module load by claim.js:
   findMemberByEmail: vi.fn(), findActiveMintByEmailAndType: vi.fn(), findAnyMintByEmailAndType: vi.fn(),
-  findMintByTokenId: vi.fn(), listUnlinkedMintsBefore: vi.fn(), listPaymentsSince: vi.fn(), listPendingDiscordSync: vi.fn(), listFailedDiscordSync: vi.fn().mockResolvedValue([]), listStuckSentMints: vi.fn().mockResolvedValue([]),
+  findMintByTokenId: vi.fn(), listUnlinkedMintsBefore: vi.fn(), listPaymentsSince: vi.fn(), listPendingDiscordSync: vi.fn(), listFailedDiscordSync: vi.fn().mockResolvedValue([]), listStuckSentMints: vi.fn().mockResolvedValue([]), updateEntitlementState: vi.fn().mockResolvedValue({}),
   listOutOfSyncEntitlements: vi.fn(), listFailedMints: vi.fn(), updateDiscordSyncStatus: vi.fn(),
   updateNftMint: vi.fn(), createNftMint: vi.fn(),
   findActiveMintsByEmail: vi.fn(), findLatestPaymentByEmailAndTier: vi.fn(), dbConfigured: vi.fn(() => true),
