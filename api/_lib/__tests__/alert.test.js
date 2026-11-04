@@ -147,6 +147,16 @@ describe('severity routing', () => {
     expect(calls.map((c) => c.url)).toEqual([WEBHOOK]);
   });
 
+  it("an explicit 'warning' is the warn level (webhook only), and an unknown level falls back to the map", async () => {
+    wireBothSinks();
+    const calls = stubFetch();
+    const res = await sendAlert('retry_mints.email_failed', { rowId: 'r1' }, { severity: 'warning' });
+    expect(res.severity).toBe('warn');
+    expect(calls.map((c) => c.url)).toEqual([WEBHOOK]);
+    const unknown = await sendAlert('stripe.mint_failed', {}, { severity: 'bogus' });
+    expect(unknown.severity).toBe('critical');
+  });
+
   it('owner email needs all of OWNER_ALERT_EMAIL + RESEND_API_KEY + RESEND_FROM_EMAIL', async () => {
     wireBothSinks();
     delete process.env.RESEND_FROM_EMAIL;

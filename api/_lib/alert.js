@@ -36,6 +36,8 @@
 import { dbConfigured, lastOpsEvent, recordOpsEvent } from './db.js';
 
 const RANK = { info: 0, warn: 1, high: 2, critical: 3 };
+// Spellings callers already use for an explicit severity.
+const SEVERITY_ALIASES = { warning: 'warn', error: 'high' };
 const SINK_TIMEOUT_MS = 8000;
 const DEDUPE_WINDOW_MS = { default: 60 * 60_000, critical: 15 * 60_000 };
 
@@ -170,7 +172,7 @@ export async function sendAlert(event, detail = {}, opts = {}) {
   let deduped = false;
   let error;
   try {
-    const explicit = opts?.severity;
+    const explicit = SEVERITY_ALIASES[opts?.severity] ?? opts?.severity;
     severity = explicit && explicit in RANK ? explicit : defaultSeverity(event);
     const dedupeKey = opts?.dedupeKey ? String(opts.dedupeKey) : undefined;
     const safe = stripPii(detail);
