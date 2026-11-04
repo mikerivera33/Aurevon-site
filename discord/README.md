@@ -192,11 +192,11 @@ Paste these into **Vercel project → Settings → Environment Variables** (alon
 
 In the Discord Developer Portal → your application → **OAuth2**:
 
-1. Add redirect URI: `https://www.aurevonvc.com/api/discord/callback`
+1. Add redirect URI: `https://www.aurevonvc.com/api/discord?action=callback` (exact `REDIRECT_URI` in `api/discord.js`)
 2. Copy **Client ID** → `DISCORD_CLIENT_ID` in Vercel
 3. Copy **Client Secret** → `DISCORD_CLIENT_SECRET` in Vercel
 
-These enable the `/api/discord/auth` → `/api/discord/callback` OAuth flow that links a member's email to their Discord account and assigns their tier role.
+These enable the `/api/discord?action=auth` → `/api/discord?action=callback` OAuth flow that links a member's email to their Discord account and assigns their tier role.
 
 ### Manual Steps (Discord UI — cannot be automated via API)
 

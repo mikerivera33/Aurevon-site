@@ -54,8 +54,8 @@ In the Railway dashboard for your new service, go to **Variables** and add:
 | `DISCORD_GUILD_ID` | `1499526813490221207` |
 | `DISCORD_CLIENT_ID` | `1506515165003255889` |
 | `DISCORD_CLIENT_SECRET` | (from Developer Portal → OAuth2 → Reset Secret) |
-| `AIRTABLE_PAT` | (your Airtable PAT — same as in Vercel) |
-| `AIRTABLE_BASE_ID` | `appI9X8vcRcK1QZ1l` |
+| `SUPABASE_URL` | (same as in Vercel) |
+| `SUPABASE_SECRET_KEY` | (same as in Vercel) |
 | `SITE_URL` | `https://www.aurevonvc.com` |
 | `DISCORD_ROLE_MONTHLY` | (after running setup — see Step 5) |
 | `DISCORD_ROLE_LIFETIME` | (after running setup — see Step 5) |

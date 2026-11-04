@@ -60,7 +60,7 @@ Aurevon is a fully autonomous investment education and Web3 membership platform.
 | `POST /api/webhooks/stripe` | Stripe payment events |
 | `POST /api/webhooks/paypal` | PayPal IPN events |
 | `POST /api/crossmint/mint` | Trigger NFT mint |
-| `GET /api/discord/callback` | OAuth2 callback → role assignment |
+| `GET /api/discord?action=callback` | OAuth2 callback → role assignment (registered redirect URI) |
 | `GET /api/discord/check-membership` | Cron: verify active memberships |
 | `POST /api/airtable/submit-lead` | Intake form submission |
 | `GET /api/cron/retry-mints` | Cron: retry failed NFT mints |
@@ -206,12 +206,7 @@ cp .env.example .env.local
 
 Open `.env.local` and fill in values for each service. See sections 4–9 below for exactly where to find each value.
 
-The required minimum to go live:
-- `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`
-- `CROSSMINT_API_KEY` + `CROSSMINT_COLLECTION_ID` + template IDs
-- `RESEND_API_KEY` + `RESEND_FROM_EMAIL`
-- `AIRTABLE_PAT` + `AIRTABLE_BASE_ID`
-- `DISCORD_BOT_TOKEN` + `DISCORD_CLIENT_ID` + `DISCORD_CLIENT_SECRET` + `DISCORD_GUILD_ID`
+The required env vars, by purpose, are listed in `docs/nft-pipeline-setup.md` (the single setup source). Authed `GET /api/health` reports anything missing or misnamed.
 
 ### Step 5 — Deploy to Production (1 min)
 
@@ -231,13 +226,10 @@ After deploying, configure the webhook endpoints:
 1. Go to https://dashboard.stripe.com/webhooks
 2. Click "Add endpoint"
 3. URL: `https://yourdomain.com/api/webhooks/stripe`
-4. Select events: `checkout.session.completed`, `payment_intent.succeeded`, `customer.subscription.created`, `customer.subscription.deleted`
+4. Select events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`, `charge.refunded`, `charge.dispute.created` (the 9 in `api/_lib/stripe-events.js`)
 5. Copy the "Signing secret" (starts with `whsec_`) → paste into `STRIPE_WEBHOOK_SECRET` in Vercel env vars
 
-**PayPal:**
-1. Go to https://developer.paypal.com/dashboard/webhooks
-2. Add webhook URL: `https://yourdomain.com/api/webhooks/paypal`
-3. Select events: `PAYMENT.CAPTURE.COMPLETED`, `PAYMENT.SALE.COMPLETED`, `BILLING.SUBSCRIPTION.ACTIVATED`
+**PayPal:** IPN only (no REST webhooks): PayPal → Account Settings → Notifications → Instant payment notifications → `https://www.aurevonvc.com/api/webhooks/paypal`. See O8 in `docs/nft-pipeline-setup.md`.
 
 ### Step 7 — Test the Full Flow (1 min)
 
@@ -291,11 +283,7 @@ Each Aurevon membership tier needs its own Stripe Payment Link so the customer l
 
 1. **Stripe Dashboard → Developers → Webhooks → Add endpoint**
 2. Endpoint URL: `https://yourdomain.com/api/webhooks/stripe`
-3. Select these events:
-   - `checkout.session.completed` — fires after one-time purchases
-   - `payment_intent.succeeded` — backup trigger
-   - `customer.subscription.created` — fires for new retainer/enterprise subscriptions
-   - `customer.subscription.deleted` — use to revoke Discord role on cancellation
+3. Select all 9 events in `api/_lib/stripe-events.js` (listed in `docs/nft-pipeline-setup.md`). Authed `/api/health` reports any that are missing.
 4. Click **Add endpoint** → wait for the endpoint to appear
 5. Click the endpoint → expand **Signing secret** → click **Reveal** → copy it
 6. Add to Vercel env vars: `STRIPE_WEBHOOK_SECRET=whsec_xxxxx`
@@ -337,13 +325,9 @@ For one-time tiers, create PayPal Checkout buttons:
 2. IPN URL: `https://yourdomain.com/api/webhooks/paypal`
 3. Enable IPN notifications
 
-### 5.4 Configure Webhooks via API (Recommended)
+### 5.4 REST webhooks: not used
 
-For production, use the PayPal REST Webhooks API instead of IPN:
-1. Developer Dashboard → [your app] → Webhooks → Add Webhook
-2. URL: `https://yourdomain.com/api/webhooks/paypal`
-3. Select: `PAYMENT.CAPTURE.COMPLETED`, `PAYMENT.SALE.COMPLETED`
-4. Copy the **Webhook ID** → add to `PAYPAL_WEBHOOK_ID` env var
+`/api/webhooks/paypal` handles IPN only; PayPal REST webhooks and `PAYPAL_WEBHOOK_ID` are no longer used.
 
 ### 5.5 Enable Subscriptions for Retainer / Enterprise
 
@@ -405,8 +389,7 @@ For each membership tier, create a template in the collection:
 - Description: `Top-tier Aurevon membership. Direct founder access, Chrome-level co-investment rights, and lifetime benefits.`
 - Image: Upload 004 Chrome artwork
 
-3. After creating each template, copy its **Template ID** (format: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
-4. Add each to the corresponding `CROSSMINT_TEMPLATE_*` env var
+3. Templates are no longer used by the mint path (metadata is sent inline with each mint), so no template env vars are needed. See `docs/nft-pipeline-setup.md`.
 
 ### 6.4 Create a Server-Side API Key
 
@@ -414,13 +397,13 @@ For each membership tier, create a template in the collection:
 2. Select **Server-side** (not client-side)
 3. Scope: at minimum, enable `nfts.create` and `nfts.read`
 4. Copy the key → add to `CROSSMINT_API_KEY`
-5. Change `CROSSMINT_ENVIRONMENT` to `production` when verified
+5. Leave `CROSSMINT_ENV` unset for production (`staging` only for testing)
 
 ### 6.5 Go Live on Base Mainnet
 
 1. Ensure your Crossmint business is verified
 2. Fund your Crossmint wallet with a small amount of ETH for gas on Base (usually auto-handled by Crossmint)
-3. Set `CROSSMINT_CHAIN=base` and `CROSSMINT_ENVIRONMENT=production`
+3. Leave `CROSSMINT_CHAIN` (defaults to `base`) and `CROSSMINT_ENV` unset
 4. Do a live test mint using a real email address
 
 ---
@@ -559,7 +542,7 @@ See the full Discord setup guide in [`api/discord/SERVER_SETUP.md`](api/discord/
 ### 9.2 Configure OAuth2
 
 1. Go to **OAuth2 → General**
-2. Add redirect URI: `https://yourdomain.com/api/discord/callback`
+2. Add redirect URI: `https://www.aurevonvc.com/api/discord?action=callback` (exact `REDIRECT_URI` in `api/discord.js`)
 3. Copy **Client ID** → `DISCORD_CLIENT_ID`
 4. Copy **Client Secret** → `DISCORD_CLIENT_SECRET`
 

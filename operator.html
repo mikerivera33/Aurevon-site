@@ -269,7 +269,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
         <a class="link-tile" id="ep-stripe" href="/api/webhooks/stripe" style="text-decoration:none;"><div class="lt-title">↪ Stripe Webhook</div><div class="lt-tag">/api/webhooks/stripe</div></a>
         <a class="link-tile" id="ep-paypal" href="/api/webhooks/paypal" style="text-decoration:none;"><div class="lt-title">↪ PayPal IPN</div><div class="lt-tag">/api/webhooks/paypal</div></a>
         <a class="link-tile" id="ep-discord-auth" href="/api/discord/auth" style="text-decoration:none;"><div class="lt-title">🔗 Discord OAuth Start</div><div class="lt-tag">/api/discord/auth</div></a>
-        <a class="link-tile" id="ep-discord-cb" href="/api/discord/callback" style="text-decoration:none;"><div class="lt-title">↩ Discord OAuth Callback</div><div class="lt-tag">/api/discord/callback</div></a>
+        <a class="link-tile" id="ep-discord-cb" href="/api/discord?action=callback" style="text-decoration:none;"><div class="lt-title">↩ Discord OAuth Callback</div><div class="lt-tag">/api/discord?action=callback</div></a>
         <a class="link-tile" id="ep-cron-mints" href="/api/cron/retry-mints" style="text-decoration:none;"><div class="lt-title">⏰ Cron · Retry Mints</div><div class="lt-tag">hourly · /api/cron/retry-mints</div></a>
         <a class="link-tile" id="ep-cron-discord" href="/api/discord/check-membership" style="text-decoration:none;"><div class="lt-title">⏰ Cron · Discord Check</div><div class="lt-tag">daily 8am UTC</div></a>
         <a class="link-tile" id="ep-health" href="/api/health" style="text-decoration:none;"><div class="lt-title">❤️ Health Endpoint</div><div class="lt-tag">/api/health</div></a>
@@ -287,7 +287,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
 6. Webhook → db.createNftMint() → row in Supabase nft_mints table (status: Sent)
 7. Webhook → Resend.sendNftDelivery() → branded email with NFT image + Discord invite
 8. Customer clicks Discord invite link → /api/discord/auth (OAuth start)
-9. Discord redirects to /api/discord/callback → role assigned by NFT type
+9. Discord redirects to /api/discord?action=callback → every grantable role assigned
 10. Customer lands on /discord-welcome.html → tier-specific welcome shown
 11. nft_mints row updated: Discord linked (Mint Status → Minted)
 
@@ -502,7 +502,7 @@ document.addEventListener('DOMContentLoaded', function(){
         <span class="detail-toggle" onclick="toggleDetail(this)">▶ Webhook Setup Checklist</span>
         <div class="detail-body">
           <ul>
-            <li><strong>Stripe Webhook URL:</strong> <code>/api/webhooks/stripe</code> — listen for <code>checkout.session.completed</code>, <code>payment_intent.succeeded</code></li>
+            <li><strong>Stripe Webhook URL:</strong> <code>/api/webhooks/stripe</code> — subscribe to all 9 events in <code>api/_lib/stripe-events.js</code> (authed <code>/api/health</code> lists any missing)</li>
             <li><strong>PayPal IPN URL:</strong> <code>/api/webhooks/paypal</code> — enable IPN in PayPal Business → Account Settings</li>
             <li><strong>Cash App for Business:</strong> Configure webhook in Square Dashboard (Cash App Pay uses Square's backend)</li>
             <li><strong>Afterpay:</strong> Set Afterpay Merchant Key in Stripe Dashboard → Payment Methods → Afterpay/Clearpay</li>

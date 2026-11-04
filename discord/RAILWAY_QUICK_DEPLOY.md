@@ -48,10 +48,13 @@ DISCORD_ROLE_PRODUCT_A=          # Role ID for Aurevon Insider
 DISCORD_ROLE_PRODUCT_B=          # Role ID for Aurevon Ember
 DISCORD_ROLE_PRODUCT_C=          # Role ID for Aurevon Obsidian Executive
 DISCORD_ROLE_VERIFIED=           # Role ID for Verified Member
+DISCORD_INVITE_URL=              # Server invite link
 
-AIRTABLE_PAT=                    # same value as Vercel
-AIRTABLE_BASE_ID=appI9X8vcRcK1QZ1l
+SUPABASE_URL=                    # same value as Vercel
+SUPABASE_SECRET_KEY=             # same value as Vercel
 ```
+
+Matches `discord/README.md` → "Required configuration". Optional: `ENTITLEMENT_GRACE_PERIOD_DAYS`; Railway sets `PORT`.
 
 ### How to get role IDs fast
 
@@ -79,7 +82,7 @@ The full purchase pipeline only works when **both** are configured. Quick smoke 
 
 - [ ] Run a $1 Stripe test purchase via Stripe Test Mode dashboard
 - [ ] Vercel logs: should see `[Stripe] checkout.session.completed → mint queued`
-- [ ] Crossmint dashboard: action.succeeded for the test email
+- [ ] Crossmint dashboard: the webhook delivered `nfts.create.succeeded` (Svix-signed, `whsec_` secret) for the test mint
 - [ ] Vercel logs: should see `[Crossmint Webhook] Mint success`
 - [ ] If test customer has linked Discord ID → Railway logs: `Role added: Aurevon Insider`
 

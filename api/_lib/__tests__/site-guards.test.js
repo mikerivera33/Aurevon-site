@@ -313,3 +313,34 @@ describe('retired NFT copy and config names (Task 12)', () => {
     expect(html).not.toMatch(/mint[\s\S]{0,80}24 hours/i);
   });
 });
+
+describe('setup docs and scripts match the code (Task 12 fix round 1)', () => {
+  // docs/nft-pipeline-setup.md is the single setup source. These strings were
+  // wrong instructions (role env names, OAuth redirect, Crossmint env/events,
+  // Stripe events); a line saying the thing is "no longer" used is allowed.
+  const WRONG = [
+    'DISCORD_ROLE_INSIDER',
+    '/api/discord/callback',
+    'CROSSMINT_ENVIRONMENT',
+    'nft.minted',
+    'payment_intent.succeeded',
+  ];
+  const files = walk().filter((f) => /\.(md|sh)$/.test(f));
+
+  it('scans the repo docs and scripts', () => {
+    expect(files).toContain('README.md');
+    expect(files).toContain('docs/nft-pipeline-setup.md');
+    expect(files).toContain('scripts/set-vercel-env.sh');
+  });
+
+  it('no stale setup string outside a "no longer" note', () => {
+    const offenders = [];
+    for (const f of files) {
+      read(f).split('\n').forEach((line, i) => {
+        if (/no longer/i.test(line)) return;
+        for (const w of WRONG) if (line.includes(w)) offenders.push(`${f}:${i + 1}: ${w}`);
+      });
+    }
+    expect(offenders).toEqual([]);
+  });
+});
