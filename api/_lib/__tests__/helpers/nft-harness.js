@@ -151,6 +151,7 @@ export function makeFakeDb(store) {
     isDiscordAuthNonceUsed: vi.fn(async () => false),
     markDiscordAuthNonceUsed: vi.fn(async () => ({})),
     listPendingDiscordSync: vi.fn(async () => []),
+    listFailedDiscordSync: vi.fn(async () => []),
     listOutOfSyncEntitlements: vi.fn(async () => []),
     listLapsedMonthlyWithoutExpiry: vi.fn(async () => []),
     dbConfigured: vi.fn(() => true),

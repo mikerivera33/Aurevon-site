@@ -302,6 +302,75 @@ describe('reconcile cron (pending Discord syncs) grants every grantable role', (
   });
 });
 
+describe('reconcile retries failed Discord syncs (final fix 6)', () => {
+  async function runReconcile() {
+    process.env.CRON_SECRET = 'cron_secret_abcdefghij';
+    const res = mockRes();
+    await claim.default({ method: 'GET', query: { action: 'reconcile' }, headers: { authorization: 'Bearer cron_secret_abcdefghij' } }, res);
+    return res;
+  }
+  const failed = (attempts) => ({ id: 'mem1', fields: { Email: EMAIL, 'Discord ID': 'd_1', 'Discord Sync Status': 'failed', 'Discord Sync Attempts': attempts } });
+  beforeEach(() => {
+    db.listPendingDiscordSync.mockResolvedValue([]);
+    db.listFailedDiscordSync.mockResolvedValue([]);
+  });
+
+  it('asks for failed members > 6 h old, < 3 attempts, 20 per run', async () => {
+    await runReconcile();
+    expect(db.listFailedDiscordSync).toHaveBeenCalledWith({ olderThanHours: 6, maxAttempts: 3, maxRecords: 20 });
+  });
+
+  it('a retry that succeeds grants through the normal path and resets the attempt count', async () => {
+    db.listFailedDiscordSync.mockResolvedValueOnce([failed(2)]);
+    store.mints.push(CHROME, INSIDER);
+    db.findActiveMintsByEmail.mockResolvedValue([CHROME, INSIDER]);
+    const res = await runReconcile();
+    expect(bot.syncMemberRoles).toHaveBeenCalledWith('d_1', ['role_l', 'role_a'], []);
+    expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'synced', { attempts: 0 });
+    expect(res.body.report).toEqual(expect.objectContaining({ failedSyncRetried: 1, roleAssigned: 1 }));
+  });
+
+  it('a retry that fails again bumps the count; the 3rd consecutive failure alerts discord.sync_gave_up', async () => {
+    db.findActiveMintsByEmail.mockResolvedValue([CHROME]);
+    bot.syncMemberRoles.mockRejectedValue(new Error('Discord bot (500): upstream'));
+
+    db.listFailedDiscordSync.mockResolvedValueOnce([failed(1)]);
+    await runReconcile();
+    expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'failed', expect.objectContaining({ attempts: 2 }));
+    expect(sendAlert.mock.calls.filter(([e]) => e === 'discord.sync_gave_up')).toHaveLength(0);
+
+    vi.clearAllMocks();
+    db.listFailedDiscordSync.mockResolvedValueOnce([failed(2)]);
+    await runReconcile();
+    expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'failed', expect.objectContaining({ attempts: 3 }));
+    expect(sendAlert).toHaveBeenCalledWith('discord.sync_gave_up',
+      { memberId: 'mem1', attempts: 3, error: 'Discord bot (500): upstream' }, { dedupeKey: 'mem1' });
+    bot.syncMemberRoles.mockReset();
+  });
+
+  it('a first failure in the pending queue counts as attempt 1', async () => {
+    db.listPendingDiscordSync.mockResolvedValue([{ id: 'mem1', fields: { Email: EMAIL, 'Discord ID': 'd_1' } }]);
+    db.findActiveMintsByEmail.mockResolvedValue([CHROME]);
+    bot.syncMemberRoles.mockRejectedValueOnce(new Error('Discord bot (500): upstream'));
+    await runReconcile();
+    expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'failed', expect.objectContaining({ attempts: 1 }));
+  });
+
+  it('a failed member with no active pass is re-stamped (waits another window), not counted', async () => {
+    db.listFailedDiscordSync.mockResolvedValueOnce([failed(1)]);
+    db.findActiveMintsByEmail.mockResolvedValue([]);
+    await runReconcile();
+    expect(bot.syncMemberRoles).not.toHaveBeenCalled();
+    expect(db.updateDiscordSyncStatus).toHaveBeenCalledWith(EMAIL, 'failed', { error: 'no active pass to grant' });
+  });
+
+  it('a listFailedDiscordSync error is reported, not thrown', async () => {
+    db.listFailedDiscordSync.mockRejectedValueOnce(new Error('column discord_sync_attempts does not exist'));
+    const res = await runReconcile();
+    expect(res.body.report.errors).toEqual(expect.arrayContaining([expect.stringMatching(/^listFailedDiscordSync:/)]));
+  });
+});
+
 describe('Crossmint mint-success grants every grantable role', () => {
   const NEW_ROW = { id: 'i', fields: { 'Email': EMAIL, 'NFT Type': 'Aurevon Insider', 'Token ID': '', 'Reference': 'INSIDER-0001' } };
   const success = { type: 'nfts.create.succeeded', actionId: 'act_1', data: { txId: '0xabc', token: { tokenId: '7' } } };

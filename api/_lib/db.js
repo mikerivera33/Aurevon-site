@@ -34,6 +34,8 @@ export const FIELDS = {
     'Discord Sync Status': 'discord_sync_status',
     'Discord Sync At': 'discord_sync_at',
     'Discord Sync Error': 'discord_sync_error',
+    // Consecutive failed role syncs; reconcile gives up after 3 (reset on success).
+    'Discord Sync Attempts': 'discord_sync_attempts',
     'Discord Auth Nonce Used': 'discord_auth_nonce_used',
     'Entitlement Type': 'entitlement_type',
     'Entitlement Status': 'entitlement_status',
@@ -123,7 +125,7 @@ const NON_TEXT = new Set([
   'active', 'join_date', 'discord_linked_at', 'discord_sync_at', 'entitlement_expires_at',
   'amount', 'purchase_price', 'payment_date', 'mint_date', 'email_delivered', 'retry_count', 'discord_synced',
   'discord_synced_at', 'token_expires', 'session_active', 'last_login', 'revoked_at', 'detail',
-  'next_retry_at', 'mint_key_suffix',
+  'next_retry_at', 'mint_key_suffix', 'discord_sync_attempts',
 ]);
 const EMAIL_COLUMNS = new Set(['email', 'customer_email']);
 
@@ -593,14 +595,36 @@ export async function markDiscordAuthNonceUsed(email, nonce) {
   return upsertMemberByEmail(email, { 'Discord Auth Nonce Used': nonce });
 }
 
-export async function updateDiscordSyncStatus(email, status, { error = '' } = {}) {
+/**
+ * @param {{ error?: string, attempts?: number }} [opts] `attempts` writes
+ *   Discord Sync Attempts (reconcile's consecutive-failure count) — only
+ *   reconcile passes it.
+ */
+export async function updateDiscordSyncStatus(email, status, { error = '', attempts } = {}) {
   const fields = { 'Discord Sync Status': status, 'Discord Sync At': new Date().toISOString() };
   if (error) fields['Discord Sync Error'] = error;
+  if (attempts !== undefined) fields['Discord Sync Attempts'] = attempts;
   return upsertMemberByEmail(email, fields);
 }
 
+/** Linked members queued for a role sync, least recently touched first. */
 export async function listPendingDiscordSync({ maxRecords = 50 } = {}) {
-  return many('members', from('members').eq('discord_sync_status', 'pending').limit(maxRecords), 'listPendingDiscordSync');
+  return many('members',
+    from('members').eq('discord_sync_status', 'pending').not('discord_id', 'is', null)
+      .order('updated_at', { ascending: true }).limit(maxRecords),
+    'listPendingDiscordSync');
+}
+
+/**
+ * Linked members whose last role sync failed more than `olderThanHours` ago and
+ * who have not used up `maxAttempts` consecutive attempts, oldest first.
+ */
+export async function listFailedDiscordSync({ olderThanHours = 6, maxAttempts = 3, maxRecords = 20 } = {}) {
+  return many('members',
+    from('members').eq('discord_sync_status', 'failed').not('discord_id', 'is', null)
+      .lt('discord_sync_at', minutesAgo(olderThanHours * 60)).lt('discord_sync_attempts', maxAttempts)
+      .order('discord_sync_at', { ascending: true }).limit(maxRecords),
+    'listFailedDiscordSync');
 }
 
 /** Recurring-membership state read by the nightly revocation backstop. */

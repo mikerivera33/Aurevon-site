@@ -26,7 +26,7 @@ import crypto from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
 import {
   findMemberByEmail, findActiveMintByEmail, findActiveMintsByEmail, listUnlinkedMintsBefore, listPaymentsSince,
-  findLatestPaymentByEmailAndTier, listPendingDiscordSync, listOutOfSyncEntitlements, listLapsedMonthlyWithoutExpiry,
+  findLatestPaymentByEmailAndTier, listPendingDiscordSync, listFailedDiscordSync, listOutOfSyncEntitlements, listLapsedMonthlyWithoutExpiry,
   listFailedMints, listUndeliveredMints, findMintByPaymentId, findPaymentByTransactionId, listPaymentTransactionIds,
   findPaymentBySubscriptionId, recordOpsEvent, updateDiscordSyncStatus, updateNftMint, createNftMint, dbConfigured,
 } from '../_lib/db.js';
@@ -417,6 +417,77 @@ export async function recoverUnrecordedStripeSessions({ sinceDays = 3, budgetMs 
 
 // ── GET: reconcile ───────────────────────────────────────────────────────────
 
+const DISCORD_SYNC_MAX_ATTEMPTS = 3;
+const DISCORD_RETRY_AFTER_HOURS = 6;
+const DISCORD_RETRY_BATCH = 20;
+
+/**
+ * Grant a linked member every pass role they still hold (pending queue and the
+ * failed-sync retry share this). A failure counts toward Discord Sync
+ * Attempts; the 3rd consecutive one leaves the member `failed` for good and
+ * alerts discord.sync_gave_up. A successful sync resets the count.
+ */
+async function syncMemberDiscord(member, report, now, { retry = false } = {}) {
+  const email     = member.fields?.['Email'] ?? '';
+  const discordId = member.fields?.['Discord ID'];
+  if (!discordId || !email) return;
+  const priorAttempts = Number(member.fields?.['Discord Sync Attempts']) || 0;
+
+  try {
+    const mints = await findActiveMintsByEmail(email);
+    if (!mints.length) {
+      // Nothing to grant. A failed member is re-stamped so it waits another
+      // window instead of heading the retry batch every run.
+      if (retry) await updateDiscordSyncStatus(email, 'failed', { error: 'no active pass to grant' }).catch(() => {});
+      return;
+    }
+    // Every pass still grantable — a new mint (fulfil re-queues the member as
+    // 'pending') adds its role alongside the ones already held.
+    const keys = grantableEntitlements(mints, member.fields);
+    if (!keys.length) {
+      // Mark it so the row leaves the pending window (listPendingDiscordSync
+      // caps the batch) instead of crowding out members who can be granted.
+      console.log(`[Reconcile] Pending sync denied for lapsed monthly member=${member.id} — marking revoked`);
+      await updateDiscordSyncStatus(email, 'revoked').catch(() => {});
+      return;
+    }
+
+    const { roleIds, missing } = grantableRoleIds(mints, member.fields);
+    await alertMissingRoles(missing);
+    if (!roleIds.length) return; // stays as it is until the role env is set
+
+    await syncMemberRoles(discordId, roleIds, obsoleteRoleIds(mints, member.fields));
+    // An unconfigured role keeps the member 'pending' so a later run grants it.
+    const synced = missing.length ? 'pending' : 'synced';
+    if (priorAttempts > 0) await updateDiscordSyncStatus(email, synced, { attempts: 0 });
+    else await updateDiscordSyncStatus(email, synced);
+    const grantedKeys = keys.filter((k) => !missing.includes(k));
+    for (const mint of mints) {
+      if (grantedKeys.includes(resolveEntitlementFromNftType(mint.fields?.['NFT Type'] ?? ''))) {
+        await updateNftMint(mint.id, { 'Discord Synced': true, 'Discord Synced At': now });
+      }
+    }
+    report.roleAssigned++;
+    console.log(`[Reconcile] Role assigned member=${member.id}${retry ? ' (failed-sync retry)' : ''}`);
+  } catch (err) {
+    report.syncFailed++;
+    report.errors.push(`sync member=${member.id}: ${err.message}`);
+    // A partial grant stays 'pending' (like the OAuth callback) so the next run adds the rest.
+    if ((err.granted?.length ?? 0) > 0) {
+      await updateDiscordSyncStatus(email, 'pending', { error: err.message }).catch(() => {});
+      return;
+    }
+    const attempts = priorAttempts + 1;
+    await updateDiscordSyncStatus(email, 'failed', { error: err.message, attempts }).catch(() => {});
+    if (attempts >= DISCORD_SYNC_MAX_ATTEMPTS) {
+      console.error(`[Reconcile] Discord sync for member=${member.id} failed ${attempts} times — giving up`);
+      await sendAlert('discord.sync_gave_up', { memberId: member.id, attempts, error: String(err.message).slice(0, 200) },
+        { dedupeKey: member.id }).catch(() => {});
+    }
+  }
+}
+
+
 async function handleReconcile() {
   console.log('[Reconcile] Starting reconcile pass...');
   const now = new Date().toISOString();
@@ -449,48 +520,20 @@ async function handleReconcile() {
     report.errors.push(`listPendingDiscordSync: ${err.message}`);
   }
 
-  for (const member of pendingMembers) {
-    const email     = member.fields?.['Email'] ?? '';
-    const discordId = member.fields?.['Discord ID'];
-    if (!discordId || !email) continue;
+  for (const member of pendingMembers) await syncMemberDiscord(member, report, now);
 
-    try {
-      const mints = await findActiveMintsByEmail(email);
-      if (!mints.length) continue;
-      // Every pass still grantable — a new mint (fulfil re-queues the member as
-      // 'pending') adds its role alongside the ones already held.
-      const keys = grantableEntitlements(mints, member.fields);
-      if (!keys.length) {
-        // Mark it so the row leaves the pending window (listPendingDiscordSync
-        // caps the batch) instead of crowding out members who can be granted.
-        console.log(`[Reconcile] Pending sync denied for lapsed monthly member=${member.id} — marking revoked`);
-        await updateDiscordSyncStatus(email, 'revoked').catch(() => {});
-        continue;
-      }
-
-      const { roleIds, missing } = grantableRoleIds(mints, member.fields);
-      await alertMissingRoles(missing);
-      if (!roleIds.length) continue; // stays 'pending' until the role env is set
-
-      await syncMemberRoles(discordId, roleIds, obsoleteRoleIds(mints, member.fields));
-      // An unconfigured role keeps the member 'pending' so a later run grants it.
-      await updateDiscordSyncStatus(email, missing.length ? 'pending' : 'synced');
-      const grantedKeys = keys.filter((k) => !missing.includes(k));
-      for (const mint of mints) {
-        if (grantedKeys.includes(resolveEntitlementFromNftType(mint.fields?.['NFT Type'] ?? ''))) {
-          await updateNftMint(mint.id, { 'Discord Synced': true, 'Discord Synced At': now });
-        }
-      }
-      report.roleAssigned++;
-      console.log(`[Reconcile] Role assigned member=${member.id}`);
-    } catch (err) {
-      report.syncFailed++;
-      report.errors.push(`sync member=${member.id}: ${err.message}`);
-      // A partial grant stays 'pending' (like the OAuth callback) so the next run adds the rest.
-      const partial = (err.granted?.length ?? 0) > 0;
-      await updateDiscordSyncStatus(email, partial ? 'pending' : 'failed', { error: err.message }).catch(() => {});
-    }
+  // 1b. Retry members whose last sync failed (> 6 h ago, < 3 attempts, 20 per run).
+  let failedMembers = [];
+  try {
+    failedMembers = await listFailedDiscordSync({
+      olderThanHours: DISCORD_RETRY_AFTER_HOURS, maxAttempts: DISCORD_SYNC_MAX_ATTEMPTS, maxRecords: DISCORD_RETRY_BATCH,
+    });
+    report.failedSyncRetried = failedMembers.length;
+    console.log(`[Reconcile] ${failedMembers.length} members with a failed Discord sync to retry`);
+  } catch (err) {
+    report.errors.push(`listFailedDiscordSync: ${err.message}`);
   }
+  for (const member of failedMembers) await syncMemberDiscord(member, report, now, { retry: true });
 
   // 2. Find monthly members whose access should be revoked
   const gracePeriodDays = parseInt(process.env.ENTITLEMENT_GRACE_PERIOD_DAYS ?? '7', 10);

@@ -306,6 +306,40 @@ describe('upsertMemberByEmail', () => {
   });
 });
 
+describe('Discord sync queues (final fix 6)', () => {
+  it('listPendingDiscordSync: pending, linked only, least recently updated first', async () => {
+    respond({ data: [], error: null });
+    await db.listPendingDiscordSync({ maxRecords: 50 });
+    expect(op('eq')).toEqual([['eq', 'discord_sync_status', 'pending']]);
+    expect(op('not')).toEqual([['not', 'discord_id', 'is', null]]);
+    expect(op('order')).toEqual([['order', 'updated_at', { ascending: true }]]);
+    expect(op('limit')).toEqual([['limit', 50]]);
+  });
+
+  it('listFailedDiscordSync: failed, linked, older than the window, under the attempt cap, oldest first', async () => {
+    respond({ data: [{ id: 'm1', discord_sync_attempts: 1 }], error: null });
+    const before = Date.now();
+    const rows = await db.listFailedDiscordSync({ olderThanHours: 6, maxAttempts: 3, maxRecords: 20 });
+    expect(rows).toEqual([{ id: 'm1', fields: { 'Discord Sync Attempts': 1 } }]);
+    expect(op('eq')).toEqual([['eq', 'discord_sync_status', 'failed']]);
+    expect(op('not')).toEqual([['not', 'discord_id', 'is', null]]);
+    const [[, col, cutoff], [, col2, cap]] = op('lt');
+    expect(col).toBe('discord_sync_at');
+    expect(before - Date.parse(cutoff)).toBeGreaterThanOrEqual(6 * 3_600_000 - 1000);
+    expect([col2, cap]).toEqual(['discord_sync_attempts', 3]);
+    expect(op('order')).toEqual([['order', 'discord_sync_at', { ascending: true }]]);
+    expect(op('limit')).toEqual([['limit', 20]]);
+  });
+
+  it('updateDiscordSyncStatus writes the attempt count only when given', async () => {
+    respond({ data: {}, error: null }, { data: {}, error: null });
+    await db.updateDiscordSyncStatus('m@example.com', 'failed', { error: 'x', attempts: 2 });
+    expect(op('upsert', 0)[0][1]).toEqual(expect.objectContaining({ discord_sync_status: 'failed', discord_sync_attempts: 2 }));
+    await db.updateDiscordSyncStatus('m@example.com', 'synced');
+    expect(op('upsert', 1)[0][1]).not.toHaveProperty('discord_sync_attempts');
+  });
+});
+
 describe('countNftMintsByPrefix', () => {
   it("counts with a LIKE on `PREFIX\\_%` (escaped underscore), head-only", async () => {
     respond({ data: null, error: null, count: 6 });
