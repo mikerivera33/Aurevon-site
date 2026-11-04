@@ -532,17 +532,25 @@ async function handleReconcile() {
 
   // 4a. Stripe-side: settled Checkout Sessions with no Payments row at all
   // (webhook never delivered). Runs first so 4b sees the rows it writes.
+  // Both recovery passes count their own per-row errors instead of throwing;
+  // those counts go into report.errors so reconcile.errors alerts on them.
+  report.stripeSessionErrors = 0;
+  report.orphanErrors = 0;
   try {
     report.stripeSessions = await recoverUnrecordedStripeSessions({ sinceDays: 3 });
+    report.stripeSessionErrors = Number(report.stripeSessions?.errors) || 0;
+    if (report.stripeSessionErrors > 0) report.errors.push(`stripe_session_errors: ${report.stripeSessionErrors}`);
   } catch (err) {
     report.errors.push(`recoverUnrecordedStripeSessions: ${err.message}`);
   }
 
   // 4b. Recover orphan payments (paid, NFT tier, but no mint row — webhook died mid-pipeline)
   try {
-    const { recovered } = await recoverOrphanPayments({ sinceDays: 3 });
+    const { recovered, errors } = await recoverOrphanPayments({ sinceDays: 3 });
     report.orphansRecovered = recovered;
+    report.orphanErrors = Number(errors) || 0;
     if (recovered > 0) console.log(`[Reconcile] Dead-lettered ${recovered} orphan payment(s) for retry-mints`);
+    if (report.orphanErrors > 0) report.errors.push(`orphan_errors: ${report.orphanErrors}`);
   } catch (err) {
     report.errors.push(`recoverOrphanPayments: ${err.message}`);
   }
@@ -563,6 +571,8 @@ async function handleReconcile() {
     revokeApplied: report.revokeApplied,
     orphansRecovered: report.orphansRecovered,
     stripeSessionsRecovered: report.stripeSessions?.recovered ?? 0,
+    ...(report.orphanErrors > 0 ? { orphanErrors: report.orphanErrors } : {}),
+    ...(report.stripeSessionErrors > 0 ? { stripeSessionErrors: report.stripeSessionErrors } : {}),
     errors: report.errors.length,
   });
 

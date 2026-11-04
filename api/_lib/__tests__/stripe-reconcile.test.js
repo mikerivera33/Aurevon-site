@@ -274,6 +274,44 @@ describe('reconcile cron', () => {
     }));
   });
 
+  it('Stripe-session and orphan-recovery error counts reach report.errors, reconcile.errors and the heartbeat', async () => {
+    sessionsList.mockResolvedValue(page([session('cs_test_cronerr')]));
+    db.createPayment.mockRejectedValueOnce(new Error('Supabase 503')); // the Stripe session fails to record
+    db.listPaymentsSince.mockResolvedValueOnce([
+      { id: 'pay_o', fields: { 'Customer Email': BUYER, 'Pass Type': 'full', 'Transaction ID': 'cs_test_orph', Status: 'Succeeded' } },
+    ]);
+    const realLookup = db.findMintByPaymentId.getMockImplementation();
+    db.findMintByPaymentId.mockImplementation(async (t) => {
+      if (t === 'cs_test_orph') throw new Error('Supabase 503'); // the orphan lookup fails
+      return realLookup(t);
+    });
+
+    const res = await runReconcile();
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.report.errors).toEqual(expect.arrayContaining(['stripe_session_errors: 1', 'orphan_errors: 1']));
+    expect(alerted('reconcile.errors')).toEqual([
+      ['reconcile.errors', expect.objectContaining({ count: res.body.report.errors.length })],
+    ]);
+    expect(db.recordOpsEvent).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'cron.reconcile.ok',
+      detail: expect.objectContaining({ orphanErrors: 1, stripeSessionErrors: 1, errors: res.body.report.errors.length }),
+    }));
+    expect(JSON.stringify(sendAlert.mock.calls)).not.toContain(BUYER);
+    db.findMintByPaymentId.mockImplementation(realLookup);
+  });
+
+  it('a clean run adds no recovery-error keys to the heartbeat', async () => {
+    sessionsList.mockResolvedValue(page([]));
+
+    await runReconcile();
+
+    const [{ detail }] = db.recordOpsEvent.mock.calls.map(([e]) => e).filter((e) => e.event === 'cron.reconcile.ok');
+    expect(detail).not.toHaveProperty('orphanErrors');
+    expect(detail).not.toHaveProperty('stripeSessionErrors');
+    expect(alerted('reconcile.errors')).toHaveLength(0);
+  });
+
   it('a heartbeat write failure does not fail the run', async () => {
     sessionsList.mockResolvedValue(page([]));
     db.recordOpsEvent.mockRejectedValueOnce(new Error('Supabase 503'));
