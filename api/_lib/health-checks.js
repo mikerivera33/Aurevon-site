@@ -207,6 +207,8 @@ export function readinessProblems({ database, env, checks }) {
   if (checks.stripe?.webhook_events_ok === false) problems.push('stripe_webhook_events');
   if (!process.env.CROSSMINT_WEBHOOK_SECRET) problems.push('crossmint_webhook_secret');
   if (checks.crons?.stale !== false) problems.push('crons_stale');
+  // The newest retry-mints run could not read the Failed queue: retries are not happening.
+  if (checks.crons?.retry_mints === 'degraded') problems.push('retry_mints_degraded');
   if ((checks.queue?.failed_mints_over_24h ?? 0) > 0) problems.push('failed_mints_over_24h');
   return problems;
 }

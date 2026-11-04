@@ -242,12 +242,25 @@ describe('readiness rules → 503', () => {
     expect(res.body.crons.stale).toBe(true);
   });
 
-  it('a newer degraded retry-mints heartbeat is reported as degraded', async () => {
+  it('a newer degraded retry-mints heartbeat is degraded → 503', async () => {
     db.lastOpsEvent.mockImplementation(freshHeartbeats(2 * 60 * 60_000, {
       'cron.retry_mints.degraded': { id: 'd', fields: { 'Created At': new Date().toISOString() } },
     }));
     const res = await authed();
     expect(res.body.crons.retry_mints).toBe('degraded');
+    expect(res.body.crons.stale).toBe(false);
+    expect(res.statusCode).toBe(503);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.problems).toEqual(['retry_mints_degraded']);
+  });
+
+  it('an older degraded heartbeat followed by an ok run is not degraded', async () => {
+    db.lastOpsEvent.mockImplementation(freshHeartbeats(60 * 60_000, {
+      'cron.retry_mints.degraded': { id: 'd', fields: { 'Created At': new Date(Date.now() - 5 * 60 * 60_000).toISOString() } },
+    }));
+    const res = await authed();
+    expect(res.body.crons.retry_mints).toBe('ok');
+    expect(res.statusCode).toBe(200);
   });
 
   it('failed mints older than 24 h', async () => {
