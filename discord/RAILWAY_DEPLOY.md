@@ -1,3 +1,5 @@
+> Current Railway variable list (Supabase, not Airtable): see [README.md](README.md#required-configuration).
+
 # Aurevon Discord Bot — Railway Deployment Guide
 
 Deploy `discord/bot.js` as a permanent 24/7 service on Railway (free tier available).
