@@ -13,6 +13,9 @@ vi.mock('../db.js', () => ({
   createPayment: vi.fn().mockResolvedValue({}),
   createNftMint: vi.fn().mockResolvedValue({}),
   findPaymentByTransactionId: vi.fn().mockResolvedValue(null),
+  findPaymentBySubscriptionId: vi.fn().mockResolvedValue(null),
+  listPaymentsByEmail: vi.fn().mockResolvedValue([]),
+  updateEntitlementState: vi.fn().mockResolvedValue({}),
   nextSerial: vi.fn().mockResolvedValue(1),
   // fulfil.js (shared NFT fulfilment):
   findMintByPaymentId: vi.fn().mockResolvedValue(null), updateNftMint: vi.fn().mockResolvedValue({}), findMemberByEmail: vi.fn().mockResolvedValue(null), updateDiscordSyncStatus: vi.fn().mockResolvedValue({}),
@@ -48,6 +51,7 @@ function completedIpn(receiver, extra = {}) {
 }
 
 const SAVED = { ...process.env };
+const crossmintPayload = () => crossmint.mintToEmail.mock.calls[0]?.[0] ?? null;
 
 describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
   beforeEach(() => {
@@ -175,5 +179,50 @@ describe('paypal IPN idempotency (fail-closed)', () => {
     await processIPN(new URLSearchParams(ipn).toString());
     expect(db.createPayment).not.toHaveBeenCalled();
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe('paypal txn_type gate + lifecycle receiver (fail-closed)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env = { ...SAVED };
+    process.env.PAYPAL_BUSINESS_EMAIL = 'mike@aurevonvc.com';
+  });
+  afterEach(() => { process.env = { ...SAVED }; });
+
+  it('cart $250 (2 × $125) → no Crossmint, purchase confirmation, Pass Type "addons"', async () => {
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com', { txn_type: 'cart', num_cart_items: '2', custom: '{"tier":"full"}' }));
+    expect(crossmintPayload()).toBeNull();
+    expect(db.createPayment).toHaveBeenCalledWith(expect.objectContaining({ tier: 'addons' }));
+    expect(email.sendPurchaseConfirmation).toHaveBeenCalledWith(expect.objectContaining({ tier: 'addons', transactionId: 'PP_TEST_1' }));
+    expect(email.sendNftDelivery).not.toHaveBeenCalled();
+  });
+
+  it('subscr_signup → no writes', async () => {
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com', { txn_type: 'subscr_signup', subscr_id: 'I-SIGNUP1' }));
+    expect(db.createPayment).not.toHaveBeenCalled();
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(email.sendPurchaseConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('subscr_cancel with PAYPAL_BUSINESS_EMAIL unset → alert, no billing write', async () => {
+    delete process.env.PAYPAL_BUSINESS_EMAIL;
+    db.findPaymentBySubscriptionId.mockResolvedValueOnce({ id: 'pay_1', fields: { 'Pass Type': 'comm_monthly' } });
+    await handleVerifiedIPN({ txn_type: 'subscr_cancel', subscr_id: 'I-GEN1', payer_email: 'buyer@example.com', receiver_email: 'anyone@paypal.com' });
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('paypal.business_email_unset', expect.objectContaining({ txnType: 'subscr_cancel', subscrId: 'I-GEN1' }));
+  });
+
+  it('subscr_cancel for a Genesis subscription to us → billing cancelled', async () => {
+    db.findPaymentBySubscriptionId.mockResolvedValueOnce({ id: 'pay_1', fields: { 'Pass Type': 'comm_monthly' } });
+    await handleVerifiedIPN({ txn_type: 'subscr_cancel', subscr_id: 'I-GEN1', payer_email: 'buyer@example.com', receiver_email: 'MIKE@aurevonvc.com' });
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('buyer@example.com', { entitlementType: 'monthly_membership', billingState: 'cancelled' });
+  });
+
+  it('subscr_cancel for another receiver → no billing write', async () => {
+    db.findPaymentBySubscriptionId.mockResolvedValueOnce({ id: 'pay_1', fields: { 'Pass Type': 'comm_monthly' } });
+    await handleVerifiedIPN({ txn_type: 'subscr_cancel', subscr_id: 'I-GEN1', payer_email: 'buyer@example.com', receiver_email: 'attacker@paypal.com' });
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
   });
 });

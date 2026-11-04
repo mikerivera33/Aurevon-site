@@ -500,6 +500,19 @@ export async function findPaymentByTransactionId(transactionId) {
 }
 
 /**
+ * Earliest Payments row recorded for a PayPal subscription (`Token` =
+ * `subscr:<subscr_id>`, written by api/webhooks/paypal.js), or null. A hit
+ * means the subscription's first payment is already recorded, so a later
+ * subscr_payment is a renewal (no mint).
+ */
+export async function findPaymentBySubscriptionId(subscrId) {
+  if (!subscrId) return null;
+  return one('payments',
+    from('payments').eq('token', `subscr:${String(subscrId)}`).order('payment_date', { ascending: true }),
+    'findPaymentBySubscriptionId');
+}
+
+/**
  * Set Payments.Status by transaction id (Stripe refund / dispute → 'Refunded' | 'Disputed').
  * Returns the updated record, or null when no row has that transaction id.
  */

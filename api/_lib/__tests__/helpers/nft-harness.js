@@ -45,6 +45,7 @@ export function makeFakeDb(store) {
       const rec = { id: `pay_${++store.seq}`, fields: {
         'Transaction ID': p.transactionId, 'Pass Type': p.tier, 'Status': p.status, 'Payment Provider': p.method,
         'Customer Email': p.customerEmail, 'Customer Name': p.customerName, 'Amount': p.amount,
+        'Token': p.token, 'Payment Date': new Date().toISOString(),
       } };
       store.payments.set(p.transactionId, rec);
       return rec;
@@ -58,6 +59,10 @@ export function makeFakeDb(store) {
     listPaymentsSince: vi.fn(async () => []),
     listPaymentTransactionIds: vi.fn(async (ids) => new Set((ids ?? []).filter((id) => store.payments.has(id)))),
     findLatestPaymentByEmailAndTier: vi.fn(async () => null),
+    findPaymentBySubscriptionId: vi.fn(async (subscrId) => [...store.payments.values()]
+      .find((r) => r.fields['Token'] === `subscr:${subscrId}`) ?? null),
+    listPaymentsByEmail: vi.fn(async (email) => [...store.payments.values()]
+      .filter((r) => String(r.fields['Customer Email'] ?? '').toLowerCase() === String(email).toLowerCase())),
     // serials
     nextSerial: vi.fn(async (prefix) => {
       if (store.serialFails) throw new Error('rpc next_serial unavailable');

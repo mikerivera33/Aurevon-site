@@ -397,6 +397,7 @@ const TIER_DISPLAY_NAMES = {
   addon_sensitivity: 'Sensitivity Modeling Add-On',
   addon_portfolio:   'Portfolio Review Bundle Add-On',
   addon_whitelabel:  'White-Label Reports Add-On',
+  addons:            'Add-Ons',
 };
 
 function tierDisplay(tier) {

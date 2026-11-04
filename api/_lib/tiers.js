@@ -67,6 +67,42 @@ export function canonicalTier(tier) {
   return typeof tier === 'string' ? tier.replace(/^re_/, '') : tier;
 }
 
+/**
+ * PayPal hosted-button item numbers → tier, from env `PAYPAL_ITEM_TIERS`
+ * (JSON `{ "<item_number>": "<tier>" }`). Parsed once per distinct env value.
+ * Values are canonicalised (`re_full` → `full`); entries naming a tier that is
+ * not in the catalog are dropped. Invalid JSON (or a non-object) → empty map
+ * with `invalid: true` so the caller can alert once.
+ *
+ * The map is only a HINT: a forged Buy Now form can set item_number too, so the
+ * IPN handler trusts a mapped tier only when the USD paid matches its price.
+ *
+ * @returns {{ map: Readonly<Record<string,string>>, invalid: boolean, dropped: string[], raw: string }}
+ */
+let _itemTiers = null;
+export function paypalItemTiers() {
+  const raw = String(process.env.PAYPAL_ITEM_TIERS ?? '').trim();
+  if (_itemTiers && _itemTiers.raw === raw) return _itemTiers;
+  const map = {};
+  const dropped = [];
+  let invalid = false;
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
+      for (const [item, tier] of Object.entries(parsed)) {
+        const key = canonicalTier(typeof tier === 'string' ? tier.trim() : '');
+        if (key && Object.hasOwn(_BASE, key)) map[String(item).trim()] = key;
+        else dropped.push(String(item));
+      }
+    } catch {
+      invalid = true;
+    }
+  }
+  _itemTiers = { map: Object.freeze(map), invalid, dropped, raw };
+  return _itemTiers;
+}
+
 // Only Aurevon Capital underwriting purchases unlock the deal-intake form —
 // not community memberships or stand-alone add-ons. Stripe metadata carries
 // the prefixed checkout key (re_full); PayPal rows carry the bare key (full).
