@@ -201,3 +201,61 @@ describe('portal.html matches /api/portal contract', () => {
     expect(html).toMatch(/discordUrl = '\/member-claim'/);
   });
 });
+
+describe('discord-welcome.html — browser-safe Discord errors (Task 8)', () => {
+  const html = read('discord-welcome.html');
+
+  it('never reads an ?invite= param (open-redirect to any URL)', () => {
+    expect(html).not.toContain("params.get('invite')");
+    expect(html).not.toMatch(/\.get\(\s*['"]invite['"]\s*\)/);
+  });
+
+  it('builds the success button from a numeric ?server= id, else the static invite', () => {
+    expect(html).toContain('/^\\d{5,25}$/.test(server)');
+    expect(html).toContain("'https://discord.com/channels/' + server");
+  });
+
+  it('shows the exact copy for every error code the API redirects with', () => {
+    for (const copy of [
+      "invalid_link: 'This link has expired. Get a new one.'",
+      "link_used: 'This link was already used. Get a new one.'",
+      "no_nft: \"We can't find a membership for this email yet. If you just paid, your NFT is still being prepared — check your inbox or contact mike@aurevonvc.com.\"",
+      "\"We couldn't link Discord. Your payment and NFT are safe. Try again or contact mike@aurevonvc.com.\"",
+      'auth_failed: couldNotLink',
+      'role_failed: couldNotLink',
+      "denied: 'You cancelled. Open your email and try the link again.'",
+    ]) expect(html).toContain(copy);
+  });
+
+  it('error box has one primary "Email me a new link" button to /member-claim and no "member portal" wording', () => {
+    const box = html.match(/<div id="error-content"[\s\S]*?<\/div>/)[0];
+    expect(box.match(/<a /g)).toHaveLength(1);
+    expect(box).toMatch(/<a id="error-action" href="\/member-claim" class="btn-primary">Email me a new link<\/a>/);
+    expect(html).not.toMatch(/member portal/i);
+  });
+
+  it('every error code the API can send has copy on the page', () => {
+    const api = read('api/discord.js');
+    const codes = api.match(/WELCOME_ERRORS = new Set\(\[([^\]]+)\]\)/)[1].match(/'([a-z_]+)'/g).map((c) => c.slice(1, -1));
+    expect(codes.sort()).toEqual(['auth_failed', 'denied', 'invalid_link', 'link_used', 'no_nft', 'role_failed']);
+    for (const code of codes) expect(html).toMatch(new RegExp(`\\b${code}:`));
+  });
+});
+
+describe('member-claim.html — new-link page (Task 8)', () => {
+  const html = read('member-claim.html');
+
+  it('meta / og / twitter descriptions name the page’s one job', () => {
+    const want = 'Get a new Discord access link for your Aurevon membership.';
+    expect(html).toContain(`<meta name="description" content="${want}">`);
+    expect(html).toContain(`<meta property="og:description" content="${want}">`);
+    expect(html).toContain(`<meta name="twitter:description" content="${want}">`);
+    expect(html).not.toMatch(/member portal/i);
+  });
+
+  it('prefills the email input from ?email= via .value only (never markup)', () => {
+    expect(html).toMatch(/new URLSearchParams\(window\.location\.search\)\.get\('email'\)/);
+    expect(html).toMatch(/getElementById\('email'\)\.value = prefill/);
+    expect(html).not.toMatch(/innerHTML/);
+  });
+});
