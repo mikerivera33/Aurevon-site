@@ -17,10 +17,9 @@
 
 import crypto from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
-import { updateNftMint, findMemberByEmail, listNftMints } from '../_lib/airtable.js';
-import { resolveEntitlementFromNftType, getRoleId } from '../_lib/entitlements.js';
+import { updateNftMint, findMemberByEmail, listNftMints, updateDiscordSyncStatus, findActiveMintByEmail } from '../_lib/airtable.js';
+import { resolveEntitlementFromNftType, getRoleId, mayGrantPaidAccessFromMember } from '../_lib/entitlements.js';
 import { addRoleToMember } from '../_lib/discord-bot.js';
-import { updateDiscordSyncStatus } from '../_lib/airtable.js';
 import { onEntitlementActivated } from '../_lib/engage.js';
 
 // ── Signature verification ───────────────────────────────────────────────────
@@ -71,7 +70,7 @@ function verifyCrossmintSignature(rawBody, sigHeader) {
 
 // ── Mint success handler ─────────────────────────────────────────────────────
 
-async function handleMintSuccess(event) {
+export async function handleMintSuccess(event) {
   const mintId = event.data?.id ?? event.data?.actionId ?? null;
   const nftData = event.data?.nft ?? event.nft ?? {};
   const recipientEmail = nftData.recipient?.email ?? event.data?.recipient?.email ?? null;
@@ -83,7 +82,6 @@ async function handleMintSuccess(event) {
     mintRecord = recs[0] ?? null;
   }
   if (!mintRecord && recipientEmail) {
-    const { findActiveMintByEmail } = await import('../_lib/airtable.js');
     mintRecord = await findActiveMintByEmail(recipientEmail);
   }
   if (!mintRecord) {
@@ -123,6 +121,16 @@ async function handleMintSuccess(event) {
   const member = await findMemberByEmail(email).catch(() => null);
   const discordId = member?.fields?.['Discord ID'];
   if (discordId) {
+    // OAuth (`api/discord.js`) and reconcile already refuse lapsed monthly
+    // grants via mayGrantPaidAccessFromMember. This webhook used to assign the
+    // role unconditionally, so a delayed mint.succeeded / retry-mints success
+    // after subscription.deleted put Genesis back on a cancelled member until
+    // the next daily reconcile (02:00 UTC).
+    if (!mayGrantPaidAccessFromMember(entitlementKey, member.fields)) {
+      console.warn(`[Crossmint Webhook] refusing Discord grant for cancelled/lapsed monthly email=${email}`);
+      await updateDiscordSyncStatus(email, 'revoked').catch(() => {});
+      return;
+    }
     try {
       await addRoleToMember(discordId, roleId);
       await updateNftMint(recordId, { 'Discord Synced': true, 'Discord Synced At': now });
