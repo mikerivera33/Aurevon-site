@@ -13,7 +13,11 @@ vi.mock('../airtable.js', () => ({
   updateNftMint: vi.fn(), findMemberByEmail: vi.fn(), listNftMints: vi.fn(),
   updateDiscordSyncStatus: vi.fn(), findActiveMintByEmail: vi.fn(),
 }));
-vi.mock('../entitlements.js', () => ({ resolveEntitlementFromNftType: vi.fn(), getRoleId: vi.fn() }));
+vi.mock('../entitlements.js', () => ({
+  resolveEntitlementFromNftType: vi.fn(),
+  getRoleId: vi.fn(),
+  mayGrantPaidAccessFromMember: vi.fn(() => true),
+}));
 vi.mock('../discord-bot.js', () => ({ addRoleToMember: vi.fn() }));
 vi.mock('../engage.js', () => ({ onEntitlementActivated: vi.fn() }));
 vi.mock('@vercel/functions', () => ({ waitUntil: (p) => p }));
