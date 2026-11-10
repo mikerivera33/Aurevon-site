@@ -25,11 +25,12 @@ vi.mock('@vercel/functions', () => ({ waitUntil: (p) => p }));
 const customersRetrieve = vi.fn();
 const customersList = vi.fn().mockResolvedValue({ data: [] });
 const subscriptionsList = vi.fn().mockResolvedValue({ data: [] });
+const subscriptionsRetrieve = vi.fn();
 vi.mock('stripe', () => ({
   default: class StripeMock {
     constructor() {
       this.customers = { retrieve: customersRetrieve, list: customersList };
-      this.subscriptions = { update: vi.fn().mockResolvedValue({}), list: subscriptionsList };
+      this.subscriptions = { update: vi.fn().mockResolvedValue({}), list: subscriptionsList, retrieve: subscriptionsRetrieve };
     }
   },
 }));
@@ -47,6 +48,7 @@ describe('handleInvoicePaymentSucceeded', () => {
     vi.clearAllMocks();
     customersList.mockReset().mockResolvedValue({ data: [] });
     subscriptionsList.mockReset().mockResolvedValue({ data: [] });
+    subscriptionsRetrieve.mockReset().mockResolvedValue({ status: 'active' });
   });
 
   it('renews monthly entitlement (active + expiry) on a $29.99 invoice', async () => {
@@ -61,6 +63,67 @@ describe('handleInvoicePaymentSucceeded', () => {
       expiresAt: PERIOD_END_ISO,
       billingState: 'active',
     });
+  });
+
+  it('still renews when the live subscription is active', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_x';
+    subscriptionsRetrieve.mockResolvedValueOnce({ status: 'active' });
+    await handleInvoicePaymentSucceeded({
+      amount_paid: 2999,
+      customer_email: 'monthly@example.com',
+      subscription: 'sub_live',
+      lines: { data: [{ period: { end: PERIOD_END } }] },
+    });
+    expect(subscriptionsRetrieve).toHaveBeenCalledWith('sub_live');
+    expect(airtable.updateEntitlementState).toHaveBeenCalledWith('monthly@example.com', {
+      entitlementType: 'monthly_membership',
+      status: 'active',
+      expiresAt: PERIOD_END_ISO,
+      billingState: 'active',
+    });
+  });
+
+  it('does NOT re-activate billing after the monthly subscription is canceled', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_x';
+    subscriptionsRetrieve.mockResolvedValueOnce({ status: 'canceled' });
+    await handleInvoicePaymentSucceeded({
+      amount_paid: 2999,
+      customer_email: 'cancelled@example.com',
+      subscription: 'sub_dead',
+      lines: { data: [{ period: { end: PERIOD_END } }] },
+    });
+    expect(subscriptionsRetrieve).toHaveBeenCalledWith('sub_dead');
+    expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
+  });
+
+  it('does NOT re-activate billing for incomplete_expired or paused subscriptions', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_x';
+    for (const status of ['incomplete_expired', 'paused']) {
+      airtable.updateEntitlementState.mockClear();
+      subscriptionsRetrieve.mockResolvedValueOnce({ status });
+      await handleInvoicePaymentSucceeded({
+        amount_paid: 2999,
+        customer_email: 'lapsed@example.com',
+        subscription: `sub_${status}`,
+        lines: { data: [{ period: { end: PERIOD_END } }] },
+      });
+      expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
+    }
+  });
+
+  it('still stamps active when the subscription is past_due (this payment is the recovery)', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_x';
+    subscriptionsRetrieve.mockResolvedValueOnce({ status: 'past_due' });
+    await handleInvoicePaymentSucceeded({
+      amount_paid: 2999,
+      customer_email: 'pastdue@example.com',
+      subscription: 'sub_past_due',
+      lines: { data: [{ period: { end: PERIOD_END } }] },
+    });
+    expect(airtable.updateEntitlementState).toHaveBeenCalledWith('pastdue@example.com', expect.objectContaining({
+      billingState: 'active',
+      status: 'active',
+    }));
   });
 
   it('does NOT write entitlement state for a product-tier subscription ($1,499 retainer)', async () => {
