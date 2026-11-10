@@ -554,6 +554,26 @@ export async function handleInvoicePaymentSucceeded(invoice) {
     console.warn('[Stripe] invoice.payment_succeeded (monthly) but no customer_email — skipping entitlement write');
     return;
   }
+  // Same live-status gate as activateMonthlyBilling. Stripe redelivers
+  // invoice.payment_succeeded, and events can arrive after
+  // customer.subscription.deleted. Without this, a cancelled monthly
+  // member is stamped Billing State=active again and OAuth/reconcile
+  // re-grant Genesis.
+  const subId = typeof invoice.subscription === 'string'
+    ? invoice.subscription
+    : invoice.subscription?.id ?? null;
+  if (subId && process.env.STRIPE_SECRET_KEY) {
+    let live = null;
+    try { live = (await stripeClient().subscriptions.retrieve(subId))?.status ?? null; }
+    catch (err) { console.error(`[Stripe] subscription status lookup failed for ${subId}: ${err.message}`); }
+    // Terminal statuses only. past_due/incomplete must still stamp: this
+    // event is the payment that recovers them, and subscription.updated
+    // may not be subscribed in production.
+    if (live && ['canceled', 'incomplete_expired', 'paused'].includes(live)) {
+      console.log(`[Stripe] invoice.payment_succeeded for ended subscription ${subId} (status=${live}) — not re-activating`);
+      return;
+    }
+  }
   // Paid-through date. Pushing it forward each cycle keeps an active member out of the
   // revoke set; a genuinely lapsed member falls into it after the grace period.
   const periodEndUnix = invoice.lines?.data?.[0]?.period?.end ?? invoice.period_end ?? null;
