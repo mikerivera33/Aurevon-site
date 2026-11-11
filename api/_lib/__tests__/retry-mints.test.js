@@ -151,6 +151,27 @@ describe('handleRetryMints idempotency', () => {
     expect(airtable.findLatestPaymentByEmailAndTier).not.toHaveBeenCalled();
   });
 
+  it('does NOT mint a Failed row whose Tier Source is a no-NFT catalog SKU', async () => {
+    airtable.listFailedMints.mockResolvedValueOnce([
+      {
+        id: 'recPromoCollision',
+        fields: {
+          Email: 'promo@example.com',
+          'NFT Type': '004 Chrome',
+          'Tier Source': 'addon_portfolio',
+          Reference: 'RECOVER_cs_portfolio_promo',
+        },
+      },
+    ]);
+    airtable.findActiveMintByEmailAndType.mockResolvedValueOnce(null);
+
+    const report = await handleRetryMints();
+
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(report.retried).toBe(0);
+    expect(report.skippedNoNftSku).toBe(1);
+  });
+
   it('does NOT stamp a row Sent when the retry mint returns ok:false', async () => {
     airtable.listFailedMints.mockResolvedValueOnce([
       { id: 'recFailed3', fields: { Email: 'fail@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer' } },

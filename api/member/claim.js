@@ -227,11 +227,14 @@ export async function recoverOrphanPayments({ sinceDays = 3 } = {}) {
     const tier  = p.fields?.['Pass Type'] ?? '';
     if (!email || !tier) continue;
 
-    let nftType = TIER_NFT_MAP[tier]?.nft ?? null;
-    // If the stored tier doesn't map to an NFT it may be a payment whose tier
-    // inference failed at webhook time (stored as 'unknown' / an unmapped label).
-    // Re-infer from the paid amount before concluding it's a genuine no-NFT tier
-    // — otherwise an NFT-priced payment with a bad tier label is never recovered.
+    const mapped = TIER_NFT_MAP[tier];
+    let nftType = mapped?.nft ?? null;
+    // Known catalog SKU with no NFT (add-on, BOGO, second opinion): never
+    // upgrade it because a Stripe promo made amount_total collide with an
+    // NFT price (30% off $499 Portfolio → $349.30 ≈ Chrome; $50 off BOGO
+    // → $250 Insider). Only re-infer when Pass Type is unrecognized
+    // (webhook stored 'unknown').
+    if (!nftType && mapped) continue;
     if (!nftType) {
       const amount = parseFloat(p.fields?.['Amount']);
       if (amount > 0) {
@@ -470,6 +473,7 @@ export async function handleRetryMints() {
   const errors = [];
   const skippedDup = [];
   const skippedLookup = [];
+  const skippedNoNft = [];
   const failedMints = await listFailedMints({ maxRecords: 50 });
 
   for (const record of failedMints) {
@@ -503,6 +507,15 @@ export async function handleRetryMints() {
     }
 
     const tierConfig    = TIER_NFT_MAP[tier] ?? null;
+    // Defense in depth for amount-collision dead-letters: a known no-NFT
+    // catalog SKU must never be minted even if NFT Type was filled in.
+    if (tierConfig && tierConfig.nft === null) {
+      await updateNftMint(record.id, {
+        'Notes': `Retry skipped: ${tier} is a no-NFT catalog SKU; not minting.`,
+      }).catch(() => {});
+      skippedNoNft.push({ email, nftType, tier });
+      continue;
+    }
     const templateKey   = tierConfig?.template ?? null;
     const serialPrefix  = tierConfig?.serialPrefix ?? null;
     const collectionName = tierConfig?.collectionName ?? null;
@@ -556,7 +569,8 @@ export async function handleRetryMints() {
     errors: errors.length,
     skippedDuplicates: skippedDup.length,
     skippedLookupErrors: skippedLookup.length,
-    details: { retried, errors, skippedDuplicates: skippedDup, skippedLookupErrors: skippedLookup },
+    skippedNoNftSku: skippedNoNft.length,
+    details: { retried, errors, skippedDuplicates: skippedDup, skippedLookupErrors: skippedLookup, skippedNoNftSku: skippedNoNft },
   };
 }
 
