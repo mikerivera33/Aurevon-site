@@ -96,4 +96,45 @@ describe('recoverOrphanPayments', () => {
     expect(airtable.findAnyMintByEmailAndType).not.toHaveBeenCalled();
     expect(airtable.createNftMint).not.toHaveBeenCalled();
   });
+
+  it('does NOT mint Chrome when a 30% off Portfolio Review lands within $1 of $349.99', async () => {
+    // Checkout always allows promo codes. $499 * 0.7 = $349.30, and
+    // inferTierFromAmount's $1 window matches comm_lifetime.
+    airtable.listPaymentsSince.mockResolvedValueOnce([
+      {
+        id: 'pay6',
+        fields: {
+          'Customer Email': 'promo@example.com',
+          'Pass Type': 'addon_portfolio',
+          'Amount': 349.3,
+          'Transaction ID': 'cs_portfolio_promo',
+        },
+      },
+    ]);
+
+    const result = await recoverOrphanPayments({ sinceDays: 3 });
+
+    expect(result.recovered).toBe(0);
+    expect(airtable.findAnyMintByEmailAndType).not.toHaveBeenCalled();
+    expect(airtable.createNftMint).not.toHaveBeenCalled();
+  });
+
+  it('does NOT mint Insider when a discounted BOGO amount collides with Full Package', async () => {
+    airtable.listPaymentsSince.mockResolvedValueOnce([
+      {
+        id: 'pay7',
+        fields: {
+          'Customer Email': 'bogo@example.com',
+          'Pass Type': 're_bogo',
+          'Amount': 250,
+          'Transaction ID': 'cs_bogo_promo',
+        },
+      },
+    ]);
+
+    const result = await recoverOrphanPayments({ sinceDays: 3 });
+
+    expect(result.recovered).toBe(0);
+    expect(airtable.createNftMint).not.toHaveBeenCalled();
+  });
 });
