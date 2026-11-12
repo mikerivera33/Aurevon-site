@@ -54,10 +54,20 @@ SECRET="$(md instance/attributes/bot-secret)"
 OBJECT="https://storage.googleapis.com/storage/v1/b/$BUCKET/o/discord-bot.tgz"
 STATE=/var/lib/aurevon-bot/generation
 APP=/opt/aurevon-bot
+ENVFILE=/etc/aurevon-bot.env
 export PATH=/opt/node/bin:$PATH
 
+undo_install() { # $1 = generation that was live before, $2 = 1 if a restart was attempted
+  rm -rf "$APP"
+  if [ -d "$APP.previous" ]; then mv "$APP.previous" "$APP"; fi
+  if [ -f "$ENVFILE.previous" ]; then mv "$ENVFILE.previous" "$ENVFILE"; else rm -f "$ENVFILE"; fi
+  if [ -n "$1" ]; then echo "$1" > "$STATE"; else rm -f "$STATE"; fi
+  if [ "$2" = 1 ]; then systemctl restart aurevon-bot.service || true; fi
+  log "restored the previous version"
+}
+
 do_install() { # $1 = generation, $2 = scratch dir
-  local tok payload
+  local tok payload prev_gen restarted=0
   tok="$(token)" || return 1
 
   # The env secret is a dotenv file (KEY=value lines), read fresh on every deploy.
@@ -71,21 +81,27 @@ do_install() { # $1 = generation, $2 = scratch dir
   curl -fsS -H "Authorization: Bearer $tok" -o "$2/bot.tgz" "$OBJECT?alt=media&generation=$1" || return 1
   mkdir "$2/app" && tar -xzf "$2/bot.tgz" -C "$2/app" || return 1
   (cd "$2/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error) || return 1
-  install -m 600 -o root -g root "$2/env" /etc/aurevon-bot.env || return 1
 
-  # Swap the new code in. If that fails, put the old code back and report
-  # failure: the generation is recorded only after the bot restarted on the
-  # new code, so a failed install is retried on the next poll.
-  rm -rf "$APP.previous"
+  # Everything above only touched the scratch dir. From here the install is
+  # all-or-nothing: keep the live code, env and generation aside, switch all
+  # three, and restart the bot last. Any failure puts all three back, so the
+  # recorded generation always matches the code that is running, and the next
+  # poll retries.
+  prev_gen="$(cat "$STATE" 2>/dev/null)"
+  rm -rf "$APP.previous" "$ENVFILE.previous"
+  if [ -f "$ENVFILE" ]; then cp -p "$ENVFILE" "$ENVFILE.previous" || return 1; fi
   if [ -d "$APP" ]; then mv "$APP" "$APP.previous" || return 1; fi
-  if ! { mv "$2/app" "$APP" && chown -R root:root "$APP" && chmod -R a+rX "$APP"; }; then
-    rm -rf "$APP"
-    if [ -d "$APP.previous" ]; then mv "$APP.previous" "$APP"; fi
-    return 1
+  if mv "$2/app" "$APP" && chown -R root:root "$APP" && chmod -R a+rX "$APP" \
+      && install -m 600 -o root -g root "$2/env" "$ENVFILE" \
+      && echo "$1" > "$STATE"; then
+    restarted=1
+    if systemctl restart aurevon-bot.service; then
+      log "installed generation $1"
+      return 0
+    fi
   fi
-  systemctl restart aurevon-bot.service || return 1
-  echo "$1" > "$STATE" || return 1
-  log "installed generation $1"
+  undo_install "$prev_gen" "$restarted"
+  return 1
 }
 
 install_bundle() { # $1 = generation
