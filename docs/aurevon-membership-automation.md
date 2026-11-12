@@ -129,9 +129,10 @@ Set ALL in **Vercel Dashboard → Your Project → Settings → Environment Vari
 See `.env.example` for the full list. Do not commit real values.
 
 ### Minimum required to go live:
+The full list by purpose is in `docs/nft-pipeline-setup.md` (single setup source); authed `/api/health` reports what's missing.
 - `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`
-- `CROSSMINT_API_KEY` + `CROSSMINT_COLLECTION_ID` + templates
-- `AIRTABLE_PAT` + `AIRTABLE_BASE_ID`
+- `CROSSMINT_API_KEY` + `CROSSMINT_COLLECTION_ID` + `CROSSMINT_WEBHOOK_SECRET`
+- `SUPABASE_URL` + `SUPABASE_SECRET_KEY`
 - `DISCORD_BOT_TOKEN` + `DISCORD_CLIENT_ID` + `DISCORD_CLIENT_SECRET` + `DISCORD_GUILD_ID`
 - `DISCORD_ROLE_MONTHLY` + `DISCORD_ROLE_LIFETIME` + `DISCORD_ROLE_PRODUCT_A/B/C`
 - `STATE_SECRET` + `SYNC_SECRET` + `RECONCILE_SECRET`
@@ -195,8 +196,8 @@ Collab.Land provides token-gated channel access. It reads the wallet holding the
 
 1. Go to https://www.crossmint.com/console → your project → Webhooks
 2. Add endpoint: `https://www.aurevonvc.com/api/webhooks/crossmint`
-3. Select events: `action.succeeded`, `action.failed`
-4. Copy the signing secret → set as `CROSSMINT_WEBHOOK_SECRET`
+3. Select events: `nfts.create.succeeded`, `nfts.create.failed`
+4. Copy the signing secret (Svix, starts with `whsec_`) → set as `CROSSMINT_WEBHOOK_SECRET`
 
 ---
 

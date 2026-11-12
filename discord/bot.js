@@ -113,10 +113,17 @@
  *  SUPABASE_URL=https://mcpgkrumizsaygasoovn.supabase.co
  *  SUPABASE_SECRET_KEY=sb_secret_...
  *
+ *  # Optional
+ *  ENTITLEMENT_GRACE_PERIOD_DAYS=7   ← monthly grace after billing lapses
+ *  PORT=8080                         ← liveness server (GET /healthz)
+ *
+ *  Full list: discord/README.md → "Required configuration".
+ *
  * ============================================================
  */
 
 import 'dotenv/config';
+import http from 'node:http';
 import {
   Client,
   GatewayIntentBits,
@@ -140,6 +147,7 @@ import {
   AutoModerationActionType,
   AuditLogEvent,
 } from 'discord.js';
+import { ENTITLEMENTS, entitlementByKey, grantableRoleEnvs, obsoleteRoleEnvs } from './entitlements.js';
 
 // ── Env ───────────────────────────────────────────────────────────────────────
 
@@ -169,6 +177,7 @@ const COLUMNS = {
     'Email': 'email', 'Active': 'active', 'Member Tier': 'member_tier', 'Customer Name': 'customer_name',
     'Discord ID': 'discord_id', 'Discord Username': 'discord_username', 'Discord Linked At': 'discord_linked_at',
     'Discord Sync Status': 'discord_sync_status', 'Discord Sync At': 'discord_sync_at',
+    'Billing State': 'billing_state', 'Entitlement Expires At': 'entitlement_expires_at',
   },
   nft_mints: { 'Email': 'email', 'NFT Type': 'nft_type', 'Mint Status': 'mint_status', 'Token ID': 'token_id' },
 };
@@ -187,14 +196,16 @@ async function dbSelect(table, query) {
   return (await r.json()).map((row) => toRecord(table, row));
 }
 
+/** PATCH one row. Resolves true on success, false otherwise (logged). */
 async function dbPatch(table, id, fields) {
-  if (!DB_HEADERS) return;
+  if (!DB_HEADERS) return false;
   const row = {};
   for (const [name, v] of Object.entries(fields)) row[COLUMNS[table][name]] = v;
   const r = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, {
     method: 'PATCH', headers: DB_HEADERS, body: JSON.stringify(row),
   });
-  if (!r.ok) console.error(`[db] ${table} patch ${r.status}: ${await r.text()}`);
+  if (!r.ok) { console.error(`[db] ${table} patch ${r.status}: ${await r.text()}`); return false; }
+  return true;
 }
 
 const eqEmail = (email) => `email=eq.${encodeURIComponent(String(email).toLowerCase().trim())}`;
@@ -204,32 +215,65 @@ async function findMember(email) {
   return rows[0] ?? null;
 }
 
+/** Every active mint for an email, newest first (same active set as the site: Minted / Sent / Queued). */
+async function findMints(email) {
+  return dbSelect('nft_mints', `${eqEmail(email)}&mint_status=in.(Minted,Sent,Queued)&order=created_at.desc`);
+}
+
 async function findMint(email) {
-  const rows = await dbSelect('nft_mints', `${eqEmail(email)}&mint_status=in.(Minted,Sent)&order=created_at.desc`);
-  return rows[0] ?? null;
+  return (await findMints(email))[0] ?? null;
 }
 
 // ── Role config ───────────────────────────────────────────────────────────────
 
-const TIER_ROLES = {
-  monthly:   { env: 'DISCORD_ROLE_MONTHLY',   label: '001 Genesis',           nftType: 'comm_monthly'   },
-  lifetime:  { env: 'DISCORD_ROLE_LIFETIME',  label: '004 Chrome',            nftType: 'comm_lifetime'  },
-  product_a: { env: 'DISCORD_ROLE_PRODUCT_A', label: 'Aurevon Insider',        nftType: 'Aurevon Insider'        },
-  product_b: { env: 'DISCORD_ROLE_PRODUCT_B', label: 'Aurevon Ember',          nftType: 'Aurevon Ember'          },
-  product_c: { env: 'DISCORD_ROLE_PRODUCT_C', label: 'Obsidian Executive',     nftType: 'Aurevon Obsidian Executive' },
+// Tier table comes from ./entitlements.js (kept in parity with api/_lib/entitlements.js).
+// Slash-command tier choices keep their original values.
+const TIER_CHOICES = {
+  monthly:   'monthly_membership',
+  lifetime:  'lifetime_membership',
+  product_a: 'product_a_reward',
+  product_b: 'product_b_reward',
+  product_c: 'product_c_reward',
 };
 
-function roleIdFor(key)      { return process.env[TIER_ROLES[key]?.env] ?? null; }
-function getTierRoleIds()    { return Object.values(TIER_ROLES).map(t => process.env[t.env]).filter(Boolean); }
+const GRACE_DAYS = (() => {
+  const n = parseInt(process.env.ENTITLEMENT_GRACE_PERIOD_DAYS ?? '7', 10);
+  return Number.isFinite(n) ? n : 7;
+})();
+
+/** `{ env, label }` for a tier choice value ('monthly', 'product_a', ...), or null. */
+function tierFor(choice) {
+  const e = entitlementByKey(TIER_CHOICES[choice]);
+  return e ? { env: e.discordRoleEnv, label: e.label } : null;
+}
+
+function roleIdFor(choice)   { return process.env[tierFor(choice)?.env] ?? null; }
+function getTierRoleIds()    { return ENTITLEMENTS.map(e => process.env[e.discordRoleEnv]).filter(Boolean); }
 function getManagedRoleIds() { return [...getTierRoleIds(), process.env.DISCORD_ROLE_VERIFIED].filter(Boolean); }
 
-function resolveRoleFromNft(nftType) {
-  const entry = Object.values(TIER_ROLES).find(t =>
-    nftType?.toLowerCase().includes(t.nftType?.toLowerCase())
-  );
-  if (!entry) return null;
-  return process.env[entry.env] ?? null;
+function uniqueRoleIds(envs) {
+  return [...new Set(envs.map(env => process.env[env]).filter(Boolean))];
 }
+
+/**
+ * Bring one guild member's tier roles in line with their mints + billing:
+ * add every grantable role, remove only a revocable (monthly) role that is no
+ * longer grantable. A permanent / lifetime pass role is never removed.
+ * `missingEnvs` lists grantable roles whose DISCORD_ROLE_* env is unset.
+ */
+async function applyMemberRoles(gm, mints, memberFields) {
+  const grantEnvs  = grantableRoleEnvs(mints, memberFields, GRACE_DAYS);
+  const grantIds   = uniqueRoleIds(grantEnvs);
+  const missingEnvs = grantEnvs.filter(env => !process.env[env]);
+  const add    = grantIds.filter(id => !gm.roles.cache.has(id));
+  const remove = uniqueRoleIds(obsoleteRoleEnvs(mints, memberFields, GRACE_DAYS))
+    .filter(id => !grantIds.includes(id) && gm.roles.cache.has(id));
+  if (add.length)    await gm.roles.add(add);
+  if (remove.length) await gm.roles.remove(remove);
+  return { grantEnvs, grantIds, missingEnvs, added: add, removed: remove };
+}
+
+const roleNames = (guild, ids) => ids.map(id => guild.roles.cache.get(id)?.name ?? id).join(', ');
 
 // ── Warning store (in-memory — persists until restart) ────────────────────────
 // In-memory only; move to the database if this must survive restarts
@@ -855,11 +899,11 @@ async function cmdDmTier(i) {
   const roleId  = roleIdFor(tierKey);
 
   if (!roleId) {
-    return i.editReply(`❌  Role ID for **${TIER_ROLES[tierKey]?.label}** is not configured. Set \`${TIER_ROLES[tierKey]?.env}\` in your .env.`);
+    return i.editReply(`❌  Role ID for **${tierFor(tierKey)?.label ?? tierKey}** is not configured. Set \`${tierFor(tierKey)?.env ?? 'DISCORD_ROLE_*'}\` in your .env.`);
   }
 
   const members = (await i.guild.members.fetch()).filter(m => m.roles.cache.has(roleId) && !m.user.bot);
-  if (!members.size) return i.editReply(`⚠️  No members found with the **${TIER_ROLES[tierKey]?.label}** role.`);
+  if (!members.size) return i.editReply(`⚠️  No members found with the **${tierFor(tierKey)?.label ?? tierKey}** role.`);
 
   await i.editReply(`⏳  Sending DMs to ${members.size} members... this may take a moment.`);
 
@@ -876,7 +920,7 @@ async function cmdDmTier(i) {
   await log(i.guild, 'bot-commands', {
     embeds: [goldEmbed('📨  DM Campaign Sent')
       .addFields(
-        { name: 'Tier',   value: TIER_ROLES[tierKey]?.label ?? tierKey, inline: true },
+        { name: 'Tier',   value: tierFor(tierKey)?.label ?? tierKey, inline: true },
         { name: '✅ Sent', value: String(sent),                          inline: true },
         { name: '❌ Failed', value: String(failed),                      inline: true },
         { name: 'Subject', value: subject,                              inline: false },
@@ -943,42 +987,49 @@ async function cmdPoll(i) {
 
 // ── /sync-member ──────────────────────────────────────────────────────────────
 
+/** Sync status for a member after applyMemberRoles (same values the site writes). */
+function syncStatusFor(result) {
+  if (!result.grantEnvs.length) return 'revoked';
+  return result.missingEnvs.length ? 'pending' : 'synced';
+}
+
 async function cmdSyncMember(i) {
   await i.deferReply({ ephemeral: true });
   const email = i.options.getString('email').toLowerCase().trim();
 
   if (!DB_READY) return i.editReply('❌  Database not configured — set SUPABASE_URL and SUPABASE_SECRET_KEY in .env');
 
-  const [member, mint] = await Promise.all([findMember(email), findMint(email)]);
-  if (!mint) return i.editReply(`❌  No active NFT mint found for \`${email}\`.`);
+  const [member, mints] = await Promise.all([findMember(email), findMints(email)]);
+  if (!member) return i.editReply(`❌  No member record found for \`${email}\`.`);
+  if (!mints.length) return i.editReply(`❌  No active NFT mint found for \`${email}\`.`);
 
-  const nftType = mint.fields['NFT Type'] ?? '';
-  const roleId  = resolveRoleFromNft(nftType);
-  if (!roleId)  return i.editReply(`❌  No role configured for NFT type: **${nftType}**`);
-
-  const discordId = member?.fields?.['Discord ID'];
+  const discordId = member.fields['Discord ID'];
   if (!discordId) return i.editReply(`⚠️  No Discord ID linked for \`${email}\`. Member must complete OAuth at ${SITE_URL}/member-claim.html`);
 
   const gm = await i.guild.members.fetch(discordId).catch(() => null);
   if (!gm) return i.editReply(`❌  Discord user \`${discordId}\` is not in this server.`);
 
-  await gm.roles.add(roleId);
+  const result = await applyMemberRoles(gm, mints, member.fields);
+  await dbPatch('members', member.id, { 'Discord Sync Status': syncStatusFor(result), 'Discord Sync At': new Date().toISOString() });
 
-  if (member) {
-    await dbPatch('members', member.id, { 'Discord Sync Status': 'synced', 'Discord Sync At': new Date().toISOString() });
+  const nftTypes = [...new Set(mints.map(m => m.fields['NFT Type']).filter(Boolean))].join(', ') || '—';
+  const embed = goldEmbed(result.grantEnvs.length ? '✅  Member Synced' : '⚠️  No Grantable Pass')
+    .addFields(
+      { name: 'Discord',       value: `<@${discordId}>`,                            inline: true  },
+      { name: 'NFTs',          value: nftTypes,                                     inline: true  },
+      { name: 'Roles Granted', value: roleNames(i.guild, result.grantIds) || 'None', inline: false },
+      { name: 'Added Now',     value: roleNames(i.guild, result.added) || 'None',    inline: true  },
+      { name: 'Removed',       value: roleNames(i.guild, result.removed) || 'None',  inline: true  },
+    );
+  if (result.missingEnvs.length) {
+    embed.addFields({ name: 'Not Configured', value: result.missingEnvs.join(', '), inline: false });
+  }
+  if (!result.grantEnvs.length) {
+    embed.setDescription('No role granted: monthly billing has lapsed past the grace window, or no mint has a recognised NFT type.');
   }
 
-  const role  = i.guild.roles.cache.get(roleId);
-  const embed = goldEmbed('✅  Member Synced')
-    .addFields(
-      { name: 'Email',   value: email,               inline: true },
-      { name: 'Discord', value: `<@${discordId}>`,   inline: true },
-      { name: 'Role',    value: role?.name ?? roleId, inline: true },
-      { name: 'NFT',     value: nftType,             inline: true },
-    );
-
   await log(i.guild, 'role-logs', { embeds: [embed] });
-  return i.editReply({ embeds: [embed] });
+  return i.editReply({ content: `Email: \`${email}\``, embeds: [embed] });
 }
 
 // ── /revoke-member ────────────────────────────────────────────────────────────
@@ -1017,36 +1068,44 @@ async function cmdSyncAll(i) {
   );
   if (!pending.length) return i.editReply('✅  No members pending sync.');
 
-  let synced = 0, skipped = 0, failed = 0;
+  let synced = 0, revoked = 0, skipped = 0, failed = 0, rolesAdded = 0, rolesRemoved = 0;
+  const missing = new Set();
   for (const rec of pending) {
     const email     = rec.fields['Email'] ?? '';
     const discordId = rec.fields['Discord ID'];
     if (!email || !discordId) { skipped++; continue; }
 
     try {
-      const mint = await findMint(email);
-      if (!mint) { skipped++; continue; }
-
-      const roleId = resolveRoleFromNft(mint.fields['NFT Type'] ?? '');
-      if (!roleId) { skipped++; continue; }
+      const mints = await findMints(email);
+      if (!mints.length) { skipped++; continue; }
 
       const gm = await i.guild.members.fetch(discordId).catch(() => null);
       if (!gm) { skipped++; continue; }
 
-      await gm.roles.add(roleId);
-      await dbPatch('members', rec.id, { 'Discord Sync Status': 'synced', 'Discord Sync At': new Date().toISOString() });
-      synced++;
-    } catch {
+      const result = await applyMemberRoles(gm, mints, rec.fields);
+      rolesAdded   += result.added.length;
+      rolesRemoved += result.removed.length;
+      result.missingEnvs.forEach(env => missing.add(env));
+
+      const status = syncStatusFor(result);
+      await dbPatch('members', rec.id, { 'Discord Sync Status': status, 'Discord Sync At': new Date().toISOString() });
+      if (status === 'revoked') revoked++; else synced++;
+    } catch (err) {
+      console.error('[sync-all] member sync failed:', err?.message ?? err);
       failed++;
     }
   }
 
   const embed = goldEmbed('🔄  Sync-All Complete')
     .addFields(
-      { name: '✅ Synced',   value: String(synced),  inline: true },
-      { name: '⏭️ Skipped',  value: String(skipped), inline: true },
-      { name: '❌ Failed',   value: String(failed),  inline: true },
+      { name: '✅ Synced',        value: String(synced),       inline: true },
+      { name: '🚫 Lapsed',        value: String(revoked),      inline: true },
+      { name: '⏭️ Skipped',       value: String(skipped),      inline: true },
+      { name: '❌ Failed',        value: String(failed),       inline: true },
+      { name: '➕ Roles Added',   value: String(rolesAdded),   inline: true },
+      { name: '➖ Roles Removed', value: String(rolesRemoved), inline: true },
     );
+  if (missing.size) embed.addFields({ name: 'Not Configured', value: [...missing].join(', '), inline: false });
 
   await log(i.guild, 'role-logs', { embeds: [embed] });
   return i.editReply({ embeds: [embed] });
@@ -1062,17 +1121,18 @@ async function cmdVerifyMember(i) {
   if (!DB_READY) return i.editReply('❌  Database not configured.');
 
   const member = await findMember(email);
-  const fields = {
+  if (!member) {
+    return i.editReply(`❌  No member record found for \`${email}\` — nothing linked. The member must purchase or claim first.`);
+  }
+
+  const linked = await dbPatch('members', member.id, {
     'Discord ID':       target.id,
     'Discord Username': target.tag,
     'Discord Linked At': new Date().toISOString(),
     'Discord Sync Status': 'pending',
     'Active': true,
-  };
-
-  if (member) {
-    await dbPatch('members', member.id, fields);
-  }
+  });
+  if (!linked) return i.editReply(`❌  Could not save the link for \`${email}\` — database update failed. Try again.`);
 
   const embed = goldEmbed('🔗  Member Linked')
     .addFields(
@@ -1419,8 +1479,8 @@ async function cmdStats(i) {
   const members = await i.guild.members.fetch();
   const humans  = members.filter(m => !m.user.bot);
 
-  const tierFields = Object.entries(TIER_ROLES).map(([, cfg]) => {
-    const roleId = process.env[cfg.env];
+  const tierFields = ENTITLEMENTS.map((cfg) => {
+    const roleId = process.env[cfg.discordRoleEnv];
     const count  = roleId ? members.filter(m => m.roles.cache.has(roleId)).size : 0;
     return { name: cfg.label, value: `**${count}**`, inline: true };
   });
@@ -1831,6 +1891,24 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { client.destroy(); process.exit(0); });
+
+// ── Liveness ──────────────────────────────────────────────────────────────────
+// Started before login so the host can probe: GET /healthz → 200 once the
+// gateway session is ready, 503 until then (or after a disconnect). Else 404.
+
+const HEALTH_PORT = Number(process.env.PORT) || 8080;
+const healthServer = http.createServer((req, res) => {
+  const path = (req.url ?? '').split('?')[0];
+  if ((req.method === 'GET' || req.method === 'HEAD') && path === '/healthz') {
+    const ready = client.isReady();
+    res.writeHead(ready ? 200 : 503, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end(ready ? 'ok' : 'not ready');
+  }
+  res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+  return res.end('not found');
+});
+healthServer.on('error', (err) => console.error('[Health] server error:', err.message));
+healthServer.listen(HEALTH_PORT, () => console.log(`[Health] listening on :${HEALTH_PORT} (/healthz)`));
 
 // ── Connect ───────────────────────────────────────────────────────────────────
 

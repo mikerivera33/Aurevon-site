@@ -42,7 +42,7 @@ Vercel webhook  ←─── /api/webhooks/stripe.js   or   /api/webhooks/paypal
 
 Discord IDs enter the system three ways:
 
-1. **OAuth flow** — customer visits `/discord-welcome.html` after purchase → clicks "Connect Discord" → `/api/discord/auth` → callback at `/api/discord/callback` stores Discord ID in Airtable Members table
+1. **OAuth flow** — customer visits `/discord-welcome.html` after purchase → clicks "Connect Discord" → `/api/discord?action=auth` → callback at `/api/discord?action=callback` stores the Discord ID in the Supabase `members` table
 2. **Manual /verify-member command** — moderator runs the slash command in the server linking an email to a Discord ID
 3. **Member portal** — logged-in member adds their Discord ID at `/portal.html`
 
@@ -62,33 +62,15 @@ Defined canonically in `api/_lib/entitlements.js`. Do not duplicate this elsewhe
 
 ## Env var ownership (which env var goes where)
 
-| Env var | Vercel | Secret `aurevon-bot-env` (Discord bot) | GitHub Secrets |
-|---|---|---|---|
-| `STRIPE_SECRET_KEY` | ✅ | — | — |
-| `STRIPE_WEBHOOK_SECRET` | ✅ | — | — |
-| `PAYPAL_CLIENT_ID` / `PAYPAL_SECRET` | ✅ | — | — |
-| `CROSSMINT_API_KEY` | ✅ | — | — |
-| `CROSSMINT_COLLECTION_ID` (+ per-tier) | ✅ | — | — |
-| `CROSSMINT_WEBHOOK_SECRET` | ✅ | — | — |
-| `RESEND_API_KEY` | ✅ | — | — |
-| `SUPABASE_URL` / `SUPABASE_SECRET_KEY` | ✅ | ✅ (bot reads members) | — |
-| `AIRTABLE_PAT` / `AIRTABLE_BASE_ID` | ✅ (import bridge only, until removed) | — | — |
-| `DISCORD_BOT_TOKEN` | ✅ (for `_lib/discord-bot.js`) | ✅ (for the bot itself) | — |
-| `DISCORD_CLIENT_ID` / `DISCORD_GUILD_ID` | ✅ | ✅ | — |
-| `DISCORD_CLIENT_SECRET` | ✅ (OAuth callback only) | — | — |
-| `DISCORD_ROLE_*` (5 tier roles + verified) | ✅ | ✅ | — |
-| `STATE_SECRET` / `SYNC_SECRET` / `RECONCILE_SECRET` / `CRON_SECRET` | ✅ | — | — |
-| `VERCEL_TOKEN` | — | — | ✅ (for CI deploys) |
-
-**Rule:** any value used by `/api/*` belongs in Vercel. Any value used by `discord/bot.js` belongs in the Google Secret Manager secret `aurevon-bot-env`. Many values live in both — keep them in sync.
+See `docs/nft-pipeline-setup.md` → "Environment variables by purpose" (Vercel, GitHub and Discord bot lists). It is the single setup source. The bot's values live in the Google Secret Manager secret `aurevon-bot-env` (`deploy/gcp/README.md`).
 
 ## Webhook endpoints (configure in each provider's dashboard)
 
 | Provider | URL | Events |
 |---|---|---|
-| Stripe | `https://www.aurevonvc.com/api/webhooks/stripe` | `checkout.session.completed`, `customer.subscription.deleted`, `invoice.payment_failed` |
-| PayPal | `https://www.aurevonvc.com/api/webhooks/paypal` | Checkout / IPN |
-| Crossmint | `https://www.aurevonvc.com/api/webhooks/crossmint` | `action.succeeded`, `action.failed`, `nft.minted` |
+| Stripe | `https://www.aurevonvc.com/api/webhooks/stripe` | All 9 in `api/_lib/stripe-events.js`: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`, `charge.refunded`, `charge.dispute.created` |
+| PayPal | `https://www.aurevonvc.com/api/webhooks/paypal` | IPN |
+| Crossmint | `https://www.aurevonvc.com/api/webhooks/crossmint` | `nfts.create.succeeded`, `nfts.create.failed` (Svix-signed; `whsec_` secret in `CROSSMINT_WEBHOOK_SECRET`) |
 
 ## Cron schedule (Vercel)
 
@@ -96,7 +78,7 @@ Defined in `vercel.json`. Hobby plan limit is 2 crons — do not add more withou
 
 | Path | Schedule (UTC) | Purpose |
 |---|---|---|
-| `/api/cron/retry-mints` | `0 3 * * *` (03:00) | Retry any failed Crossmint mints |
+| `/api/cron/retry-mints` | `*/15 * * * *` | Retry failed Crossmint mints; re-send undelivered pass emails |
 | `/api/cron/reconcile` | `0 2 * * *` (02:00) | Reconcile Airtable entitlements against Discord roles |
 
 ## Health monitoring
@@ -111,7 +93,7 @@ To run on demand: GitHub → Actions → Scheduled Health Monitor → Run workfl
 |---|---|---|
 | Crossmint webhook fires but Discord role not assigned | Customer's Discord ID not linked in Airtable Members | Have them complete `/discord-welcome.html` OAuth, or run `/verify-member` in server |
 | Stripe payment succeeds but no NFT mint | `CROSSMINT_API_KEY` missing in Vercel | Set in Vercel → Settings → Environment Variables → redeploy |
-| Bot online but `/sync-member` fails | `SUPABASE_*` missing in `aurevon-bot-env` | Add a new secret version → run the Deploy Discord bot workflow |
+| Bot online but `/sync-member` fails | `SUPABASE_URL` / `SUPABASE_SECRET_KEY` missing in `aurevon-bot-env` | Add a new secret version → run the Deploy Discord bot workflow |
 | Vercel build fails on deploy | YAML / merge conflict markers in `.github/workflows/*` | Validate with `python3 -c "import yaml; yaml.safe_load(open('PATH'))"` |
 | New tier added but no role assigned | New entitlement not in `entitlements.js` ENTITLEMENT_MAP | Add the SKU and the `discordRoleEnv` mapping |
 
@@ -119,7 +101,7 @@ To run on demand: GitHub → Actions → Scheduled Health Monitor → Run workfl
 
 1. Add the entitlement to `api/_lib/entitlements.js` → `ENTITLEMENT_MAP`
 2. Add the legacy mapping to `api/_lib/tiers.js` → `_BASE`
-3. Add the Crossmint template ID env var (`CROSSMINT_TEMPLATE_<TIER>`)
+3. Optionally add a Crossmint collection override env var (`collectionEnv`; templates are no longer used)
 4. Add the Discord role env var (`DISCORD_ROLE_<TIER>`) in both Vercel and `aurevon-bot-env`
 5. Create the Discord role in the server, copy the ID
 6. Update `discord/bot.js` → `TIER_DEFS` map at the top

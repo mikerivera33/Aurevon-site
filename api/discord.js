@@ -2,18 +2,25 @@
  * Unified Discord handler — /api/discord?action=auth|callback|sync
  *
  * action=auth&token=xxx     → verify email-ownership token, redirect to Discord OAuth
- * action=callback&code=x    → handle OAuth callback, assign role, save the Discord link
- * action=sync  (POST)       → bot-assign role for a member who already has a Discord ID
+ * action=callback&code=x    → handle OAuth callback, assign every grantable role, save the Discord link
+ * action=sync  (POST)       → bot-assign every grantable role for a member who already has a Discord ID
  *                             Body: { email, secret? }  OR use CRON_SECRET header
+ *
+ * auth / callback are browser routes: every failure is a 302 to
+ * /discord-welcome.html?error=<code>. sync / check-membership are APIs (JSON).
  *
  * Function limit note: all Discord actions consolidated here to stay under
  * the Vercel Hobby 12-function limit.
  */
 
 import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
-import { addRoleToMember, addMemberToGuild } from './_lib/discord-bot.js';
+import { addRoleToMember, addMemberToGuild, syncMemberRoles } from './_lib/discord-bot.js';
 import { upsertDiscordLink, updateDiscordSyncStatus, findActiveMintsByEmail, findMemberByEmail, isDiscordAuthNonceUsed, markDiscordAuthNonceUsed, dbConfigured } from './_lib/db.js';
-import { resolveEntitlementFromNftType, getRoleId, pickGrantableMint, UNKNOWN_BILLING_FIELDS } from './_lib/entitlements.js';
+import {
+  ENTITLEMENT_MAP, resolveEntitlementFromNftType,
+  grantableEntitlements, grantableRoleIds, obsoleteRoleIds, alertMissingRoles, UNKNOWN_BILLING_FIELDS,
+} from './_lib/entitlements.js';
+import { sendAlert } from './_lib/alert.js';
 import { onEntitlementActivated } from './_lib/engage.js';
 
 // ── Env ──────────────────────────────────────────────────────────────────────
@@ -35,7 +42,7 @@ const SCOPES        = 'identify guilds.join';
 
 // ── Timing-safe secret compare ───────────────────────────────────────────────
 // Length-guarded crypto.timingSafeEqual for variable-length secrets, matching
-// the pattern in api/member/claim.js and api/email/send.js. Returns true only
+// the pattern in api/member/claim.js. Returns true only
 // on an exact match. Callers MUST still guard against an unset/empty configured
 // secret BEFORE calling this — two empty strings compare equal here.
 export function timingSafeStrEqual(a, b) {
@@ -143,27 +150,36 @@ async function getDiscordUser(accessToken) {
   return res.json();
 }
 
+// ── Browser-facing failures ──────────────────────────────────────────────────
+// auth / callback are opened from an emailed link, so every failure lands on
+// discord-welcome.html with a code the page turns into copy + a "new link"
+// button — never a raw JSON body. The API routes (sync, check-membership) keep JSON.
+const WELCOME_ERRORS = new Set(['invalid_link', 'link_used', 'no_nft', 'auth_failed', 'role_failed', 'denied']);
+
+function redirectError(res, code) {
+  const c = WELCOME_ERRORS.has(code) ? code : 'auth_failed';
+  return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=${c}`);
+}
+
+/** HTTP status from a discord-bot error message, for alerts (no body / ids). */
+function discordStatus(err) {
+  const msg = String(err?.message ?? '');
+  if (/not found in guild/.test(msg)) return 404;
+  const m = msg.match(/\((\d{3})\)/);
+  return m ? Number(m[1]) : 'error';
+}
+
 // ── Route: auth ──────────────────────────────────────────────────────────────
 
 function handleAuth(req, res) {
   // AuthZ: require a signed email-ownership token. We DO NOT accept a bare
   // ?email= (that was the H2 hole). OLD ?email=-only links already sent to
-  // customers FAIL CLOSED here — they must re-request a fresh link from the
-  // member-claim page (documented UX tradeoff; do not reopen the hole for compat).
+  // customers FAIL CLOSED here — they must re-request a fresh link from
+  // /member-claim (documented UX tradeoff; do not reopen the hole for compat).
   const { token } = req.query ?? {};
-  if (!token) {
-    return res.status(400).json({
-      error: 'A valid access link is required. Request a fresh one from the member portal.',
-      requestLink: `${DOMAIN}/member-claim.html`,
-    });
-  }
+  if (!token) return redirectError(res, 'invalid_link');
   try { verifyDiscordAccessToken(token); }
-  catch {
-    return res.status(403).json({
-      error: 'This access link is invalid or has expired. Request a fresh one from the member portal.',
-      requestLink: `${DOMAIN}/member-claim.html`,
-    });
-  }
+  catch { return redirectError(res, 'invalid_link'); }
   // The token is already email-bound, signed and expiring — reuse it verbatim as
   // the OAuth `state` so the callback re-derives the email from it (never a param).
   const params = new URLSearchParams({
@@ -177,15 +193,15 @@ function handleAuth(req, res) {
 
 async function handleCallback(req, res) {
   const { code, state, error: oauthErr } = req.query ?? {};
-  if (oauthErr) return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=denied`);
-  if (!code || !state) return res.status(400).json({ error: 'Missing code or state' });
+  if (oauthErr) return redirectError(res, 'denied');
+  if (!code || !state) return redirectError(res, 'invalid_link');
 
   // `state` is the same signed access token issued at auth-time. Re-verify it
   // (signature + expiry, timing-safe) and derive the email + single-use nonce
   // from it — never trust a separate param.
   let email, nonce;
   try { ({ email, nonce } = verifyDiscordAccessToken(state)); }
-  catch { return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=invalid_link`); }
+  catch { return redirectError(res, 'invalid_link'); }
 
   // Single-use (defense-in-depth vs. a leaked/forwarded link being replayed after
   // it was already redeemed). Enforced HERE — at the actual role grant — not at
@@ -196,66 +212,73 @@ async function handleCallback(req, res) {
   // an older still-valid one — but every such token was inbox-delivered, so that
   // only ever benefits someone who already controls the inbox (already authorized).
   try {
-    if (await isDiscordAuthNonceUsed(email, nonce)) {
-      return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=link_used`);
-    }
+    if (await isDiscordAuthNonceUsed(email, nonce)) return redirectError(res, 'link_used');
   } catch (e) {
     console.error(`[Discord] single-use nonce check failed (continuing): ${e.message}`);
   }
 
   let token, user;
   try { token = await exchangeCode(code); user = await getDiscordUser(token.access_token); }
-  catch (e) { return res.status(502).json({ error: 'Discord auth failed', detail: e.message }); }
+  catch (e) {
+    console.error(`[Discord] OAuth exchange failed: ${e.message}`);
+    return redirectError(res, 'auth_failed');
+  }
 
-  // Find this member's active NFT mints 
-  let mints = [];
+  // Find this member's active NFT mints. A failed lookup is our fault, not a
+  // missing membership — say "couldn't link", not "no membership".
+  let mints;
   try { mints = await findActiveMintsByEmail(email); }
-  catch (e) { console.error(`[Discord] mint lookup failed: ${e.message}`); }
-
-  if (!mints.length) {
-    return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=no_nft`);
+  catch (e) {
+    console.error(`[Discord] mint lookup failed: ${e.message}`);
+    return redirectError(res, 'auth_failed');
   }
 
   // Recurring monthly: the Genesis mint stays Minted/Sent after cancel, so an
   // inbox-owned claim link would re-grant the role forever unless we re-check
   // billing here — the same shouldRevokeAccess window the daily cron uses.
-  // Pick the first pass still grantable, so a lapsed Genesis never hides a
-  // permanent one. A failed member lookup fails closed for monthly only.
+  // Every pass still grantable gets its role, so a lapsed Genesis never hides
+  // a permanent one. A failed member lookup fails closed for monthly only.
   let memberFields;
   try { memberFields = (await findMemberByEmail(email))?.fields; }
   catch (e) {
     console.error(`[Discord] billing lookup failed (fail-closed for revocable): ${e.message}`);
     memberFields = UNKNOWN_BILLING_FIELDS;
   }
-  const mintRecord = pickGrantableMint(mints, memberFields);
-  if (!mintRecord) {
-    console.warn(`[Discord] refusing role grant for cancelled/lapsed monthly email=${email}`);
-    return res.redirect(302, `${DOMAIN}/discord-welcome.html?error=revoked`);
+  const keys = grantableEntitlements(mints ?? [], memberFields);
+  if (!keys.length) {
+    console.warn('[Discord] no grantable pass for this link');
+    return redirectError(res, 'no_nft');
   }
+  // A paying member whose role env is unset is our config fault, not a missing
+  // membership: alert, show "couldn't link", and leave the link unburned.
+  const { roleIds, missing } = grantableRoleIds(mints, memberFields);
+  await alertMissingRoles(missing);
+  if (!roleIds.length) return redirectError(res, 'role_failed');
 
-  const nftType = mintRecord.fields['NFT Type'] ?? '';
-  const entitlementKey = resolveEntitlementFromNftType(nftType);
-  const roleId = entitlementKey ? getRoleId(entitlementKey) : null;
-
-  if (!roleId) {
-    console.error(`[Discord] No roleId for nftType="${nftType}" entitlement="${entitlementKey}"`);
-    return res.status(500).json({ error: `No Discord role configured for NFT type: ${nftType}` });
-  }
-
-  // Add member to guild (OAuth flow)
-  try { await addMemberToGuild(user.id, token.access_token, [roleId]); }
+  // Join the guild with every role (no-op for members already in it), then add
+  // each role explicitly — idempotent, and covers members who were already in.
+  try { await addMemberToGuild(user.id, token.access_token, roleIds); }
   catch (e) { console.warn(`[Discord] addMemberToGuild warning: ${e.message}`); }
 
-  // Assign role via bot
-  try { await addRoleToMember(user.id, roleId); }
-  catch (e) {
-    return res.status(502).json({ error: 'Role assignment failed', detail: e.message });
+  const failed = [];
+  for (const roleId of roleIds) {
+    try { await addRoleToMember(user.id, roleId); }
+    catch (e) { failed.push(e); }
+  }
+  if (failed.length) {
+    const all = failed.length === roleIds.length;
+    console.error(`[Discord] role grant failed for ${failed.length}/${roleIds.length} role(s): ${failed[0].message}`);
+    await sendAlert('discord.role_grant_failed', { status: discordStatus(failed[0]), count: failed.length },
+      // Any missing paid role is critical (partial or total).
+      { severity: 'critical' });
+    if (all) return redirectError(res, 'role_failed');
   }
 
-  // Persist the Discord link.
+  // Persist the Discord link. A partial grant (failed add or unconfigured role)
+  // stays 'pending' so the reconcile cron grants the rest.
   try {
     await upsertDiscordLink(email, { discordId: user.id, discordUsername: user.username });
-    await updateDiscordSyncStatus(email, 'synced');
+    await updateDiscordSyncStatus(email, failed.length || missing.length ? 'pending' : 'synced');
   } catch (e) {
     console.error(`[Discord] member update failed: ${e.message}`);
   }
@@ -269,15 +292,22 @@ async function handleCallback(req, res) {
     console.error(`[Discord] single-use nonce write failed (link still persisted): ${e.message}`);
   }
 
-  // Fire Engage event (non-fatal)
-  onEntitlementActivated({
-    email,
-    entitlementType: entitlementKey ?? '',
-    nftType,
-    serial: mintRecord.fields['Reference'] ?? '',
-  }).catch(() => {});
+  // Fire Engage events (non-fatal), one per pass granted.
+  const grantedKeys = keys.filter((k) => !missing.includes(k));
+  const nftTypes = grantedKeys.map((k) => ENTITLEMENT_MAP[k].nftType);
+  for (const key of grantedKeys) {
+    const mint = (mints ?? []).find((m) => resolveEntitlementFromNftType(m?.fields?.['NFT Type'] ?? '') === key);
+    onEntitlementActivated({
+      email,
+      entitlementType: key,
+      nftType: ENTITLEMENT_MAP[key].nftType,
+      serial: mint?.fields?.['Reference'] ?? '',
+    }).catch(() => {});
+  }
 
-  res.redirect(302, `${DOMAIN}/discord-welcome.html?role=${encodeURIComponent(nftType)}&server=${GUILD_ID}`);
+  const welcome = new URLSearchParams({ role: nftTypes.join(', ') });
+  if (GUILD_ID) welcome.set('server', GUILD_ID);
+  res.redirect(302, `${DOMAIN}/discord-welcome.html?${welcome}`);
 }
 
 // ── Route: sync (bot-initiated, no OAuth) ────────────────────────────────────
@@ -306,32 +336,31 @@ async function handleSync(req, res) {
   if (!member) return res.status(404).json({ error: 'Member not found' });
 
   const discordId = member.fields['Discord ID'];
-  if (!discordId) return res.status(422).json({ error: 'Member has no linked Discord ID — they must complete OAuth first', link: `${DOMAIN}/member-claim.html` });
+  if (!discordId) return res.status(422).json({ error: 'Member has no linked Discord ID — they must complete OAuth first', link: `${DOMAIN}/member-claim` });
 
-  // Look up active mints; grant the first pass billing still allows
+  // Look up active mints; grant every pass billing still allows
   let mints;
   try { mints = await findActiveMintsByEmail(email); }
   catch (e) { return res.status(502).json({ error: 'NFT lookup failed', detail: e.message }); }
 
   if (!mints.length) return res.status(404).json({ error: 'No active NFT mint found for this email' });
-  const mintRecord = pickGrantableMint(mints, member.fields);
-  if (!mintRecord) return res.status(403).json({ error: 'Membership is no longer active' });
+  const entitlementKeys = grantableEntitlements(mints, member.fields);
+  if (!entitlementKeys.length) return res.status(403).json({ error: 'Membership is no longer active' });
 
-  const nftType = mintRecord.fields['NFT Type'] ?? '';
-  const entitlementKey = resolveEntitlementFromNftType(nftType);
-  const roleId = entitlementKey ? getRoleId(entitlementKey) : null;
-
-  if (!roleId) {
-    return res.status(500).json({ error: `No Discord role configured for entitlement: ${entitlementKey}` });
+  const { roleIds, missing } = grantableRoleIds(mints, member.fields);
+  await alertMissingRoles(missing);
+  if (!roleIds.length) {
+    return res.status(500).json({ error: `No Discord role configured for entitlement: ${missing.join(',')}` });
   }
 
   try {
-    await addRoleToMember(discordId, roleId);
-    await updateDiscordSyncStatus(email, 'synced');
-    return res.status(200).json({ ok: true, discordId, roleId, nftType, entitlementKey });
+    await syncMemberRoles(discordId, roleIds, obsoleteRoleIds(mints, member.fields));
+    await updateDiscordSyncStatus(email, missing.length ? 'pending' : 'synced');
+    return res.status(200).json({ ok: true, discordId, roleIds, entitlementKeys, ...(missing.length ? { missing } : {}) });
   } catch (e) {
-    await updateDiscordSyncStatus(email, 'failed', { error: e.message }).catch(() => {});
-    return res.status(502).json({ error: 'Role assignment failed', detail: e.message });
+    const partial = (e.granted?.length ?? 0) > 0;
+    await updateDiscordSyncStatus(email, partial ? 'pending' : 'failed', { error: e.message }).catch(() => {});
+    return res.status(502).json({ error: 'Role assignment failed', detail: e.message, roleIds, failedRoleIds: e.failedRoleIds ?? roleIds });
   }
 }
 
@@ -391,21 +420,22 @@ async function handleCheckMembership(req, res) {
         if (!mints.length) continue;
         // Same billing gate as the OAuth callback: a cancelled / lapsed monthly
         // member still has a Minted Genesis row, so the mint alone isn't proof.
-        const mint = pickGrantableMint(mints, member.fields);
-        if (!mint) {
+        const entitlementKeys = grantableEntitlements(mints, member.fields);
+        if (!entitlementKeys.length) {
           await updateSync(email, 'revoked');
           continue;
         }
-        const nftType        = mint.fields['NFT Type'] ?? '';
-        const entitlementKey = resolveEntitlementFromNftType(nftType);
-        const roleId         = entitlementKey ? getRoleId(entitlementKey) : null;
-        if (!roleId) continue;
-        await addRoleToMember(discordId, roleId);
-        await updateSync(email, 'synced');
-        synced.push({ email, discordId, nftType });
+        const { roleIds, missing } = grantableRoleIds(mints, member.fields);
+        await alertMissingRoles(missing);
+        if (!roleIds.length) continue; // stays 'pending' until the role env is set
+        await syncMemberRoles(discordId, roleIds, obsoleteRoleIds(mints, member.fields));
+        await updateSync(email, missing.length ? 'pending' : 'synced');
+        synced.push({ email, discordId, roleIds, entitlementKeys });
       } catch (err) {
         errors.push({ email, error: err.message });
-        await updateSync(email, 'failed', { error: err.message }).catch(() => {});
+        // A partial grant stays 'pending' so the next run adds the rest.
+        const partial = (err.granted?.length ?? 0) > 0;
+        await updateSync(email, partial ? 'pending' : 'failed', { error: err.message }).catch(() => {});
       }
     }
   } catch (err) {

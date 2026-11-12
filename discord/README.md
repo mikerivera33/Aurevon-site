@@ -4,6 +4,53 @@
 
 ---
 
+## Required configuration
+
+Gateway bot (`bot.js`) on a Google Compute Engine VM. Deploys and logs: `deploy/gcp/README.md`.
+
+### Bot variables (Secret Manager secret `aurevon-bot-env`)
+
+| Variable | Value |
+|---|---|
+| `DISCORD_BOT_TOKEN` | Bot token (Developer Portal → Bot) |
+| `DISCORD_CLIENT_ID` | Application ID |
+| `DISCORD_GUILD_ID` | Server ID |
+| `DISCORD_INVITE_URL` | Server invite link |
+| `DISCORD_ROLE_MONTHLY` | 001 Genesis role ID |
+| `DISCORD_ROLE_LIFETIME` | 004 Chrome role ID |
+| `DISCORD_ROLE_PRODUCT_A` | Aurevon Insider role ID |
+| `DISCORD_ROLE_PRODUCT_B` | Aurevon Ember role ID |
+| `DISCORD_ROLE_PRODUCT_C` | Aurevon Obsidian Executive role ID |
+| `DISCORD_ROLE_VERIFIED` | Verified Member role ID |
+| `SUPABASE_URL` | Supabase project URL (same as Vercel) |
+| `SUPABASE_SECRET_KEY` | Supabase secret key (same as Vercel) |
+| `SITE_URL` | `https://www.aurevonvc.com` |
+
+Optional: `ENTITLEMENT_GRACE_PERIOD_DAYS` (default `7`), `PORT` (default `8080`).
+
+### Discord Developer Portal → Bot → Privileged Gateway Intents
+
+- Server Members Intent
+- Message Content Intent
+- Presence Intent
+
+### Server roles
+
+The bot's role has **Manage Roles** and sits **above** the 5 tier roles (001 Genesis, 004 Chrome, Aurevon Insider, Aurevon Ember, Aurevon Obsidian Executive). Otherwise role grants fail with 403.
+
+### Health check
+
+`GET /healthz` → `200 ok` when connected to Discord, `503` otherwise. On the VM no firewall rule opens the port, so it is reachable only from the VM itself.
+
+### Role rules (`/sync-member`, `/sync-all`)
+
+- NFT → role by exact NFT name (`entitlements.js`, kept identical to `api/_lib/entitlements.js` by test).
+- Every grantable pass gets its role.
+- 001 Genesis is not granted once monthly billing has lapsed past the grace window; its role is removed.
+- Chrome, Insider, Ember and Obsidian roles are never removed by a sync.
+
+---
+
 ## What Gets Built
 
 ### 7 Roles (top → bottom in role list)
@@ -69,6 +116,7 @@
 5. Under **Privileged Gateway Intents**, enable:
    - ✅ **Server Members Intent**
    - ✅ **Message Content Intent**
+   - ✅ **Presence Intent**
 6. Uncheck **Public Bot** (keep it private)
 
 ### 2. Invite the Bot to Your Server
@@ -144,11 +192,11 @@ Paste these into **Vercel project → Settings → Environment Variables** (alon
 
 In the Discord Developer Portal → your application → **OAuth2**:
 
-1. Add redirect URI: `https://www.aurevonvc.com/api/discord/callback`
+1. Add redirect URI: `https://www.aurevonvc.com/api/discord?action=callback` (exact `REDIRECT_URI` in `api/discord.js`)
 2. Copy **Client ID** → `DISCORD_CLIENT_ID` in Vercel
 3. Copy **Client Secret** → `DISCORD_CLIENT_SECRET` in Vercel
 
-These enable the `/api/discord/auth` → `/api/discord/callback` OAuth flow that links a member's email to their Discord account and assigns their tier role.
+These enable the `/api/discord?action=auth` → `/api/discord?action=callback` OAuth flow that links a member's email to their Discord account and assigns their tier role.
 
 ### Manual Steps (Discord UI — cannot be automated via API)
 

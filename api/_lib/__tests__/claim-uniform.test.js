@@ -15,13 +15,18 @@ vi.mock('../db.js', () => ({
   findActiveMintByEmail: vi.fn(),
   // referenced at module load by claim.js:
   findMemberByEmail: vi.fn(), findActiveMintByEmailAndType: vi.fn(), findAnyMintByEmailAndType: vi.fn(),
-  findMintByTokenId: vi.fn(), listUnlinkedMintsBefore: vi.fn(), listPaymentsSince: vi.fn(), listPendingDiscordSync: vi.fn(),
+  findMintByTokenId: vi.fn(), listUnlinkedMintsBefore: vi.fn(), listPaymentsSince: vi.fn(), listPendingDiscordSync: vi.fn(), listFailedDiscordSync: vi.fn().mockResolvedValue([]), listStuckSentMints: vi.fn().mockResolvedValue([]), updateEntitlementState: vi.fn().mockResolvedValue({}),
   listOutOfSyncEntitlements: vi.fn(), listFailedMints: vi.fn(), updateDiscordSyncStatus: vi.fn(),
   updateNftMint: vi.fn(), createNftMint: vi.fn(),
   findActiveMintsByEmail: vi.fn(), findLatestPaymentByEmailAndTier: vi.fn(), dbConfigured: vi.fn(() => true),
+  // fulfil.js (shared NFT fulfilment):
+  findMintByPaymentId: vi.fn().mockResolvedValue(null),
+  // claim.js (retry-mints / reconcile):
+  listUndeliveredMints: vi.fn(), findPaymentByTransactionId: vi.fn(), listPaymentTransactionIds: vi.fn(),
+  recordOpsEvent: vi.fn(), listLapsedMonthlyWithoutExpiry: vi.fn(),
 }));
 vi.mock('../airtable-import.js', () => ({ importHasProblems: vi.fn(() => false), airtableImportEnabled: vi.fn(() => false), importFromAirtable: vi.fn() }));
-vi.mock('../email.js', () => ({ sendDiscordAccessLink: vi.fn().mockResolvedValue({ ok: true, id: 'em_1' }) }));
+vi.mock('../email.js', () => ({ sendDiscordAccessLink: vi.fn().mockResolvedValue({ ok: true, id: 'em_1' }), sendNftDelivery: vi.fn() }));
 vi.mock('../discord-bot.js', () => ({ addRoleToMember: vi.fn(), removeRoleFromMember: vi.fn() }));
 vi.mock('../engage.js', () => ({ onDiscordLinkReminder: vi.fn(), onSubscriptionCancelled: vi.fn() }));
 

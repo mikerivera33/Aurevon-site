@@ -18,7 +18,7 @@ import Stripe from 'stripe';
 // -----------------------------------------------------------------------
 // Product catalog — maps tier keys to real Stripe price IDs (Aurevon-Labs)
 // -----------------------------------------------------------------------
-const PRODUCT_CATALOG = {
+export const PRODUCT_CATALOG = {
       // Aurevon RE tiers
       re_bogo: {
               name: 'Aurevon RE — First-Timer BOGO',

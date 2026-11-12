@@ -23,50 +23,101 @@ jobs:
         id: health
         env:
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://www.aurevonvc.com' }}
+          # Optional. When set, the authed readiness report is requested (503 = not ready).
+          INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
         run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" "$PRODUCTION_URL/api/health")
-          HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | head -1)
+          # The body goes to a runner-temp file only. It is never put in step
+          # outputs, env or logs; the parse step reads the file and prints names/states.
+          BODY_FILE="$RUNNER_TEMP/health.json"
+          if [ -n "$INTERNAL_API_SECRET" ]; then
+            MODE=authed
+            HTTP_STATUS=$(curl -s --max-time 30 -o "$BODY_FILE" -w "%{http_code}" \
+              -H "Authorization: Bearer $INTERNAL_API_SECRET" "$PRODUCTION_URL/api/health" || true)
+          else
+            MODE=public
+            HTTP_STATUS=$(curl -s --max-time 30 -o "$BODY_FILE" -w "%{http_code}" "$PRODUCTION_URL/api/health" || true)
+          fi
+          HTTP_STATUS=${HTTP_STATUS:-000}
           echo "status=$HTTP_STATUS" >> $GITHUB_OUTPUT
-          EOF_MARKER=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "body<<$EOF_MARKER" >> $GITHUB_OUTPUT
-          echo "$BODY" >> $GITHUB_OUTPUT
-          echo "$EOF_MARKER" >> $GITHUB_OUTPUT
-          echo "HTTP Status: $HTTP_STATUS"
-          echo "Response: $BODY"
+          echo "mode=$MODE" >> $GITHUB_OUTPUT
+          echo "Mode: $MODE   HTTP Status: $HTTP_STATUS"
 
       - name: Parse health response
         id: parse
         env:
-          HEALTH_BODY: ${{ steps.health.outputs.body }}
+          HEALTH_MODE: ${{ steps.health.outputs.mode }}
+          HEALTH_HTTP: ${{ steps.health.outputs.status }}
         run: |
           python3 << 'PYEOF'
           import sys, json, os
-          raw = os.environ.get('HEALTH_BODY', '')
+          path = os.path.join(os.environ.get('RUNNER_TEMP', '.'), 'health.json')
+          try:
+              with open(path, encoding='utf-8') as fh:
+                  raw = fh.read()
+          except OSError as e:
+              print(f"::error::No health response body to parse (HTTP {os.environ.get('HEALTH_HTTP', '')}): {e.strerror}")
+              sys.exit(1)
+          mode = os.environ.get('HEALTH_MODE', 'public')
+          http = os.environ.get('HEALTH_HTTP', '')
           try:
               data = json.loads(raw)
           except Exception as e:
-              print(f"::error::Failed to parse health JSON: {e}")
-              print(f"Raw response: {raw}")
+              print(f"::error::Failed to parse health JSON (HTTP {http}): {e}")
               sys.exit(1)
-          pipeline = data.get('pipeline', 'unknown')
+
+          def names(items):
+              # Key NAMES only — never values.
+              out = []
+              for it in items or []:
+                  if isinstance(it, dict):
+                      out.append(f"{it.get('found', '?')} -> {it.get('expected', '?')}")
+                  else:
+                      out.append(str(it))
+              return out
+
+          ok = data.get('ok') is True
           status = data.get('status', 'unknown')
-          env_status = data.get('env', 'unknown')
-          optional_env = data.get('optional_env', 'N/A')
-          fn_count = data.get('function_count', '?')
-          fn_limit = data.get('function_limit', '?')
-          print(f"Pipeline:       {pipeline}")
+          database = data.get('database', 'unknown')
+          print(f"Mode:           {mode}")
+          print(f"OK:             {ok}")
           print(f"Status:         {status}")
-          print(f"Env (required): {env_status}")
-          print(f"Env (optional): {optional_env}")
-          print(f"Functions:      {fn_count}/{fn_limit}")
-          if env_status != 'complete':
-              print("::warning::Required env vars are PARTIAL — some services may be degraded. Check Vercel env config.")
+          print(f"Database:       {database}")
+
+          env = data.get('env') if isinstance(data.get('env'), dict) else {}
+          env_status = 'n/a (public)' if mode != 'authed' else ('complete' if env.get('complete') else 'partial')
+          fn = f"{data.get('function_count', '?')}/{data.get('function_limit', '?')}"
+          pipeline = data.get('pipeline', 'unknown')
+          if mode == 'authed':
+              stripe = data.get('stripe') or {}
+              crons = data.get('crons') or {}
+              queue = data.get('queue') or {}
+              print(f"Problems:       {', '.join(names(data.get('problems'))) or 'none'}")
+              print(f"Env (required): {env_status}")
+              for n in names(env.get('missing_required')):
+                  print(f"  missing:      {n}")
+              for n in names(env.get('misnamed')):
+                  print(f"  misnamed:     {n}")
+              print(f"Stripe events:  {'ok' if stripe.get('webhook_events_ok') else stripe.get('webhook_events_ok')}")
+              for n in names(stripe.get('missing_events')):
+                  print(f"  missing event: {n}")
+              print(f"Crons stale:    {crons.get('stale')}")
+              print(f"Queue:          " + ', '.join(f"{k}={v}" for k, v in queue.items() if isinstance(v, (int, type(None)))))
+              print(f"Functions:      {fn}")
+
           with open(os.environ['GITHUB_ENV'], 'a') as f:
               f.write(f"HEALTH_PIPELINE={pipeline}\n")
               f.write(f"HEALTH_STATUS={status}\n")
               f.write(f"HEALTH_ENV={env_status}\n")
-              f.write(f"HEALTH_FN={fn_count}/{fn_limit}\n")
+              f.write(f"HEALTH_FN={fn}\n")
+
+          ready = not (http == '503' or not ok)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"ready={'true' if ready else 'false'}\n")
+              f.write(f"problems={', '.join(names(data.get('problems'))) or 'see parse step'}\n")
+          if not ready:
+              print(f"::error::/api/health reports NOT READY (HTTP {http}, ok={data.get('ok')})")
+          if mode != 'authed':
+              print("::notice::INTERNAL_API_SECRET repository secret not set — public liveness check only.")
           PYEOF
 
       - name: Check page routes
@@ -214,8 +265,16 @@ jobs:
           echo "Summary written."
 
       - name: Fail if health check returned non-200
-        if: steps.health.outputs.status != '200'
+        if: always() && steps.health.outputs.status != '200'
         run: |
-          echo "::error::Health endpoint returned HTTP ${{ steps.health.outputs.status }} (expected 200)"
+          echo "::error::Health endpoint returned HTTP ${{ steps.health.outputs.status }} (expected 200; 503 = authed readiness failed)"
           echo "::error::Set the PRODUCTION_URL repository variable to override the default URL"
+          exit 1
+
+      - name: Fail if the pipeline is not ready
+        if: always() && steps.parse.outputs.ready == 'false'
+        env:
+          PROBLEMS: ${{ steps.parse.outputs.problems }}
+        run: |
+          echo "::error::/api/health ok:false or HTTP 503 — problems: $PROBLEMS"
           exit 1

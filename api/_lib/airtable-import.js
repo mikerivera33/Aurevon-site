@@ -28,6 +28,8 @@ const TIMESTAMP = new Set([
   'join_date', 'discord_linked_at', 'discord_sync_at', 'entitlement_expires_at', 'payment_date',
   'mint_date', 'discord_synced_at', 'token_expires', 'last_login',
 ]);
+const OLD_MINT_RETRY_CAP = 5;
+const MINT_RETRY_CAP = 8;
 // NOT NULL columns with defaults: Airtable omits empty fields, so fill them.
 const DEFAULTS = {
   nft_mints: { email_delivered: false, discord_synced: false, retry_count: 0 },
@@ -85,6 +87,13 @@ export function mapAirtableRecord(table, rec) {
   }
   row.airtable_id = rec.id;
   if (rec.createdTime) row.created_at = rec.createdTime;
+  // A Failed row that reached the old 5-retry cap already gave up (an operator
+  // may have minted it by hand): park it at the current cap (8, claim.js
+  // MAX_MINT_RETRIES) so retry-mints never resurrects it. Same rule as the
+  // 20261104010000_mint_retry_backoff migration.
+  if (table === 'nft_mints' && row.mint_status === 'Failed' && row.retry_count >= OLD_MINT_RETRY_CAP) {
+    row.retry_count = MINT_RETRY_CAP;
+  }
   return row;
 }
 

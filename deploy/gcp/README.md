@@ -42,6 +42,8 @@ SUPABASE_URL=https://mcpgkrumizsaygasoovn.supabase.co
 SUPABASE_SECRET_KEY=sb_secret_…
 ```
 
+Optional: `ENTITLEMENT_GRACE_PERIOD_DAYS` (default `7`), `PORT` (default `8080`, the local `/healthz` liveness port).
+
 The `AIRTABLE_*` lines are no longer used. Use plain `KEY=value` lines: no `export`, and no `# comment` after a value (systemd would keep it as part of the value).
 
 To change a value, open Secret Manager → `aurevon-bot-env` → **New version**, paste the whole file, then run **Actions → Deploy Discord bot → Run workflow**.

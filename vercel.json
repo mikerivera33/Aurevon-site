@@ -109,10 +109,6 @@
       "destination": "/api/member/claim.js?action=reconcile"
     },
     {
-      "source": "/api/email/send",
-      "destination": "/api/email/send.js"
-    },
-    {
       "source": "/api/crossmint/mint",
       "destination": "/api/member/claim.js?action=mint"
     },
@@ -136,7 +132,7 @@
   "crons": [
     {
       "path": "/api/cron/retry-mints",
-      "schedule": "0 3 * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/reconcile",
