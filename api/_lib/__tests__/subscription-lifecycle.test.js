@@ -29,11 +29,12 @@ vi.mock('@vercel/functions', () => ({ waitUntil: (p) => p }));
 const customersRetrieve = vi.fn();
 const customersList = vi.fn().mockResolvedValue({ data: [] });
 const subscriptionsList = vi.fn().mockResolvedValue({ data: [] });
+const subscriptionsRetrieve = vi.fn();
 vi.mock('stripe', () => ({
   default: class StripeMock {
     constructor() {
       this.customers = { retrieve: customersRetrieve, list: customersList };
-      this.subscriptions = { update: vi.fn().mockResolvedValue({}), list: subscriptionsList };
+      this.subscriptions = { update: vi.fn().mockResolvedValue({}), list: subscriptionsList, retrieve: subscriptionsRetrieve };
     }
   },
 }));
@@ -51,6 +52,50 @@ describe('handleInvoicePaymentSucceeded', () => {
     vi.clearAllMocks();
     customersList.mockReset().mockResolvedValue({ data: [] });
     subscriptionsList.mockReset().mockResolvedValue({ data: [] });
+    subscriptionsRetrieve.mockReset().mockResolvedValue({ status: 'active' });
+    process.env.STRIPE_SECRET_KEY = 'sk_test_x';
+  });
+  afterEach(() => { delete process.env.STRIPE_SECRET_KEY; });
+
+  // A late or redelivered invoice.payment_succeeded can arrive after
+  // customer.subscription.deleted. It must not stamp the member active again.
+  const monthlyInvoice = (extra) => ({
+    amount_paid: 2999,
+    customer_email: 'monthly@example.com',
+    lines: { data: [{ period: { end: PERIOD_END } }] },
+    ...extra,
+  });
+
+  it('still renews when the live subscription is active', async () => {
+    await handleInvoicePaymentSucceeded(monthlyInvoice({ subscription: 'sub_live' }));
+    expect(subscriptionsRetrieve).toHaveBeenCalledWith('sub_live');
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('monthly@example.com', expect.objectContaining({ billingState: 'active' }));
+  });
+
+  it.each(['canceled', 'incomplete_expired', 'paused'])('does NOT re-activate billing when the subscription is %s', async (status) => {
+    subscriptionsRetrieve.mockResolvedValueOnce({ status });
+    await handleInvoicePaymentSucceeded(monthlyInvoice({ subscription: 'sub_dead' }));
+    expect(subscriptionsRetrieve).toHaveBeenCalledWith('sub_dead');
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+  });
+
+  it('reads the subscription id from invoice.parent (newer Stripe API versions)', async () => {
+    subscriptionsRetrieve.mockResolvedValueOnce({ status: 'canceled' });
+    await handleInvoicePaymentSucceeded(monthlyInvoice({ parent: { subscription_details: { subscription: 'sub_parent' } } }));
+    expect(subscriptionsRetrieve).toHaveBeenCalledWith('sub_parent');
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+  });
+
+  it('still stamps active when the subscription is past_due (this payment is the recovery)', async () => {
+    subscriptionsRetrieve.mockResolvedValueOnce({ status: 'past_due' });
+    await handleInvoicePaymentSucceeded(monthlyInvoice({ subscription: 'sub_past_due' }));
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('monthly@example.com', expect.objectContaining({ status: 'active', billingState: 'active' }));
+  });
+
+  it('still stamps active when Stripe cannot be read (a paid invoice is not dropped)', async () => {
+    subscriptionsRetrieve.mockRejectedValueOnce(new Error('stripe down'));
+    await handleInvoicePaymentSucceeded(monthlyInvoice({ subscription: 'sub_x' }));
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('monthly@example.com', expect.objectContaining({ billingState: 'active' }));
   });
 
   it('renews monthly entitlement (active + expiry) on a $29.99 invoice', async () => {
