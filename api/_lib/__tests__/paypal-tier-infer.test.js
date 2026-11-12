@@ -16,10 +16,16 @@ import { describe, it, expect, vi } from 'vitest';
 // tiers.js is intentionally NOT mocked — inferTierFromIPN must use the real map.
 vi.mock('@vercel/functions', () => ({ waitUntil: vi.fn() }));
 vi.mock('../crossmint.js', () => ({ mintToEmail: vi.fn() }));
-vi.mock('../airtable.js', () => ({ createPayment: vi.fn(), createNftMint: vi.fn() }));
+vi.mock('../airtable.js', () => ({
+  createPayment: vi.fn(),
+  createNftMint: vi.fn(),
+  findPaymentByTransactionId: vi.fn(),
+  findAnyMintByEmailAndType: vi.fn(),
+  countNftMintsByPrefix: vi.fn().mockResolvedValue(0),
+}));
 vi.mock('../email.js', () => ({ sendNftDelivery: vi.fn(), sendPurchaseConfirmation: vi.fn() }));
 
-import { inferTierFromIPN } from '../../webhooks/paypal.js';
+import { inferTierFromIPN, isStackedAddonCart } from '../../webhooks/paypal.js';
 
 describe('inferTierFromIPN', () => {
   it('resolves an exact amount to its tier', () => {
@@ -61,6 +67,37 @@ describe('inferTierFromIPN', () => {
   it('does NOT resolve an add-on price to an NFT tier', () => {
     // $99 is addon_rush — not sold via PayPal IPN as a mintable tier.
     expect(inferTierFromIPN({ mc_gross: '99.00' })).toBeNull();
+  });
+
+  it('does NOT mint Chrome from two White-Label Reports ($175 × 2 = $350)', () => {
+    const ipn = {
+      mc_gross: '350.00',
+      mc_currency: 'USD',
+      num_cart_items: '2',
+      item_name1: 'White-Label Reports',
+      mc_gross_1: '175.00',
+      item_name2: 'White-Label Reports',
+      mc_gross_2: '175.00',
+    };
+    expect(isStackedAddonCart(ipn)).toBe(true);
+    expect(inferTierFromIPN(ipn)).toBeNull();
+  });
+
+  it('does NOT mint Insider from two Sensitivity Modeling ($125 × 2 = $250)', () => {
+    const ipn = {
+      mc_gross: '250.00',
+      mc_currency: 'USD',
+      quantity1: '2',
+      item_name1: 'Sensitivity Modeling',
+      mc_gross_1: '250.00',
+    };
+    expect(isStackedAddonCart(ipn)).toBe(true);
+    expect(inferTierFromIPN(ipn)).toBeNull();
+  });
+
+  it('still resolves a single-item Full Package NCP payment', () => {
+    expect(isStackedAddonCart({ mc_gross: '250.00', mc_currency: 'USD' })).toBe(false);
+    expect(inferTierFromIPN({ mc_gross: '250.00', mc_currency: 'USD' })).toBe('full');
   });
 
   it('returns null for unrecognized amounts', () => {

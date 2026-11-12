@@ -13,6 +13,7 @@ vi.mock('../airtable.js', () => ({
   createPayment: vi.fn().mockResolvedValue({}),
   createNftMint: vi.fn().mockResolvedValue({}),
   findPaymentByTransactionId: vi.fn().mockResolvedValue(null),
+  findAnyMintByEmailAndType: vi.fn().mockResolvedValue(null),
   countNftMintsByPrefix: vi.fn().mockResolvedValue(0),
 }));
 vi.mock('../crossmint.js', () => ({
@@ -141,5 +142,53 @@ describe('paypal IPN idempotency (fail-closed)', () => {
     await processIPN(new URLSearchParams(ipn).toString());
     expect(airtable.createPayment).not.toHaveBeenCalled();
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe('paypal stacked-cart and renewal fulfilment', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env = { ...SAVED };
+    process.env.PAYPAL_BUSINESS_EMAIL = 'mike@aurevonvc.com';
+  });
+
+  it('does not mint Insider when two $125 add-ons total $250', async () => {
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com', {
+      mc_gross: '250.00',
+      num_cart_items: '2',
+      item_name1: 'Sensitivity Modeling',
+      mc_gross_1: '125.00',
+      item_name2: 'Sensitivity Modeling',
+      mc_gross_2: '125.00',
+    }));
+    expect(airtable.createPayment).toHaveBeenCalledTimes(1);
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+  });
+
+  it('does not re-mint Genesis on a later subscr_payment', async () => {
+    airtable.findAnyMintByEmailAndType.mockResolvedValueOnce({ id: 'mint_genesis_1' });
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com', {
+      mc_gross: '29.99',
+      txn_type: 'subscr_payment',
+      subscr_id: 'I-EXISTING',
+    }));
+    expect(airtable.createPayment).toHaveBeenCalledTimes(1);
+    expect(airtable.findAnyMintByEmailAndType).toHaveBeenCalledWith('buyer@example.com', '001 Genesis');
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+  });
+
+  it('mints Genesis on the first subscr_payment', async () => {
+    airtable.findAnyMintByEmailAndType.mockResolvedValueOnce(null);
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com', {
+      mc_gross: '29.99',
+      txn_type: 'subscr_payment',
+      subscr_id: 'I-NEW',
+    }));
+    expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('still mints Insider for a single-item $250 NCP payment', async () => {
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com'));
+    expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
   });
 });
