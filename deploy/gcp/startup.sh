@@ -56,11 +56,9 @@ STATE=/var/lib/aurevon-bot/generation
 APP=/opt/aurevon-bot
 export PATH=/opt/node/bin:$PATH
 
-install_bundle() { # $1 = generation
-  local tok tmp payload
+do_install() { # $1 = generation, $2 = scratch dir
+  local tok payload
   tok="$(token)" || return 1
-  tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
 
   # The env secret is a dotenv file (KEY=value lines), read fresh on every deploy.
   # Fetched first so a missing secret costs one request, not an npm install.
@@ -68,19 +66,34 @@ install_bundle() { # $1 = generation
     "https://secretmanager.googleapis.com/v1/projects/$PROJECT/secrets/$SECRET/versions/latest:access" \
     | sed -n 's/.*"data": *"\([^"]*\)".*/\1/p')"
   if [ -z "$payload" ]; then log "secret $SECRET has no version yet; add one in Secret Manager"; return 1; fi
-  base64 -d <<<"$payload" | tr -d '\r' > "$tmp/env" || return 1
+  base64 -d <<<"$payload" | tr -d '\r' > "$2/env" || return 1
 
-  curl -fsS -H "Authorization: Bearer $tok" -o "$tmp/bot.tgz" "$OBJECT?alt=media&generation=$1" || return 1
-  mkdir "$tmp/app" && tar -xzf "$tmp/bot.tgz" -C "$tmp/app" || return 1
-  (cd "$tmp/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error) || return 1
-  install -m 600 -o root -g root "$tmp/env" /etc/aurevon-bot.env
+  curl -fsS -H "Authorization: Bearer $tok" -o "$2/bot.tgz" "$OBJECT?alt=media&generation=$1" || return 1
+  mkdir "$2/app" && tar -xzf "$2/bot.tgz" -C "$2/app" || return 1
+  (cd "$2/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error) || return 1
+  install -m 600 -o root -g root "$2/env" /etc/aurevon-bot.env || return 1
 
+  # Swap the new code in. If that fails, put the old code back and report
+  # failure: the generation is recorded only after the bot restarted on the
+  # new code, so a failed install is retried on the next poll.
   rm -rf "$APP.previous"
-  [ -d "$APP" ] && mv "$APP" "$APP.previous"
-  mv "$tmp/app" "$APP" && chown -R root:root "$APP" && chmod -R a+rX "$APP"
-  echo "$1" > "$STATE"
-  systemctl restart aurevon-bot.service
+  if [ -d "$APP" ]; then mv "$APP" "$APP.previous" || return 1; fi
+  if ! { mv "$2/app" "$APP" && chown -R root:root "$APP" && chmod -R a+rX "$APP"; }; then
+    rm -rf "$APP"
+    if [ -d "$APP.previous" ]; then mv "$APP.previous" "$APP"; fi
+    return 1
+  fi
+  systemctl restart aurevon-bot.service || return 1
+  echo "$1" > "$STATE" || return 1
   log "installed generation $1"
+}
+
+install_bundle() { # $1 = generation
+  local tmp rc
+  tmp="$(mktemp -d)" || return 1
+  do_install "$1" "$tmp"; rc=$?
+  rm -rf "$tmp"
+  return "$rc"
 }
 
 while true; do
@@ -88,7 +101,7 @@ while true; do
     | sed -n 's/.*"generation": *"\([0-9]*\)".*/\1/p')"
   if [ -n "$gen" ] && [ "$gen" != "$(cat "$STATE" 2>/dev/null)" ]; then
     log "new bundle generation $gen"
-    install_bundle "$gen" || log "install of generation $gen failed; keeping the current version"
+    install_bundle "$gen" || log "install of generation $gen failed; will retry on the next poll"
   fi
   sleep 120
 done
