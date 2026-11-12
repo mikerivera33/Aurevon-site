@@ -11,7 +11,7 @@
 import { waitUntil } from '@vercel/functions';
 import { TIER_NFT_MAP, getNextSerial, formatSerial, inferTierFromAmount } from '../_lib/tiers.js';
 import { mintToEmail } from '../_lib/crossmint.js';
-import { createPayment, createNftMint, findPaymentByTransactionId } from '../_lib/airtable.js';
+import { createPayment, createNftMint, findPaymentByTransactionId, findAnyMintByEmailAndType } from '../_lib/airtable.js';
 import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
 
@@ -96,11 +96,38 @@ function ipnCurrencyIsUsd(ipn) {
   return String(ipn.mc_currency ?? 'USD').trim().toUpperCase() === 'USD';
 }
 
+/** Recurring IPNs: first payment fulfils, later ones must not mint another pass. */
+const RECURRING_PAYMENT_TYPES = new Set(['subscr_payment', 'recurring_payment']);
+
+function ipnTxnType(ipn) {
+  return String(ipn?.txn_type ?? '').trim().toLowerCase();
+}
+
+/**
+ * The live /aurevon-re add-on cart lets buyers stack à-la-carte SKUs (no NFT).
+ * PayPal reports the cart TOTAL as mc_gross. Two Sensitivity Modeling ($125)
+ * lines are $250 — the Full Package price — and two White-Label Reports ($175)
+ * are $350, within $1 of Chrome. Those totals must not mint a pass.
+ *
+ * Single-item NCP links (Full Package, Chrome, …) stay amount-inferred:
+ * they have one line and quantity 1 (or omitted).
+ */
+export function isStackedAddonCart(ipn) {
+  const lines = parseInt(ipn?.num_cart_items ?? '', 10);
+  if (Number.isFinite(lines) && lines > 1) return true;
+  if (ipn?.item_name2 || ipn?.mc_gross_2 || ipn?.item_number2) return true;
+  const qty = parseInt(ipn?.quantity1 ?? ipn?.quantity ?? '', 10);
+  return Number.isFinite(qty) && qty > 1;
+}
+
 export function inferTierFromIPN(ipn) {
   // Catalog prices are USD. mc_gross is in mc_currency — a 2499 JPY/MXN/HUF
   // payment must not resolve as Enterprise. Missing currency stays USD so
   // hosted NCP IPNs that omit the field still match.
   if (!ipnCurrencyIsUsd(ipn)) return null;
+
+  // Stacked add-on carts: never infer an NFT from the combined total.
+  if (isStackedAddonCart(ipn)) return null;
 
   const amount = parseFloat(ipn.mc_gross ?? '0');
   const inferred = Number.isFinite(amount) && amount > 0
@@ -214,6 +241,30 @@ export async function handleVerifiedIPN(ipn) {
       console.error(`[PayPal IPN] Confirmation email failed: ${err.message}`);
     }
     return;
+  }
+
+  // A later subscr_payment / recurring_payment has a new txn_id, so the
+  // Payments-row idempotency check cannot see it as a duplicate. Stripe
+  // renewals (invoice.payment_succeeded) only stamp billing — they never
+  // mint again. Do the same here when this email already has that pass.
+  if (RECURRING_PAYMENT_TYPES.has(ipnTxnType(ipn))) {
+    let existingMint;
+    try {
+      existingMint = await findAnyMintByEmailAndType(customerEmail, nftType);
+    } catch (err) {
+      console.error(`[PayPal IPN] Renewal mint lookup failed for ${txnId}: ${err.message} — aborting before re-mint`);
+      await sendAlert('paypal.renewal_lookup_failed', { txnId, tier, nftType, error: err.message });
+      return;
+    }
+    if (existingMint) {
+      console.log(`[PayPal IPN] Renewal txnId=${txnId} — ${nftType} already minted for ${customerEmail}, not re-minting`);
+      try {
+        await sendPurchaseConfirmation({ email: customerEmail, customerName, tier });
+      } catch (err) {
+        console.error(`[PayPal IPN] Renewal confirmation email failed: ${err.message}`);
+      }
+      return;
+    }
   }
 
   // Get next serial number for this collection
