@@ -12,6 +12,8 @@
  * SKU aliases cover every tier key used in stripe/checkout.js, webhooks, and PayPal.
  */
 
+import { sendAlert } from './alert.js';
+
 /** @typedef {'monthly_membership'|'lifetime_membership'|'product_a_reward'|'product_b_reward'|'product_c_reward'} EntitlementKey */
 
 /** @type {Record} */
@@ -25,6 +27,7 @@ export const ENTITLEMENT_MAP = {
     ],
     nftType: '001 Genesis',
     serialPrefix: 'GENESIS',
+    accessLabel: 'Community Monthly',
     collectionName: 'Aurevon Genesis Collection',
     discordRoleEnv: 'DISCORD_ROLE_MONTHLY',
     collectionEnv: 'CROSSMINT_COLLECTION_MONTHLY',
@@ -41,6 +44,7 @@ export const ENTITLEMENT_MAP = {
     ],
     nftType: '004 Chrome',
     serialPrefix: 'CHROME',
+    accessLabel: 'Community Lifetime',
     collectionName: 'Aurevon Chrome Collection',
     discordRoleEnv: 'DISCORD_ROLE_LIFETIME',
     collectionEnv: 'CROSSMINT_COLLECTION_LIFETIME',
@@ -58,6 +62,7 @@ export const ENTITLEMENT_MAP = {
     ],
     nftType: 'Aurevon Insider',
     serialPrefix: 'INSIDER',
+    accessLabel: 'Full Package',
     collectionName: 'Aurevon Insider Collection',
     discordRoleEnv: 'DISCORD_ROLE_PRODUCT_A',
     collectionEnv: 'CROSSMINT_COLLECTION_PRODUCT_A',
@@ -75,6 +80,7 @@ export const ENTITLEMENT_MAP = {
     ],
     nftType: 'Aurevon Ember',
     serialPrefix: 'EMBER',
+    accessLabel: 'Pro Retainer',
     collectionName: 'Aurevon Ember Collection',
     discordRoleEnv: 'DISCORD_ROLE_PRODUCT_B',
     collectionEnv: 'CROSSMINT_COLLECTION_PRODUCT_B',
@@ -92,6 +98,7 @@ export const ENTITLEMENT_MAP = {
     ],
     nftType: 'Aurevon Obsidian Executive',
     serialPrefix: 'OBSIDIAN',
+    accessLabel: 'Enterprise',
     collectionName: 'Aurevon Obsidian Collection',
     discordRoleEnv: 'DISCORD_ROLE_PRODUCT_C',
     collectionEnv: 'CROSSMINT_COLLECTION_PRODUCT_C',
@@ -128,7 +135,7 @@ export function resolveEntitlementFromSku(sku) {
 }
 
 /**
- * Resolve entitlement from the NFT type string stored in Airtable.
+ * Resolve entitlement from the NFT type string stored on the mint row.
  *
  * @param {string} nftType e.g. "001 Genesis"
  * @returns {EntitlementKey|null}
@@ -205,7 +212,7 @@ export function mayGrantPaidAccess({ entitlementKey, billingState = null, endsAt
 }
 
 /**
- * Convenience wrapper over mayGrantPaidAccess that reads Airtable member fields.
+ * Convenience wrapper over mayGrantPaidAccess that reads member record fields.
  * @param {EntitlementKey|null|undefined} entitlementKey
  * @param {Record<string, unknown>|null|undefined} memberFields
  * @returns {boolean}
@@ -221,15 +228,18 @@ export function mayGrantPaidAccessFromMember(entitlementKey, memberFields) {
 }
 
 /**
- * Build the Crossmint recipient object for a mint call.
+ * Build the Crossmint recipient string for a mint call:
+ * `email:<email>:<chain>` (custodial wallet) or `<chain>:<walletAddress>`.
+ * Chain defaults to CROSSMINT_CHAIN, else base-sepolia on staging, else base.
  *
- * @param {{ email: string, walletAddress?: string|null, chain?: string }} opts
- * @returns {{ email?: string, walletAddress?: string, chain: string }}
+ * @param {{ email?: string|null, walletAddress?: string|null, chain?: string|null }} opts
+ * @returns {string}
  */
-export function buildMintRecipient({ email, walletAddress = null, chain = null }) {
-  const c = chain ?? process.env.CROSSMINT_CHAIN ?? 'base';
-  if (walletAddress) return { walletAddress, chain: c };
-  return { email, chain: c };
+export function buildMintRecipient({ email = null, walletAddress = null, chain = null } = {}) {
+  const c = chain || process.env.CROSSMINT_CHAIN
+    || (process.env.CROSSMINT_ENV === 'staging' ? 'base-sepolia' : 'base');
+  if (walletAddress) return `${c}:${walletAddress}`;
+  return `email:${String(email ?? '').trim().toLowerCase()}:${c}`;
 }
 
 /**
@@ -239,16 +249,90 @@ export function buildMintRecipient({ email, walletAddress = null, chain = null }
  */
 export const UNKNOWN_BILLING_FIELDS = Object.freeze({ 'Billing State': 'unknown' });
 
+const mintEntitlement = (mint) => resolveEntitlementFromNftType(mint?.fields?.['NFT Type'] ?? '');
+
 /**
- * From a member's active mints, the first whose entitlement may still be
- * granted given their billing fields — so a lapsed monthly
- * Genesis row never hides a still-valid permanent pass. Null when none.
+ * Every entitlement a member's active mints still grant, given their billing
+ * fields — unique, in mint order. A lapsed monthly Genesis row is skipped, never
+ * hiding a permanent pass; a member with Chrome + Insider gets both.
+ * @param {Array<{fields?: Record<string, unknown>}>} mints
+ * @param {Record<string, unknown>|null|undefined} memberFields
+ * @returns {EntitlementKey[]}
+ */
+export function grantableEntitlements(mints, memberFields) {
+  const keys = [];
+  for (const mint of mints ?? []) {
+    const key = mintEntitlement(mint);
+    if (!key || keys.includes(key)) continue;
+    if (mayGrantPaidAccessFromMember(key, memberFields)) keys.push(key);
+  }
+  return keys;
+}
+
+/**
+ * Discord role ids for grantableEntitlements (unique, same order). Pure: an
+ * entitlement whose DISCORD_ROLE_* env is unset is left out of `roleIds` and
+ * listed in `missing` — callers await alertMissingRoles(missing) and keep the
+ * member's sync 'pending' so the cron grants it once the env is set.
+ * @param {Array<{fields?: Record<string, unknown>}>} mints
+ * @param {Record<string, unknown>|null|undefined} memberFields
+ * @returns {{ roleIds: string[], missing: EntitlementKey[] }}
+ */
+export function grantableRoleIds(mints, memberFields) {
+  const roleIds = [];
+  const missing = [];
+  for (const key of grantableEntitlements(mints, memberFields)) {
+    const roleId = getRoleId(key);
+    if (!roleId) { missing.push(key); continue; }
+    if (!roleIds.includes(roleId)) roleIds.push(roleId);
+  }
+  return { roleIds, missing };
+}
+
+/**
+ * One `discord.role_not_configured` alert per entitlement whose role env is
+ * unset (high, deduped on the entitlement key). Never throws.
+ * @param {EntitlementKey[]} missing
+ */
+export async function alertMissingRoles(missing) {
+  for (const key of missing ?? []) {
+    console.error(`[entitlements] no Discord role configured for ${key} (${ENTITLEMENT_MAP[key]?.discordRoleEnv ?? '?'})`);
+    try {
+      await sendAlert('discord.role_not_configured', { entitlementKey: key }, { severity: 'high', dedupeKey: key });
+    } catch { /* alerting never blocks a grant */ }
+  }
+}
+
+/**
+ * Roles to take away while granting: only revocable (monthly) entitlements the
+ * member holds a mint for but that billing no longer grants. A permanent or
+ * lifetime pass's role is never returned, nor any role that is also granted.
+ * @param {Array<{fields?: Record<string, unknown>}>} mints
+ * @param {Record<string, unknown>|null|undefined} memberFields
+ * @returns {string[]}
+ */
+export function obsoleteRoleIds(mints, memberFields) {
+  const granted = grantableEntitlements(mints, memberFields);
+  const grantedRoles = new Set(granted.map(getRoleId).filter(Boolean));
+  const ids = [];
+  for (const mint of mints ?? []) {
+    const key = mintEntitlement(mint);
+    if (!key || !ENTITLEMENT_MAP[key].revokeOnCancel || granted.includes(key)) continue;
+    const roleId = getRoleId(key);
+    if (roleId && !grantedRoles.has(roleId) && !ids.includes(roleId)) ids.push(roleId);
+  }
+  return ids;
+}
+
+/**
+ * The first active mint whose entitlement may still be granted (the mint behind
+ * grantableEntitlements()[0]). Kept for callers that need one row. Null when none.
  * @param {Array<{fields?: Record<string, unknown>}>} mints
  * @param {Record<string, unknown>|null|undefined} memberFields
  */
 export function pickGrantableMint(mints, memberFields) {
   for (const mint of mints ?? []) {
-    const key = resolveEntitlementFromNftType(mint?.fields?.['NFT Type'] ?? '');
+    const key = mintEntitlement(mint);
     if (!key) continue;
     if (mayGrantPaidAccessFromMember(key, memberFields)) return mint;
   }

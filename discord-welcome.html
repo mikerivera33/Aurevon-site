@@ -223,14 +223,21 @@
       text-align: center;
     }
 
-    .error-box h2 {
+    .error-box p { color: var(--white); font-size: 0.95rem; margin-bottom: 1.25rem; }
+
+    .btn-primary {
+      display: inline-block;
+      padding: 0.85rem 1.75rem;
+      background: linear-gradient(135deg, #1E3A8A, #3B82F6);
+      color: #fff;
       font-family: 'Space Grotesk', sans-serif;
-      font-size: 1.25rem;
-      color: #f87171;
-      margin-bottom: 0.5rem;
+      font-size: 1rem;
+      font-weight: 700;
+      border-radius: 8px;
+      text-decoration: none;
     }
 
-    .error-box p { color: var(--muted); font-size: 0.9rem; }
+    .btn-primary:hover { opacity: 0.88; }
 
     /* ---- Footer ---- */
     .footer {
@@ -299,9 +306,9 @@
   </main>
 
   <!-- Error state -->
-  <div id="error-content" class="error-box" style="display:none">
-    <h2 id="error-title">Authorization Denied</h2>
-    <p id="error-detail">You cancelled the Discord authorization. You can try again from your NFT confirmation email.</p>
+  <div id="error-content" class="error-box" role="alert" style="display:none">
+    <p id="error-detail"></p>
+    <a id="error-action" href="/member-claim" class="btn-primary">Email me a new link</a>
   </div>
 
   <!-- Footer -->
@@ -316,47 +323,34 @@
   const params = new URLSearchParams(window.location.search);
   const role = params.get('role') || '';
   const error = params.get('error') || '';
-  const inviteUrl = params.get('invite') || 'https://discord.gg/2fwFjMEh';
+  const server = params.get('server') || '';
+  const STATIC_INVITE = 'https://discord.gg/2fwFjMEh';
 
   // Error path — any ?error= must NOT fall through to the success "role assigned" view.
   if (error) {
-    const titleEl = document.getElementById('error-title');
-    const detailEl = document.getElementById('error-detail');
+    const couldNotLink = "We couldn't link Discord. Your payment and NFT are safe. Try again or contact mike@aurevonvc.com.";
     const copy = {
-      denied: {
-        title: 'Authorization Denied',
-        detail: 'You cancelled the Discord authorization. You can try again from your NFT confirmation email.',
-      },
-      revoked: {
-        title: 'Membership Inactive',
-        detail: 'This Discord role is tied to an active monthly membership. Renew on aurevonvc.com to rejoin, then request a fresh access link.',
-      },
-      no_nft: {
-        title: 'No Membership Found',
-        detail: 'We could not find an active membership for this email. Request a fresh access link from the member portal if you have already purchased.',
-      },
-      invalid_link: {
-        title: 'Link Expired',
-        detail: 'This access link is invalid or has expired. Request a fresh one from the member portal.',
-      },
-      link_used: {
-        title: 'Link Already Used',
-        detail: 'This access link has already been redeemed. Request a fresh one from the member portal.',
-      },
-    }[error] || {
-      title: 'Could Not Link Discord',
-      detail: 'Something went wrong linking your Discord account. Request a fresh access link from the member portal.',
+      invalid_link: 'This link has expired. Get a new one.',
+      link_used: 'This link was already used. Get a new one.',
+      no_nft: "We can't find a membership for this email yet. If you just paid, your NFT is still being prepared — check your inbox or contact mike@aurevonvc.com.",
+      auth_failed: couldNotLink,
+      role_failed: couldNotLink,
+      denied: 'You cancelled. Open your email and try the link again.',
     };
-    if (titleEl) titleEl.textContent = copy.title;
-    if (detailEl) detailEl.textContent = copy.detail;
+    document.getElementById('error-detail').textContent =
+      Object.prototype.hasOwnProperty.call(copy, error) ? copy[error] : couldNotLink;
     document.getElementById('error-content').style.display = 'block';
     return;
   }
 
   // Success path
   document.getElementById('main-content').style.display = 'block';
-  document.getElementById('discord-link').href = inviteUrl || 'https://discord.gg/2fwFjMEh';
-  document.getElementById('role-label').textContent = role || 'Aurevon Operator';
+  document.getElementById('discord-link').href = /^\d{5,25}$/.test(server)
+    ? 'https://discord.com/channels/' + server
+    : STATIC_INVITE;
+  // ?role= lists every pass granted, comma-separated.
+  const roles = role.split(',').map(function (r) { return r.trim(); }).filter(Boolean);
+  document.getElementById('role-label').textContent = roles.length ? roles.join(' · ') : 'Aurevon Operator';
 
   // Channel map per tier
   const tierChannels = {
@@ -410,7 +404,15 @@
     ],
   };
 
-  const channels = tierChannels[role] || tierChannels['Aurevon Insider'];
+  // Union of every granted pass's channels, first occurrence wins.
+  const channels = [];
+  roles.filter(function (r) { return Object.prototype.hasOwnProperty.call(tierChannels, r); })
+    .forEach(function (r) {
+      tierChannels[r].forEach(function (ch) {
+        if (!channels.some(function (c) { return c.name === ch.name; })) channels.push(ch);
+      });
+    });
+  if (!channels.length) channels.push.apply(channels, tierChannels['Aurevon Insider']);
   const grid = document.getElementById('channels-grid');
 
   channels.forEach(function (ch) {

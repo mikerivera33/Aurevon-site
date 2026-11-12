@@ -25,7 +25,6 @@ const API_REWRITES = {
   '/api/portal/auth':         'api/portal/data.js',
   '/api/portal/verify':       'api/portal/data.js',
   '/api/health':              'api/health.js',
-  '/api/email/send':          'api/email/send.js',
   '/api/crossmint/mint':      'api/member/claim.js',
   '/api/member/claim':        'api/member/claim.js',
   // discord action routing
@@ -49,7 +48,6 @@ const PAGE_REWRITES = {
   '/merch':                   'merch.html',
   '/discord-welcome':         'discord-welcome.html',
   '/membership-confirmation': 'membership_confirmation.html',
-  '/setup-wizard':            'setup-wizard.html',
   '/member-claim':            'member-claim.html',
   '/success':                 'index.html',
   '/cancel':                  'index.html',

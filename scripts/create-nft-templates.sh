@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Not used by the mint path since Nov 2026 (templates are not read); kept for reference.
 # =============================================================================
 # create-nft-templates.sh
 # Creates all 5 Aurevon NFT tier templates in the Crossmint collection.

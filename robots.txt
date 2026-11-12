@@ -4,8 +4,6 @@ Allow: /
 # Internal / owner-only & utility pages — keep out of search results
 Disallow: /operator
 Disallow: /operator.html
-Disallow: /setup-wizard
-Disallow: /setup-wizard.html
 Disallow: /aurevon-crm
 Disallow: /aurevon-crm.html
 Disallow: /aurevon-re-intake

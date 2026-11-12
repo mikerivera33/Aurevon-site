@@ -9,12 +9,18 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-vi.mock('../airtable.js', () => ({
+vi.mock('../db.js', () => ({
   createPayment: vi.fn().mockResolvedValue({}),
   createNftMint: vi.fn().mockResolvedValue({}),
   findPaymentByTransactionId: vi.fn().mockResolvedValue(null),
-  countNftMintsByPrefix: vi.fn().mockResolvedValue(0),
+  findPaymentBySubscriptionId: vi.fn().mockResolvedValue(null),
+  listPaymentsByEmail: vi.fn().mockResolvedValue([]),
+  updateEntitlementState: vi.fn().mockResolvedValue({}),
+  nextSerial: vi.fn().mockResolvedValue(1),
+  // fulfil.js (shared NFT fulfilment):
+  findMintByPaymentId: vi.fn().mockResolvedValue(null), updateNftMint: vi.fn().mockResolvedValue({}), findMemberByEmail: vi.fn().mockResolvedValue(null), updateDiscordSyncStatus: vi.fn().mockResolvedValue({}),
 }));
+vi.mock('../airtable-import.js', () => ({ airtableImportEnabled: vi.fn(() => false), countAirtableMintsByPrefix: vi.fn() }));
 vi.mock('../crossmint.js', () => ({
   mintToEmail: vi.fn().mockResolvedValue({ ok: true, actionId: 'act_test', imageUrl: null }),
 }));
@@ -25,8 +31,9 @@ vi.mock('../email.js', () => ({
 vi.mock('../alert.js', () => ({ sendAlert: vi.fn().mockResolvedValue(undefined) }));
 
 import { handleVerifiedIPN, processIPN } from '../../webhooks/paypal.js';
-import * as airtable from '../airtable.js';
+import * as db from '../db.js';
 import * as crossmint from '../crossmint.js';
+import * as email from '../email.js';
 import { sendAlert } from '../alert.js';
 
 // A completed IPN for a $250 Full Package (tier "full" → Aurevon Insider).
@@ -44,6 +51,7 @@ function completedIpn(receiver, extra = {}) {
 }
 
 const SAVED = { ...process.env };
+const crossmintPayload = () => crossmint.mintToEmail.mock.calls[0]?.[0] ?? null;
 
 describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
   beforeEach(() => {
@@ -54,7 +62,7 @@ describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
 
   it('refuses to process (no mint, no marker) and alerts when PAYPAL_BUSINESS_EMAIL is unset', async () => {
     await handleVerifiedIPN(completedIpn('anyone@paypal.com'));
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
     expect(sendAlert).toHaveBeenCalledWith('paypal.business_email_unset', expect.objectContaining({ txnId: 'PP_TEST_1' }));
   });
 
@@ -62,13 +70,13 @@ describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
     process.env.PAYPAL_BUSINESS_EMAIL = 'MIKE@Aurevonvc.com';
     await handleVerifiedIPN(completedIpn('mike@aurevonvc.com'));
     // Passed the receiver gate → wrote the idempotency marker.
-    expect(airtable.createPayment).toHaveBeenCalledTimes(1);
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
   });
 
   it('rejects a genuine receiver mismatch (no marker written)', async () => {
     process.env.PAYPAL_BUSINESS_EMAIL = 'mike@aurevonvc.com';
     await handleVerifiedIPN(completedIpn('attacker@paypal.com'));
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
     expect(sendAlert).not.toHaveBeenCalled();
   });
 
@@ -79,7 +87,7 @@ describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
       mc_currency: 'JPY',
       custom: '{"tier":"enterprise"}',
     }));
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
     expect(sendAlert).toHaveBeenCalledWith('paypal.non_usd_rejected', expect.objectContaining({ currency: 'JPY', gross: '2499.00' }));
   });
@@ -97,7 +105,7 @@ describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
       mc_gross: '1.00',
       custom: '{"tier":"enterprise"}',
     }));
-    expect(airtable.createPayment).toHaveBeenCalledTimes(1);
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
   });
 
@@ -106,7 +114,7 @@ describe('paypal receiver validation (fail-closed + case-insensitive)', () => {
     const ipn = completedIpn('mike@aurevonvc.com');
     delete ipn.txn_id;
     await handleVerifiedIPN(ipn);
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
   });
 });
 
@@ -124,10 +132,10 @@ describe('paypal IPN idempotency (fail-closed)', () => {
   });
 
   it('does NOT process when the idempotency lookup itself fails', async () => {
-    airtable.findPaymentByTransactionId.mockRejectedValueOnce(new Error('Airtable timeout'));
+    db.findPaymentByTransactionId.mockRejectedValueOnce(new Error('Supabase timeout'));
     const raw = new URLSearchParams(completedIpn('mike@aurevonvc.com')).toString();
     await processIPN(raw);
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
     expect(sendAlert).toHaveBeenCalledWith(
       'paypal.idempotency_lookup_failed',
@@ -135,11 +143,106 @@ describe('paypal IPN idempotency (fail-closed)', () => {
     );
   });
 
+  it('mints once on the happy path (control for the marker tests below)', async () => {
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com'));
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
+    expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('a concurrent duplicate IPN (DUPLICATE_PAYMENT on the marker) returns quietly: no mint, no alert', async () => {
+    const dup = Object.assign(new Error('Supabase insert payments: duplicate key value violates unique constraint'), { code: 'DUPLICATE_PAYMENT' });
+    db.createPayment.mockRejectedValueOnce(dup);
+
+    await expect(handleVerifiedIPN(completedIpn('mike@aurevonvc.com'))).resolves.toBeUndefined();
+
+    expect(db.createPayment).toHaveBeenCalledTimes(1);
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(db.createNftMint).not.toHaveBeenCalled();
+    expect(email.sendNftDelivery).not.toHaveBeenCalled();
+    expect(email.sendPurchaseConfirmation).not.toHaveBeenCalled();
+    expect(sendAlert).not.toHaveBeenCalled();
+  });
+
+  it('any other marker failure alerts and aborts before mint', async () => {
+    db.createPayment.mockRejectedValueOnce(new Error('Supabase insert payments: connection reset'));
+
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com'));
+
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(db.createNftMint).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('paypal.payment_marker_failed', expect.objectContaining({ txnId: 'PP_TEST_1' }));
+  });
+
   it('does NOT process a verified IPN missing txn_id', async () => {
     const ipn = completedIpn('mike@aurevonvc.com');
     delete ipn.txn_id;
     await processIPN(new URLSearchParams(ipn).toString());
-    expect(airtable.createPayment).not.toHaveBeenCalled();
+    expect(db.createPayment).not.toHaveBeenCalled();
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe('paypal txn_type gate + lifecycle receiver (fail-closed)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env = { ...SAVED };
+    process.env.PAYPAL_BUSINESS_EMAIL = 'mike@aurevonvc.com';
+  });
+  afterEach(() => { process.env = { ...SAVED }; });
+
+  it('cart $250 (2 × $125) → no Crossmint, purchase confirmation, Pass Type "addons"', async () => {
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com', { txn_type: 'cart', num_cart_items: '2', custom: '{"tier":"full"}' }));
+    expect(crossmintPayload()).toBeNull();
+    expect(db.createPayment).toHaveBeenCalledWith(expect.objectContaining({ tier: 'addons' }));
+    expect(email.sendPurchaseConfirmation).toHaveBeenCalledWith(expect.objectContaining({ tier: 'addons', transactionId: 'PP_TEST_1' }));
+    expect(email.sendNftDelivery).not.toHaveBeenCalled();
+  });
+
+  it('subscr_signup → no writes', async () => {
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com', { txn_type: 'subscr_signup', subscr_id: 'I-SIGNUP1' }));
+    expect(db.createPayment).not.toHaveBeenCalled();
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+    expect(crossmint.mintToEmail).not.toHaveBeenCalled();
+    expect(email.sendPurchaseConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('subscr_cancel with PAYPAL_BUSINESS_EMAIL unset → alert, no billing write', async () => {
+    delete process.env.PAYPAL_BUSINESS_EMAIL;
+    db.findPaymentBySubscriptionId.mockResolvedValueOnce({ id: 'pay_1', fields: { 'Pass Type': 'comm_monthly' } });
+    await handleVerifiedIPN({ txn_type: 'subscr_cancel', subscr_id: 'I-GEN1', payer_email: 'buyer@example.com', receiver_email: 'anyone@paypal.com' });
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+    expect(sendAlert).toHaveBeenCalledWith('paypal.business_email_unset', expect.objectContaining({ txnType: 'subscr_cancel', subscriptionId: 'subscr:I-GEN1' }));
+  });
+
+  it('subscr_cancel for a Genesis subscription to us → billing cancelled', async () => {
+    db.findPaymentBySubscriptionId.mockResolvedValueOnce({ id: 'pay_1', fields: { 'Pass Type': 'comm_monthly' } });
+    await handleVerifiedIPN({ txn_type: 'subscr_cancel', subscr_id: 'I-GEN1', payer_email: 'buyer@example.com', receiver_email: 'MIKE@aurevonvc.com' });
+    expect(db.updateEntitlementState).toHaveBeenCalledWith('buyer@example.com', { entitlementType: 'monthly_membership', billingState: 'cancelled' });
+  });
+
+  it('subscr_cancel for another receiver → no billing write', async () => {
+    db.findPaymentBySubscriptionId.mockResolvedValueOnce({ id: 'pay_1', fields: { 'Pass Type': 'comm_monthly' } });
+    await handleVerifiedIPN({ txn_type: 'subscr_cancel', subscr_id: 'I-GEN1', payer_email: 'buyer@example.com', receiver_email: 'attacker@paypal.com' });
+    expect(db.updateEntitlementState).not.toHaveBeenCalled();
+  });
+});
+
+describe('settled IPN that resolves to no tier (final fix 2)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env = { ...SAVED };
+    process.env.PAYPAL_BUSINESS_EMAIL = 'mike@aurevonvc.com';
+  });
+  afterEach(() => { process.env = { ...SAVED }; });
+
+  it('records the Payments row, alerts paypal.tier_unresolved (high), sends no email and mints nothing', async () => {
+    await handleVerifiedIPN(completedIpn('mike@aurevonvc.com', { mc_gross: '12.34' }));
+
+    expect(db.createPayment).toHaveBeenCalledWith(expect.objectContaining({ transactionId: 'PP_TEST_1', tier: 'unknown' }));
+    expect(sendAlert).toHaveBeenCalledWith('paypal.tier_unresolved',
+      { txnId: 'PP_TEST_1', gross: '12.34', currency: 'USD' }, { severity: 'high', dedupeKey: 'PP_TEST_1' });
+    expect(email.sendPurchaseConfirmation).not.toHaveBeenCalled();
+    expect(email.sendNftDelivery).not.toHaveBeenCalled();
     expect(crossmint.mintToEmail).not.toHaveBeenCalled();
   });
 });

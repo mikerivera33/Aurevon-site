@@ -1066,10 +1066,8 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 
         <div id="nft-grid-wrap">
           <div class="empty-state" id="nft-empty-state">
-            <span class="empty-icon">🎴</span>
             <h3>No NFTs yet</h3>
-            <p>Purchase a Aurevon Capital package or Community membership to receive your NFT.</p>
-            <a href="/" class="btn btn-primary">Explore Packages</a>
+            <a href="/aurevon-re#pricing" class="btn btn-primary">Buy a package</a>
           </div>
           <div class="nft-grid" id="nft-grid"></div>
         </div>
@@ -1365,7 +1363,8 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
       name: src.customerName || src.name || '',
       tier: src.memberTier || src.tier || '',
       memberSince: src.joinDate || src.memberSince || '',
-      discordId: src.discordUsername || src.discordId || '',
+      // Show the Discord username, never a raw Discord user id.
+      discordUsername: src.discordUsername || '',
     };
     const payments = (Array.isArray(raw.payments) ? raw.payments : []).map(p => ({
       ...p,
@@ -1442,10 +1441,10 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
     }
 
     // Discord
-    if (profile.discordId) {
+    if (profile.discordUsername) {
       document.getElementById('discord-connected-view').classList.remove('hidden');
       document.getElementById('discord-disconnected-view').classList.add('hidden');
-      document.getElementById('discord-username').textContent = `Discord ID: ${profile.discordId}`;
+      document.getElementById('discord-username').textContent = profile.discordUsername;
     } else {
       document.getElementById('discord-disconnected-view').classList.remove('hidden');
       document.getElementById('discord-connected-view').classList.add('hidden');
@@ -1472,10 +1471,10 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 
     const accDiscordUrl = '/member-claim';
     document.getElementById('acc-discord-connect-btn').href = accDiscordUrl;
-    if (profile.discordId) {
+    if (profile.discordUsername) {
       document.getElementById('acc-discord-connected').classList.remove('hidden');
       document.getElementById('acc-discord-disconnected').classList.add('hidden');
-      document.getElementById('acc-discord-user').textContent = profile.discordId;
+      document.getElementById('acc-discord-user').textContent = profile.discordUsername;
     } else {
       document.getElementById('acc-discord-disconnected').classList.remove('hidden');
       document.getElementById('acc-discord-connected').classList.add('hidden');
@@ -1583,6 +1582,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
     if (s === 'minted') return `<span class="tag tag-green">Minted</span>`;
     if (s === 'sent') return `<span class="tag tag-blue">Sent</span>`;
     if (s === 'pending') return `<span class="tag tag-yellow">Pending</span>`;
+    if (s === 'failed') return `<span class="tag tag-yellow">Finalizing</span><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">We're retrying. You'll get an email.</p>`;
     return `<span class="tag tag-gray">${escHtml(status || 'Unknown')}</span>`;
   }
 
@@ -1771,7 +1771,7 @@ window.addEventListener('unhandledrejection',function(e){var m=e.reason&&(e.reas
 
     try {
       // We'll use the data endpoint for profile updates — but for name we
-      // need a PATCH to Airtable via a dedicated call. For now, store locally
+      // need a dedicated API call. For now, store locally
       // and show success (a full PATCH endpoint can be added later).
       sessionStorage.setItem('bl_name', name);
       localStorage.setItem('bl_name', name);

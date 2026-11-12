@@ -11,7 +11,7 @@ you give it to me:
 
 > Security rule: anything labeled 🔴 is a secret. Don't paste it in chat or commit it.
 > Set it in Vercel → Project → Settings → Environment Variables (or use
-> `scripts/set-vercel-env.sh` for the non-secret ones).
+> `scripts/set-vercel-env.sh`, which prompts for each name with hidden input).
 
 ---
 
@@ -48,8 +48,8 @@ Drop these into `assets/` (commit them, or attach them and tell me the filename)
 
 ## 🔴 C. Secrets — you set these in Vercel (never paste in chat)
 
-Exact env-var names the code reads. Use `scripts/set-vercel-env.sh` for the non-secret
-config; set the secrets below by hand in Vercel:
+Exact env-var names the code reads (full list by purpose: `docs/nft-pipeline-setup.md`).
+Set them in Vercel, by hand or with `scripts/set-vercel-env.sh` (hidden prompts):
 
 | Env var | From |
 |---|---|
@@ -57,20 +57,20 @@ config; set the secrets below by hand in Vercel:
 | `STRIPE_WEBHOOK_SECRET` | Stripe → Webhooks → your endpoint (`whsec_…`) |
 | `RESEND_API_KEY` | Resend → API Keys (`re_…`) |
 | `CROSSMINT_API_KEY` | Crossmint Console → API Keys (server-side) |
-| `CROSSMINT_WEBHOOK_SECRET` | Crossmint Console → Webhooks |
-| `AIRTABLE_PAT` | Airtable → Personal Access Tokens (`pat…`) |
+| `CROSSMINT_WEBHOOK_SECRET` | Crossmint Console → Webhooks (Svix `whsec_…`; events `nfts.create.succeeded`, `nfts.create.failed`) |
+| `SUPABASE_URL` + `SUPABASE_SECRET_KEY` | Supabase → Project Settings → API Keys (`AIRTABLE_*` is only a temporary import bridge) |
 | `DISCORD_BOT_TOKEN` | Discord Dev Portal → Bot |
 | `DISCORD_CLIENT_SECRET` | Discord Dev Portal → OAuth2 |
-| `PAYPAL_SECRET` + `PAYPAL_CLIENT_ID` | PayPal Developer → your app |
+| `PAYPAL_BUSINESS_EMAIL` | your receiving PayPal account email (IPN only; the PayPal REST client id/secret are not read) |
 | `INTERNAL_API_SECRET` · `STATE_SECRET` · `SYNC_SECRET` · `RECONCILE_SECRET` · `CRON_SECRET` | generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 
-Non-secret config (the `set-vercel-env.sh` script sets these): `RESEND_FROM_EMAIL=mike@aurevonvc.com`,
-`RESEND_FROM_NAME=Aurevon`, `BASE_URL`/`DOMAIN`/`SITE_URL=https://www.aurevonvc.com`,
-`CROSSMINT_ENV=production`, `CROSSMINT_CHAIN=base`.
+Non-secret config: `RESEND_FROM_EMAIL` (required), `RESEND_FROM_NAME` (optional).
+`BASE_URL`/`DOMAIN`/`SITE_URL` default to `https://www.aurevonvc.com`; leave `CROSSMINT_ENV`
+(production) and `CROSSMINT_CHAIN` (`base`) unset.
 
 ### Crossmint IDs (semi-public — paste in chat OR set in Vercel, your call)
 - [ ] `CROSSMINT_COLLECTION_ID` (production)
-- [ ] `CROSSMINT_TEMPLATE_INSIDER` / `_EMBER` / `_OBSIDIAN` / `_GENESIS` / `_CHROME`
+- [ ] Optional per-NFT `CROSSMINT_COLLECTION_*` overrides (templates are no longer used; see `docs/nft-pipeline-setup.md`)
 - [ ] `AIRTABLE_BASE_ID` (currently `appI9X8vcRcK1QZ1l` in .env.example — confirm)
 - [ ] `DISCORD_CLIENT_ID` + `DISCORD_GUILD_ID` (confirm the ones in .env.example)
 
@@ -81,7 +81,7 @@ Non-secret config (the `set-vercel-env.sh` script sets these): `RESEND_FROM_EMAI
 - [ ] **Stripe**: confirm support/receipt email = `mike@aurevonvc.com`; add webhook endpoint `https://www.aurevonvc.com/api/webhooks/stripe`
 - [ ] **PayPal**: create the 6 add-on buttons (A1); set webhook/IPN to `https://www.aurevonvc.com/api/webhooks/paypal`
 - [ ] **Crossmint**: confirm production collection is verified; webhook → `/api/webhooks/crossmint`
-- [ ] **Vercel**: point domain `www.aurevonvc.com`; run `bash scripts/set-vercel-env.sh`; set the 🔴 secrets; `vercel --prod`
+- [ ] **Vercel**: point domain `www.aurevonvc.com`; run `bash scripts/set-vercel-env.sh` (or set every name by hand); `vercel --prod`
 - [ ] **DNS**: A/CNAME for `aurevonvc.com` → Vercel
 
 ---

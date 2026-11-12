@@ -24,20 +24,27 @@ vi.mock('@vercel/functions', () => ({
   waitUntil: (p) => { waitUntilCalls.push(p); },
 }));
 
-vi.mock('../airtable.js', () => ({
+vi.mock('../db.js', () => ({
   findActiveMintByEmail: vi.fn(),
   // referenced at module load by claim.js:
   findMemberByEmail: vi.fn(), findActiveMintByEmailAndType: vi.fn(), findAnyMintByEmailAndType: vi.fn(),
-  listNftMints: vi.fn(), listPaymentsSince: vi.fn(), listPendingDiscordSync: vi.fn(),
+  findMintByTokenId: vi.fn(), listUnlinkedMintsBefore: vi.fn(), listPaymentsSince: vi.fn(), listPendingDiscordSync: vi.fn(), listFailedDiscordSync: vi.fn().mockResolvedValue([]), listStuckSentMints: vi.fn().mockResolvedValue([]), updateEntitlementState: vi.fn().mockResolvedValue({}),
   listOutOfSyncEntitlements: vi.fn(), listFailedMints: vi.fn(), updateDiscordSyncStatus: vi.fn(),
   updateNftMint: vi.fn(), createNftMint: vi.fn(),
+  findActiveMintsByEmail: vi.fn(), findLatestPaymentByEmailAndTier: vi.fn(), dbConfigured: vi.fn(() => true),
+  // fulfil.js (shared NFT fulfilment):
+  findMintByPaymentId: vi.fn().mockResolvedValue(null),
+  // claim.js (retry-mints / reconcile):
+  listUndeliveredMints: vi.fn(), findPaymentByTransactionId: vi.fn(), listPaymentTransactionIds: vi.fn(),
+  recordOpsEvent: vi.fn(), listLapsedMonthlyWithoutExpiry: vi.fn(),
 }));
-vi.mock('../email.js', () => ({ sendDiscordAccessLink: vi.fn() }));
+vi.mock('../airtable-import.js', () => ({ importHasProblems: vi.fn(() => false), airtableImportEnabled: vi.fn(() => false), importFromAirtable: vi.fn() }));
+vi.mock('../email.js', () => ({ sendDiscordAccessLink: vi.fn(), sendNftDelivery: vi.fn() }));
 vi.mock('../discord-bot.js', () => ({ addRoleToMember: vi.fn(), removeRoleFromMember: vi.fn() }));
 vi.mock('../engage.js', () => ({ onDiscordLinkReminder: vi.fn(), onSubscriptionCancelled: vi.fn() }));
 
 import handler from '../../member/claim.js';
-import * as airtable from '../airtable.js';
+import * as db from '../db.js';
 import * as email from '../email.js';
 
 function mockRes() {
@@ -61,7 +68,7 @@ describe('POST /api/member/claim — timing oracle closed (M2)', () => {
   beforeEach(() => { vi.clearAllMocks(); waitUntilCalls.length = 0; });
 
   it('member branch does NOT await the send — returns promptly even if the send never resolves', async () => {
-    airtable.findActiveMintByEmail.mockResolvedValueOnce({ id: 'm1', fields: { 'NFT Type': 'Aurevon Ember', 'Mint Status': 'Sent' } });
+    db.findActiveMintByEmail.mockResolvedValueOnce({ id: 'm1', fields: { 'NFT Type': 'Aurevon Ember', 'Mint Status': 'Sent' } });
     // Never-resolving send: the OLD `await sendDiscordAccessLink(...)` would hang here,
     // making this test time out. waitUntil-based code returns without awaiting it.
     email.sendDiscordAccessLink.mockReturnValueOnce(new Promise(() => {}));
@@ -77,7 +84,7 @@ describe('POST /api/member/claim — timing oracle closed (M2)', () => {
   });
 
   it('non-member branch registers nothing with waitUntil and sends no email (symmetric fast path)', async () => {
-    airtable.findActiveMintByEmail.mockResolvedValueOnce(null);
+    db.findActiveMintByEmail.mockResolvedValueOnce(null);
 
     const res = await postClaim('stranger@example.com');
 
@@ -88,7 +95,7 @@ describe('POST /api/member/claim — timing oracle closed (M2)', () => {
   });
 
   it('a send that rejects is swallowed via waitUntil and never affects the response', async () => {
-    airtable.findActiveMintByEmail.mockResolvedValueOnce({ id: 'm1', fields: {} });
+    db.findActiveMintByEmail.mockResolvedValueOnce({ id: 'm1', fields: {} });
     email.sendDiscordAccessLink.mockRejectedValueOnce(new Error('resend down'));
 
     // The rejection is handled by the .catch() inside the waitUntil chain; the

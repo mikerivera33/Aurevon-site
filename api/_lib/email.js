@@ -4,8 +4,13 @@
  */
 
 import { signDiscordAccessToken } from '../discord.js';
+import { resolveEntitlementFromNftType } from './entitlements.js';
+import { isIntakeTier, STRIPE_SESSION_RE, PAYPAL_TXN_RE } from './tiers.js';
+import { sendAlert } from './alert.js';
 
 const RESEND_BASE_URL = 'https://api.resend.com';
+// A hung Resend call must not stall a webhook / cron: a timeout is a send failure.
+const RESEND_TIMEOUT_MS = 8000;
 const DOMAIN = process.env.DOMAIN ?? 'https://www.aurevonvc.com';
 
 /**
@@ -23,6 +28,40 @@ export function buildDiscordAccessUrl(email, fallbackUrl = null) {
     console.error(`[email] Could not sign Discord access token: ${err.message}`);
     return fallbackUrl;
   }
+}
+
+/** Not null and not undefined (edition 0 is a real value). */
+function isPresent(v) {
+  return v !== null && v !== undefined;
+}
+
+/** True iff the URL is the signed one-click linking URL (not a plain invite). */
+export function discordLinkIsSigned(url) {
+  return typeof url === 'string' && url.includes('action=auth&token=');
+}
+
+const INTAKE_URL = 'https://www.aurevonvc.com/aurevon-re-intake.html';
+const UNDERWRITING_ENTITLEMENTS = new Set(['product_a_reward', 'product_b_reward', 'product_c_reward']);
+
+/**
+ * Deal-intake link carrying the payment proof the intake gate accepts:
+ * `?session_id=` for a Stripe Checkout session, `?txn_id=` for a PayPal txn.
+ * Anything else (e.g. a `manual-…` mint id) gets the bare link.
+ */
+function buildIntakeUrl(transactionId) {
+  if (typeof transactionId !== 'string') return INTAKE_URL;
+  if (STRIPE_SESSION_RE.test(transactionId)) return `${INTAKE_URL}?session_id=${encodeURIComponent(transactionId)}`;
+  if (PAYPAL_TXN_RE.test(transactionId)) return `${INTAKE_URL}?txn_id=${encodeURIComponent(transactionId)}`;
+  return INTAKE_URL;
+}
+
+/** Insider / Ember / Obsidian Executive — the NFTs earned by an underwriting purchase. */
+function isUnderwritingNft(nftType) {
+  return UNDERWRITING_ENTITLEMENTS.has(resolveEntitlementFromNftType(nftType));
+}
+
+function intakeButtonHtml(url) {
+  return `<a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 36px;background:linear-gradient(90deg,#1E3A8A,#3B82F6);border-radius:8px;font-family:'Archivo Black',Impact,sans-serif;font-size:15px;font-weight:900;color:#FFFFFF;text-decoration:none;letter-spacing:0.5px;">Submit your deal &rarr;</a>`;
 }
 
 /**
@@ -49,12 +88,13 @@ function getFromAddress() {
 /**
  * Build the branded HTML email for NFT delivery.
  */
-export function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, discordInviteUrl, discordAccessUrl, tier, serial, edition }) {
+export function buildNftDeliveryHtml({ status = 'minted', customerName, nftType, mintId, nftImageUrl, discordInviteUrl, discordAccessUrl, serial, edition, transactionId }) {
+  if (status === 'pending') return buildPendingDeliveryHtml({ nftType });
   // Prefer the tokenized one-click linking URL; fall back to a plain invite.
   const discordCtaUrl = discordAccessUrl ?? discordInviteUrl;
   // User/provider-controlled text fields — escape before interpolating into HTML.
   const firstName = escapeHtml(customerName?.split(' ')[0] ?? 'Operator');
-  const tierLabel = escapeHtml(tier ? tier.toUpperCase().replace('_', ' ') : 'MEMBER');
+  const intakeUrl = isUnderwritingNft(nftType) ? buildIntakeUrl(transactionId) : null;
   const safeNftType = escapeHtml(nftType);
   const safeMintId = escapeHtml(mintId);
   const safeSerial = escapeHtml(serial);
@@ -66,7 +106,7 @@ export function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUr
     ? `<div style="font-family:'Courier New',monospace;font-size:1.2rem;color:#3B82F6;letter-spacing:0.15em;text-align:center;margin:0.8rem 0;">${safeSerial}</div>`
     : '';
 
-  const editionDisplay = edition !== null ? String(edition).padStart(3, '0') : null;
+  const editionDisplay = isPresent(edition) ? String(edition).padStart(3, '0') : null;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -120,11 +160,11 @@ export function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUr
             </td>
           </tr>
 
-          <!-- Tier badge -->
+          <!-- NFT name -->
           <tr>
             <td align="center" style="padding:0 40px 28px;">
               <div style="display:inline-block;padding:8px 24px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:999px;">
-                <span style="font-size:12px;font-weight:700;letter-spacing:2px;color:#3B82F6;text-transform:uppercase;">Tier: ${tierLabel}</span>
+                <span style="font-size:12px;font-weight:700;letter-spacing:2px;color:#3B82F6;text-transform:uppercase;">${safeNftType}</span>
               </div>
             </td>
           </tr>
@@ -191,9 +231,17 @@ export function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUr
           <tr>
             <td align="center" style="padding:0 40px 36px;">
               <p style="margin:0 0 16px;font-size:15px;color:#a1a1aa;text-align:center;">Click below to connect your Discord and unlock your role. Introductions go up in the first 24 hours.</p>
-              <a href="${discordCtaUrl}" style="display:inline-block;padding:14px 36px;background:linear-gradient(90deg,#1E3A8A,#3B82F6);border-radius:8px;font-family:'Archivo Black',Impact,sans-serif;font-size:15px;font-weight:900;color:#0A0A0A;text-decoration:none;letter-spacing:0.5px;box-shadow:0 8px 24px rgba(30,58,138,0.32);">
+              <a href="${discordCtaUrl}" style="display:inline-block;padding:14px 36px;background:linear-gradient(90deg,#1E3A8A,#3B82F6);border-radius:8px;font-family:'Archivo Black',Impact,sans-serif;font-size:15px;font-weight:900;color:#FFFFFF;text-decoration:none;letter-spacing:0.5px;box-shadow:0 8px 24px rgba(30,58,138,0.32);">
                 CONNECT DISCORD &rarr;
               </a>
+            </td>
+          </tr>` : ''}
+
+          <!-- Deal intake (underwriting NFTs only) -->
+          ${intakeUrl ? `
+          <tr>
+            <td align="center" style="padding:0 40px 36px;">
+              ${intakeButtonHtml(intakeUrl)}
             </td>
           </tr>` : ''}
 
@@ -232,13 +280,86 @@ export function buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUr
 }
 
 /**
- * Build plain-text fallback for NFT delivery email.
+ * Payment-received email for a mint that has not completed yet. States only
+ * what is true: payment arrived, the NFT is being minted, a second email
+ * follows. No art, Mint ID, serial or Discord button — none exist yet.
  */
-function buildNftDeliveryText({ customerName, nftType, mintId, discordInviteUrl, discordAccessUrl, tier, serial, edition }) {
+function buildPendingDeliveryHtml({ nftType }) {
+  const safeNftType = escapeHtml(nftType);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payment received</title>
+</head>
+<body style="margin:0;padding:0;background:#0A0A0A;font-family:'DM Sans',Arial,sans-serif;color:#d4d4d8;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0A0A;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#111827;border:1px solid rgba(59,130,246,0.18);border-radius:14px;overflow:hidden;">
+          <tr>
+            <td style="background:linear-gradient(90deg,#1E3A8A,#3B82F6);padding:3px 0;"></td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:36px 40px 20px;">
+              <span style="font-family:'Archivo Black',Impact,sans-serif;font-size:28px;font-weight:900;letter-spacing:2px;color:#1E3A8A;">Aurevon</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 40px 28px;">
+              <h1 style="margin:0 0 16px;font-family:'Archivo Black',Impact,sans-serif;font-size:28px;color:#3B82F6;">Payment received.</h1>
+              <p style="margin:0;font-size:16px;color:#d4d4d8;line-height:1.6;">Your ${safeNftType} is being minted. A second email with your Discord link arrives within 24 hours.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 40px;">
+              <div style="height:1px;background:rgba(255,255,255,0.06);"></div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 40px;">
+              <p style="margin:0;font-size:13px;color:#52525b;line-height:1.6;">
+                Questions? Reply to this email or reach us at <a href="mailto:mike@aurevonvc.com" style="color:#3B82F6;text-decoration:none;">mike@aurevonvc.com</a>. We respond within one business day.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#0A0A0A;border-top:1px solid rgba(255,255,255,0.05);padding:20px 40px;text-align:center;">
+              <p style="margin:0 0 6px;font-size:11px;color:#3f3f46;letter-spacing:1px;text-transform:uppercase;">Aurevon Ventures LLC &middot; 4129 Saltburn Dr, Plano, TX</p>
+              <p style="margin:0;font-size:11px;color:#3f3f46;">
+                You received this because you completed a purchase on aurevonvc.com.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Build plain-text fallback for NFT delivery email (mirrors the html facts).
+ */
+export function buildNftDeliveryText({ status = 'minted', customerName, nftType, mintId, discordInviteUrl, discordAccessUrl, serial, edition, transactionId }) {
+  if (status === 'pending') {
+    return `Payment received.
+
+Your ${nftType} is being minted. A second email with your Discord link arrives within 24 hours.
+
+Questions? Reply to this email or reach us at mike@aurevonvc.com. We respond within one business day.
+
+---
+Aurevon Ventures LLC · 4129 Saltburn Dr, Plano, TX
+You received this because you completed a purchase on aurevonvc.com.
+`;
+  }
   const discordCtaUrl = discordAccessUrl ?? discordInviteUrl;
   const firstName = customerName?.split(' ')[0] ?? 'Operator';
-  const tierLabel = tier ? tier.toUpperCase().replace('_', ' ') : 'MEMBER';
-  const editionDisplay = edition !== null ? String(edition).padStart(3, '0') : null;
+  const editionDisplay = isPresent(edition) ? String(edition).padStart(3, '0') : null;
+  const intakeUrl = isUnderwritingNft(nftType) ? buildIntakeUrl(transactionId) : null;
 
   return `Aurevon — NFT DELIVERY
 ================================
@@ -247,13 +368,12 @@ ${firstName},
 
 Your ${nftType} NFT has been minted and delivered to your email wallet.
 
-Tier: ${tierLabel}
 Token: ${nftType}
 ${serial ? `Serial: ${serial}\n` : ''}${editionDisplay ? `Edition: #${editionDisplay} of ∞\n` : ''}Mint ID: ${mintId}
 Chain: Base (Ethereum L2)
 Delivery: Email wallet (no wallet setup required)
 
-${discordCtaUrl ? `Connect your Discord and unlock your role:\n${discordCtaUrl}\n` : ''}Questions? mike@aurevonvc.com
+${discordCtaUrl ? `Connect your Discord and unlock your role:\n${discordCtaUrl}\n\n` : ''}${intakeUrl ? `Submit your deal:\n${intakeUrl}\n\n` : ''}Questions? mike@aurevonvc.com
 
 ---
 Aurevon Ventures LLC · 4129 Saltburn Dr, Plano, TX
@@ -279,20 +399,27 @@ const TIER_DISPLAY_NAMES = {
   addon_sensitivity: 'Sensitivity Modeling Add-On',
   addon_portfolio:   'Portfolio Review Bundle Add-On',
   addon_whitelabel:  'White-Label Reports Add-On',
+  addons:            'Add-Ons',
 };
 
 function tierDisplay(tier) {
-  return TIER_DISPLAY_NAMES[tier] ?? (tier ?? '').toUpperCase();
+  const key = String(tier ?? '').replace(/^re_/, '');
+  // Never "Item: UNKNOWN" (or a raw key): an unnamed tier reads "your purchase".
+  return TIER_DISPLAY_NAMES[key] ?? 'your purchase';
 }
 
-export function buildPurchaseConfirmHtml({ customerName, tier }) {
+export function buildPurchaseConfirmHtml({ customerName, tier, transactionId }) {
   const firstName = escapeHtml(customerName?.split(' ')[0] ?? 'Client');
   const tierLabel = escapeHtml(tierDisplay(tier));
   const isAddon = (tier ?? '').startsWith('addon_');
   const heading = isAddon ? 'Add-On Confirmed.' : 'Purchase Confirmed.';
+  const intake = !isAddon && isIntakeTier(tier);
   const blurb = isAddon
     ? `${firstName}, your add-on payment has been received. It's now attached to your active deal — we'll fold it into your delivery.`
-    : `${firstName}, your payment has been received. We'll be in touch within one business day with next steps and your intake form.`;
+    : `${firstName}, your payment has been received.`;
+  const intakeBlock = intake
+    ? `<p style="margin:0 0 20px;">${intakeButtonHtml(buildIntakeUrl(transactionId))}</p>`
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -311,7 +438,8 @@ export function buildPurchaseConfirmHtml({ customerName, tier }) {
           <td style="padding:0 40px 32px;">
             <h1 style="margin:0 0 16px;font-family:'Archivo Black',Impact,sans-serif;font-size:28px;color:#3B82F6;">${heading}</h1>
             <p style="margin:0 0 16px;font-size:16px;color:#d4d4d8;line-height:1.6;">${blurb}</p>
-            <p style="margin:0 0 12px;font-size:15px;color:#a1a1aa;">Item: <strong style="color:#3B82F6;">${tierLabel}</strong></p>
+            <p style="margin:0 0 20px;font-size:15px;color:#a1a1aa;">Item: <strong style="color:#3B82F6;">${tierLabel}</strong></p>
+            ${intakeBlock}
             <p style="margin:0;font-size:13px;color:#71717a;">Questions? Reply to this email, call <a href="tel:+18566938249" style="color:#3B82F6;text-decoration:none;">(856) 693-8249</a>, or visit <a href="https://www.aurevonvc.com" style="color:#3B82F6;text-decoration:none;">www.aurevonvc.com</a>.</p>
           </td>
         </tr>
@@ -327,6 +455,16 @@ export function buildPurchaseConfirmHtml({ customerName, tier }) {
 </html>`;
 }
 
+function buildPurchaseConfirmText({ customerName, tier, transactionId }) {
+  const firstName = customerName?.split(' ')[0] ?? 'Client';
+  const isAddon = (tier ?? '').startsWith('addon_');
+  const blurb = isAddon
+    ? `${firstName}, your add-on payment has been received. It's now attached to your active deal — we'll fold it into your delivery.`
+    : `${firstName}, your payment has been received.`;
+  const intake = !isAddon && isIntakeTier(tier) ? `Submit your deal:\n${buildIntakeUrl(transactionId)}\n\n` : '';
+  return `${blurb}\n\nItem: ${tierDisplay(tier)}\n\n${intake}Questions? mike@aurevonvc.com · (856) 693-8249 · www.aurevonvc.com\n\n— Aurevon Ventures LLC`;
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -334,39 +472,55 @@ export function buildPurchaseConfirmHtml({ customerName, tier }) {
 /**
  * Send a branded NFT delivery email via Resend.
  *
- * @param {{ email, customerName, nftType, mintId, nftImageUrl, discordInviteUrl, tier, serial, edition }} opts
- *   serial  — e.g. "EMBER_014" (displayed as monospace badge in the email)
- *   edition — numeric edition (e.g. 14); derived from serial when omitted
+ * @param {{ email, customerName, nftType, mintId, nftImageUrl, discordInviteUrl, tier, serial, edition, status, transactionId }} opts
+ *   status        — 'minted' (default) or 'pending' (payment received, mint not done)
+ *   serial        — e.g. "EMBER_014" (displayed as monospace badge in the email)
+ *   edition       — numeric edition (e.g. 14); derived from serial when omitted
+ *   transactionId — Stripe `cs_…` session id adds ?session_id= to the deal-intake link
+ * @returns {Promise<{ ok: true, id: string }>}
+ * @throws on a missing RESEND_API_KEY, a network error, or a non-2xx Resend response
  */
-export async function sendNftDelivery({ email, customerName, nftType, mintId, nftImageUrl, discordInviteUrl, tier, serial, edition }) {
+export async function sendNftDelivery({ email, customerName, nftType, mintId, nftImageUrl, discordInviteUrl, serial, edition, status = 'minted', transactionId = null }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error('Missing RESEND_API_KEY env var');
 
+  const pending = status === 'pending';
+
   // Derive edition from serial if not provided directly
   let resolvedEdition = edition;
-  if (resolvedEdition === null && serial) {
+  if (!isPresent(resolvedEdition) && serial) {
     const parts = serial.split('_');
     if (parts[1]) resolvedEdition = parseInt(parts[1], 10);
   }
-  const editionDisplay = resolvedEdition !== null ? String(resolvedEdition).padStart(3, '0') : null;
+  if (Number.isNaN(resolvedEdition)) resolvedEdition = null;
+  const editionDisplay = isPresent(resolvedEdition) ? String(resolvedEdition).padStart(3, '0') : null;
 
-  const subject = editionDisplay
-    ? `Your ${nftType} #${editionDisplay} is here — Welcome to Aurevon`
-    : `Your ${nftType} NFT is live — Welcome to Aurevon`;
+  let subject;
+  if (pending) subject = `Payment received: your ${nftType} is being finalized`;
+  else if (editionDisplay) subject = `Your ${nftType} #${editionDisplay} is here — Welcome to Aurevon`;
+  else subject = `Your ${nftType} NFT is live — Welcome to Aurevon`;
 
   // One-click Discord linking URL carrying the email-ownership token (H2). The
   // static DISCORD_INVITE_URL (if any) is only a fallback when signing is impossible.
-  const discordAccessUrl = buildDiscordAccessUrl(email, discordInviteUrl);
+  // A pending email carries no Discord link, so there is nothing to sign.
+  let discordAccessUrl = null;
+  if (!pending) {
+    discordAccessUrl = buildDiscordAccessUrl(email, discordInviteUrl);
+    if (!discordLinkIsSigned(discordAccessUrl)) {
+      await sendAlert('delivery.discord_link_unsigned', { reason: 'STATE_SECRET unset' }, { severity: 'high', dedupeKey: 'state_secret' });
+    }
+  }
 
+  const opts = { status, customerName, nftType, mintId, nftImageUrl, discordInviteUrl, discordAccessUrl, serial, edition: resolvedEdition, transactionId };
   const payload = {
     from: getFromAddress(),
     to: [email],
     subject,
-    html: buildNftDeliveryHtml({ customerName, nftType, mintId, nftImageUrl, discordInviteUrl, discordAccessUrl, tier, serial, edition: resolvedEdition }),
-    text: buildNftDeliveryText({ customerName, nftType, mintId, discordInviteUrl, discordAccessUrl, tier, serial, edition: resolvedEdition }),
+    html: buildNftDeliveryHtml(opts),
+    text: buildNftDeliveryText(opts),
   };
 
-  console.log(`[Resend] Sending NFT delivery email to ${email} — "${subject}"`);
+  console.log(`[Resend] Sending NFT delivery email (${pending ? 'pending' : 'minted'}) — "${subject}"`);
 
   let response;
   try {
@@ -377,27 +531,31 @@ export async function sendNftDelivery({ email, customerName, nftType, mintId, nf
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: globalThis.AbortSignal.timeout(RESEND_TIMEOUT_MS),
     });
   } catch (err) {
     console.error(`[Resend] Network error sending NFT delivery email:`, err.message);
-    return { ok: false, error: err.message };
+    throw err;
   }
 
   if (!response.ok) {
-    const errText = await response.text();
-    console.error(`[Resend] Send failed (${response.status}): ${errText}`);
-    return { ok: false, error: `Resend send failed (${response.status}): ${errText}` };
+    const errText = await response.text().catch(() => '');
+    let message = errText;
+    try { message = JSON.parse(errText)?.message ?? errText; } catch { /* not JSON */ }
+    const short = String(message).slice(0, 200);
+    console.error(`[Resend] Send failed (${response.status}): ${short}`);
+    throw new Error(`Resend ${response.status}: ${short}`);
   }
 
   const data = await response.json();
   console.log(`[Resend] Email sent. id=${data.id}`);
-  return data;
+  return { ok: true, id: data.id };
 }
 
 /**
  * Send a generic purchase confirmation (no NFT) for tiers like 'single'.
  */
-export async function sendPurchaseConfirmation({ email, customerName, tier }) {
+export async function sendPurchaseConfirmation({ email, customerName, tier, transactionId = null }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error('Missing RESEND_API_KEY env var');
 
@@ -409,11 +567,9 @@ export async function sendPurchaseConfirmation({ email, customerName, tier }) {
     from: getFromAddress(),
     to: [email],
     subject,
-    html: buildPurchaseConfirmHtml({ customerName, tier }),
-    text: `${customerName?.split(' ')[0] ?? 'Client'}, your payment has been received. We'll be in touch within one business day.\n\nItem: ${tierDisplay(tier)}\n\nQuestions? mike@aurevonvc.com · (856) 693-8249 · www.aurevonvc.com\n\n— Aurevon Ventures LLC`,
+    html: buildPurchaseConfirmHtml({ customerName, tier, transactionId }),
+    text: buildPurchaseConfirmText({ customerName, tier, transactionId }),
   };
-
-  console.log(`[Resend] Sending purchase confirmation email to ${email}`);
 
   let response;
   try {
@@ -424,6 +580,7 @@ export async function sendPurchaseConfirmation({ email, customerName, tier }) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: globalThis.AbortSignal.timeout(RESEND_TIMEOUT_MS),
     });
   } catch (err) {
     console.error(`[Resend] Network error sending purchase confirmation email:`, err.message);
@@ -461,7 +618,7 @@ function buildDiscordAccessHtml(discordAccessUrl) {
           <p style="margin:0 0 24px;font-size:16px;color:#d4d4d8;line-height:1.6;">Click below to connect your Discord account and unlock your member role. This secure link is tied to your email, expires soon, and can be used once.</p>
         </td></tr>
         <tr><td align="center" style="padding:0 40px 32px;">
-          <a href="${discordAccessUrl}" style="display:inline-block;padding:14px 36px;background:linear-gradient(90deg,#1E3A8A,#3B82F6);border-radius:8px;font-family:'Archivo Black',Impact,sans-serif;font-size:15px;font-weight:900;color:#0A0A0A;text-decoration:none;letter-spacing:0.5px;">CONNECT DISCORD &rarr;</a>
+          <a href="${discordAccessUrl}" style="display:inline-block;padding:14px 36px;background:linear-gradient(90deg,#1E3A8A,#3B82F6);border-radius:8px;font-family:'Archivo Black',Impact,sans-serif;font-size:15px;font-weight:900;color:#FFFFFF;text-decoration:none;letter-spacing:0.5px;">CONNECT DISCORD &rarr;</a>
         </td></tr>
         <tr><td style="padding:0 40px 32px;">
           <p style="margin:0;font-size:13px;color:#52525b;line-height:1.6;">If you did not request this, you can safely ignore this email — no changes were made to your account.</p>
@@ -506,6 +663,7 @@ export async function sendDiscordAccessLink({ email }) {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: globalThis.AbortSignal.timeout(RESEND_TIMEOUT_MS),
     });
   } catch (err) {
     console.error(`[Resend] Network error sending Discord access link:`, err.message);

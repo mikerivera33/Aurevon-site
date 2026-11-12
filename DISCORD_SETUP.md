@@ -52,11 +52,11 @@ For each role:
 Right-click each role → **Copy Role ID** → paste into your Vercel env vars:
 
 ```
-DISCORD_ROLE_INSIDER=<id for Aurevon Insider>
-DISCORD_ROLE_EMBER=<id for Aurevon Ember>
-DISCORD_ROLE_OBSIDIAN=<id for Aurevon Obsidian Executive>
-DISCORD_ROLE_GENESIS=<id for 001 Genesis>
-DISCORD_ROLE_CHROME=<id for 004 Chrome>
+DISCORD_ROLE_PRODUCT_A=<id for Aurevon Insider>
+DISCORD_ROLE_PRODUCT_B=<id for Aurevon Ember>
+DISCORD_ROLE_PRODUCT_C=<id for Aurevon Obsidian Executive>
+DISCORD_ROLE_MONTHLY=<id for 001 Genesis>
+DISCORD_ROLE_LIFETIME=<id for 004 Chrome>
 ```
 
 ---
@@ -150,8 +150,9 @@ In the Developer Portal → your application → **OAuth2**:
 
 1. Add redirect URI:
    ```
-   https://yourdomain.com/api/discord/callback
+   https://www.aurevonvc.com/api/discord?action=callback
    ```
+   (exact `REDIRECT_URI` in `api/discord.js`)
 2. Copy **Client ID** → `DISCORD_CLIENT_ID`
 3. Copy **Client Secret** → `DISCORD_CLIENT_SECRET`
 
@@ -166,25 +167,20 @@ Save as `DISCORD_GUILD_ID` in Vercel.
 
 ## 9. Vercel Environment Variables
 
-Add all of the following to your Vercel project (Settings → Environment Variables):
+The full list (Vercel and Railway) is in `docs/nft-pipeline-setup.md`, the single setup source. The Discord ones:
 
 ```
 DISCORD_CLIENT_ID=
 DISCORD_CLIENT_SECRET=
 DISCORD_BOT_TOKEN=
 DISCORD_GUILD_ID=
-DISCORD_ROLE_INSIDER=
-DISCORD_ROLE_EMBER=
-DISCORD_ROLE_OBSIDIAN=
-DISCORD_ROLE_GENESIS=
-DISCORD_ROLE_CHROME=
-DISCORD_INVITE_URL=https://discord.gg/YOUR_INVITE_CODE
-STATE_SECRET=         # 32+ random chars — generate with: openssl rand -hex 16
-DOMAIN=https://yourdomain.com
-AIRTABLE_API_KEY=
-AIRTABLE_BASE_ID=
-AIRTABLE_TABLE=NFT_Mints
-CRON_SECRET=          # Optional — protects /api/discord/check-membership
+DISCORD_INVITE_URL=
+DISCORD_ROLE_MONTHLY=      # 001 Genesis
+DISCORD_ROLE_LIFETIME=     # 004 Chrome
+DISCORD_ROLE_PRODUCT_A=    # Aurevon Insider
+DISCORD_ROLE_PRODUCT_B=    # Aurevon Ember
+DISCORD_ROLE_PRODUCT_C=    # Aurevon Obsidian Executive
+STATE_SECRET=
 ```
 
 ---
@@ -211,14 +207,11 @@ inside `check-membership.js` (Resend snippet is pre-commented in the file).
 
 ## 11. Test the Full OAuth Flow
 
-1. Generate a test invite URL manually:
-   ```
-   https://yourdomain.com/api/discord/auth?email=test@example.com
-   ```
+1. Make a test purchase (or request a link at `/member-claim`) and open the Discord link in that email.
 2. Open it in an incognito window.
 3. You should be redirected to the Discord consent screen.
-4. Authorize → Discord redirects to `/api/discord/callback`.
-5. Callback verifies state, exchanges code, looks up Airtable, assigns role.
+4. Authorize → Discord redirects to `/api/discord?action=callback`.
+5. Callback verifies state, exchanges code, looks up the member's passes in Supabase, assigns every grantable role.
 6. You land on `/discord-welcome.html` with your role displayed.
 7. Open Discord → Aurevon Operators → confirm the role appears on your profile.
 

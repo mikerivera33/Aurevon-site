@@ -53,7 +53,7 @@ jobs:
           echo "✓ .env.example looks clean"
 
       - name: Run unit tests
-        run: npm test
+        run: npm run test:coverage
 
       - name: Run lint
         run: npm run lint

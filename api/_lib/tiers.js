@@ -59,6 +59,65 @@ export const TIER_NFT_MAP = new Proxy({}, {
 });
 
 /**
+ * Canonical (bare) tier key: strips the checkout `re_` prefix
+ * (`re_full` → `full`); any other value is returned unchanged.
+ * Used for the stored NFT_Mints `Tier Source`.
+ */
+export function canonicalTier(tier) {
+  return typeof tier === 'string' ? tier.replace(/^re_/, '') : tier;
+}
+
+/**
+ * PayPal hosted-button item numbers → tier, from env `PAYPAL_ITEM_TIERS`
+ * (JSON `{ "<item_number>": "<tier>" }`). Parsed once per distinct env value.
+ * Values are canonicalised (`re_full` → `full`); entries naming a tier that is
+ * not in the catalog are dropped. Invalid JSON (or a non-object) → empty map
+ * with `invalid: true` so the caller can alert once.
+ *
+ * The map is only a HINT: a forged Buy Now form can set item_number too, so the
+ * IPN handler trusts a mapped tier only when the USD paid matches its price.
+ *
+ * @returns {{ map: Readonly<Record<string,string>>, invalid: boolean, dropped: string[], raw: string }}
+ */
+let _itemTiers = null;
+export function paypalItemTiers() {
+  const raw = String(process.env.PAYPAL_ITEM_TIERS ?? '').trim();
+  if (_itemTiers && _itemTiers.raw === raw) return _itemTiers;
+  const map = {};
+  const dropped = [];
+  let invalid = false;
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
+      for (const [item, tier] of Object.entries(parsed)) {
+        const key = canonicalTier(typeof tier === 'string' ? tier.trim() : '');
+        if (key && Object.hasOwn(_BASE, key)) map[String(item).trim()] = key;
+        else dropped.push(String(item));
+      }
+    } catch {
+      invalid = true;
+    }
+  }
+  _itemTiers = { map: Object.freeze(map), invalid, dropped, raw };
+  return _itemTiers;
+}
+
+// Only Aurevon Capital underwriting purchases unlock the deal-intake form —
+// not community memberships or stand-alone add-ons. Stripe metadata carries
+// the prefixed checkout key (re_full); PayPal rows carry the bare key (full).
+// Lives here (dependency-free) so email.js can use it without pulling in the
+// Stripe SDK; intake-verify.js re-exports it.
+export const INTAKE_TIERS = new Set(['single', 'full', 'bogo', 'retainer', 'enterprise', 'deal']);
+export function isIntakeTier(tier) {
+  return INTAKE_TIERS.has(String(tier ?? '').trim().toLowerCase().replace(/^re_/, ''));
+}
+
+/** Proof-of-payment id formats the deal-intake gate accepts. */
+export const STRIPE_SESSION_RE = /^cs_(test|live)_[A-Za-z0-9]+$/;
+export const PAYPAL_TXN_RE = /^[A-Za-z0-9]{8,32}$/;
+
+/**
  * Format a serial number as PREFIX_NNN.
  */
 export function formatSerial(prefix, number) {
@@ -67,12 +126,24 @@ export function formatSerial(prefix, number) {
 }
 
 /**
- * Return the next serial string for a given prefix by querying Airtable.
+ * Reserve the next serial string for a prefix (atomic Postgres counter).
+ *
+ * While the Airtable bridge is on, old Airtable mints may not be copied yet, so
+ * keep reserving until the number is past the Airtable count (bounded).
  */
 export async function getNextSerial(prefix) {
-  const { countNftMintsByPrefix } = await import('./airtable.js');
-  const count = await countNftMintsByPrefix(prefix);
-  return formatSerial(prefix, count + 1);
+  const { nextSerial } = await import('./db.js');
+  let n = await nextSerial(prefix);
+  const { airtableImportEnabled, countAirtableMintsByPrefix } = await import('./airtable-import.js');
+  if (airtableImportEnabled()) {
+    let airtableCount = 0;
+    try { airtableCount = await countAirtableMintsByPrefix(prefix); } catch (err) {
+      console.error(`[tiers] Airtable serial count failed for ${prefix}: ${err.message}`);
+    }
+    for (let i = 0; i < 50 && n <= airtableCount; i++) n = await nextSerial(prefix);
+    if (n <= airtableCount) throw new Error(`Serial for ${prefix} still behind Airtable count after 50 reservations`);
+  }
+  return formatSerial(prefix, n);
 }
 
 /**

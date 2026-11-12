@@ -8,10 +8,20 @@
  * non-members (no oracle).
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import handler from '../../portal/data.js';
 
-const MEMBERS = process.env.AIRTABLE_TABLE_MEMBERS ?? 'tblYPn7hxnrgH723B';
-const PAYMENTS = process.env.AIRTABLE_TABLE_PAYMENTS ?? 'tbl6KlhM9fIH19W5i';
+vi.mock('../db.js', () => ({
+  dbConfigured: vi.fn(() => true),
+  findMemberByEmail: vi.fn(),
+  listMintsByEmail: vi.fn(),
+  listPaymentsByEmail: vi.fn(),
+  findCustomerAuth: vi.fn(),
+  upsertCustomerAuth: vi.fn(),
+  updateCustomerAuth: vi.fn(),
+}));
+
+import handler from '../../portal/data.js';
+import * as db from '../db.js';
+
 const RESEND = 'api.resend.com/emails';
 
 const SAVED = { ...process.env };
@@ -30,63 +40,106 @@ function authReq(email) {
   return { method: 'POST', query: { action: 'auth' }, body: { email } };
 }
 
-/** Route fetch by URL: membership tables return `members` for the MEMBERS table
- *  (others empty), Resend + Airtable writes are recorded. */
-function installFetch({ memberRows = [], paymentRows = [] } = {}) {
-  const calls = { resend: 0, authWrite: 0, paymentQuery: null };
-  vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => {
-    if (url.includes(RESEND)) { calls.resend++; return { ok: true, text: async () => 'ok', json: async () => ({}) }; }
-    if (url.includes(MEMBERS)) return { ok: true, json: async () => ({ records: memberRows }) };
-    if (url.includes(PAYMENTS)) { calls.paymentQuery = decodeURIComponent(url); return { ok: true, json: async () => ({ records: paymentRows }) }; }
-    if ((opts.method === 'POST' || opts.method === 'PATCH')) { calls.authWrite++; return { ok: true, json: async () => ({ id: 'rec1' }) }; }
-    return { ok: true, json: async () => ({ records: [] }) }; // NFT / auth GET
+/** Membership lookups return the given rows; Resend sends are counted via fetch. */
+function install({ memberRow = null, mintRows = [], paymentRows = [] } = {}) {
+  const calls = { resend: 0 };
+  db.findMemberByEmail.mockResolvedValue(memberRow);
+  db.listMintsByEmail.mockResolvedValue(mintRows);
+  db.listPaymentsByEmail.mockResolvedValue(paymentRows);
+  db.findCustomerAuth.mockResolvedValue(null);
+  db.upsertCustomerAuth.mockResolvedValue({ id: 'rec1', fields: {} });
+  vi.stubGlobal('fetch', vi.fn(async (url) => {
+    if (String(url).includes(RESEND)) { calls.resend++; return { ok: true, text: async () => 'ok', json: async () => ({}) }; }
+    throw new Error(`unexpected fetch ${url}`);
   }));
   return calls;
 }
 
+const authWrites = () => db.upsertCustomerAuth.mock.calls.length + db.updateCustomerAuth.mock.calls.length;
+
 describe('portal auth membership gate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.AIRTABLE_PAT = 'pat_test';
-    process.env.AIRTABLE_BASE_ID = 'app_test';
+    db.dbConfigured.mockReturnValue(true);
     process.env.RESEND_API_KEY = 're_test';
   });
 
   it('non-member: returns uniform success but sends no email and writes no auth row', async () => {
-    const calls = installFetch({ memberRows: [] });
+    const calls = install();
     const r = res();
     await handler(authReq('stranger@example.com'), r);
     expect(r.statusCode).toBe(200);
     expect(r.body).toEqual({ ok: true, message: 'Check your email for a login link.' });
     expect(calls.resend).toBe(0);
-    expect(calls.authWrite).toBe(0);
+    expect(authWrites()).toBe(0);
   });
 
   it('member: proceeds to issue a link (email is sent)', async () => {
-    const calls = installFetch({ memberRows: [{ id: 'm1', fields: { Email: 'member@example.com' } }] });
+    const calls = install({ memberRow: { id: 'm1', fields: { Email: 'member@example.com' } } });
     const r = res();
     await handler(authReq('member@example.com'), r);
+    expect(r.statusCode).toBe(200);
+    expect(calls.resend).toBe(1);
+    expect(db.upsertCustomerAuth).toHaveBeenCalledWith('member@example.com', expect.objectContaining({
+      'Magic Token': expect.stringMatching(/^[0-9a-f]{64}$/),
+      'Session Active': false,
+    }));
+  });
+
+  it('NFT-only member (mint row, no Members/Payments) is NOT locked out', async () => {
+    const calls = install({ mintRows: [{ id: 'n1', fields: { Email: 'nft@example.com', 'Mint Status': 'Sent' } }] });
+    const r = res();
+    await handler(authReq('nft@example.com'), r);
     expect(r.statusCode).toBe(200);
     expect(calls.resend).toBe(1);
   });
 
   it('add-on-only buyer (Payments row, no Members/NFT) is NOT locked out', async () => {
-    // Regression: Payments stores 'Customer Email', not 'Email'. An add-on purchase
-    // creates only a Payments row — querying the wrong field would silently deny a
-    // real payer their portal login link.
-    const calls = installFetch({ paymentRows: [{ id: 'p1', fields: { 'Customer Email': 'addon@example.com' } }] });
+    // Regression: an add-on purchase creates only a Payments row (keyed by
+    // 'Customer Email', not 'Email'). The gate must consult Payments by email,
+    // or a real payer is silently denied their portal login link. The column
+    // choice itself is covered in db.test.js (listPaymentsByEmail → customer_email).
+    const calls = install({ paymentRows: [{ id: 'p1', fields: { 'Customer Email': 'addon@example.com' } }] });
     const r = res();
-    await handler(authReq('addon@example.com'), r);
+    await handler(authReq('Addon@Example.com'), r);
     expect(r.statusCode).toBe(200);
     expect(calls.resend).toBe(1); // link WAS sent
-    expect(calls.paymentQuery.replace(/\+/g, ' ')).toContain('Customer Email'); // queried the field createPayment writes (spaces are +-encoded in the query string)
+    expect(db.listPaymentsByEmail).toHaveBeenCalledWith('addon@example.com', 1);
+  });
+
+  it('a failing membership lookup fails closed (treated as non-member, uniform body)', async () => {
+    const calls = install();
+    db.findMemberByEmail.mockRejectedValueOnce(new Error('Supabase timeout'));
+    const r = res();
+    await handler(authReq('maybe@example.com'), r);
+    expect(r.statusCode).toBe(200);
+    expect(r.body).toEqual({ ok: true, message: 'Check your email for a login link.' });
+    expect(calls.resend).toBe(0);
+    expect(authWrites()).toBe(0);
   });
 
   it('non-member response is byte-identical to the member success message (no oracle)', async () => {
-    const calls = installFetch({ memberRows: [] });
+    const calls = install({ memberRow: { id: 'm1', fields: {} } });
+    const member = res();
+    await handler(authReq('member@example.com'), member);
+
+    install();
+    const nonMember = res();
+    await handler(authReq('nobody@example.com'), nonMember);
+
+    expect(nonMember.statusCode).toBe(member.statusCode);
+    expect(JSON.stringify(nonMember.body)).toBe(JSON.stringify(member.body));
+    expect(nonMember.body.message).toBe('Check your email for a login link.');
+    expect(calls.resend).toBe(1); // only the member's link went out
+  });
+
+  it('refuses with 500 (no lookups, no email) when the database is not configured', async () => {
+    const calls = install({ memberRow: { id: 'm1', fields: {} } });
+    db.dbConfigured.mockReturnValue(false);
     const r = res();
-    await handler(authReq('nobody@example.com'), r);
-    expect(r.body.message).toBe('Check your email for a login link.');
+    await handler(authReq('member@example.com'), r);
+    expect(r.statusCode).toBe(500);
+    expect(db.findMemberByEmail).not.toHaveBeenCalled();
     expect(calls.resend).toBe(0);
   });
 });

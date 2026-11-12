@@ -1,3 +1,4 @@
+# Not used by the mint path since Nov 2026 (templates are not read); kept for reference.
 name: Create Crossmint NFT Templates
 
 on:

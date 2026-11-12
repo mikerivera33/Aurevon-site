@@ -1,3 +1,5 @@
+> Current Railway variable list (Supabase, not Airtable): see [README.md](README.md#required-configuration).
+
 # Railway Quick Deploy — Aurevon Discord Bot
 
 Get `discord/bot.js` live on Railway in 10 minutes. This complements the existing `RAILWAY_DEPLOY.md` with a no-prose checklist.
@@ -46,10 +48,13 @@ DISCORD_ROLE_PRODUCT_A=          # Role ID for Aurevon Insider
 DISCORD_ROLE_PRODUCT_B=          # Role ID for Aurevon Ember
 DISCORD_ROLE_PRODUCT_C=          # Role ID for Aurevon Obsidian Executive
 DISCORD_ROLE_VERIFIED=           # Role ID for Verified Member
+DISCORD_INVITE_URL=              # Server invite link
 
-AIRTABLE_PAT=                    # same value as Vercel
-AIRTABLE_BASE_ID=appI9X8vcRcK1QZ1l
+SUPABASE_URL=                    # same value as Vercel
+SUPABASE_SECRET_KEY=             # same value as Vercel
 ```
+
+Matches `discord/README.md` → "Required configuration". Optional: `ENTITLEMENT_GRACE_PERIOD_DAYS`; Railway sets `PORT`.
 
 ### How to get role IDs fast
 
@@ -77,7 +82,7 @@ The full purchase pipeline only works when **both** are configured. Quick smoke 
 
 - [ ] Run a $1 Stripe test purchase via Stripe Test Mode dashboard
 - [ ] Vercel logs: should see `[Stripe] checkout.session.completed → mint queued`
-- [ ] Crossmint dashboard: action.succeeded for the test email
+- [ ] Crossmint dashboard: the webhook delivered `nfts.create.succeeded` (Svix-signed, `whsec_` secret) for the test mint
 - [ ] Vercel logs: should see `[Crossmint Webhook] Mint success`
 - [ ] If test customer has linked Discord ID → Railway logs: `Role added: Aurevon Insider`
 
@@ -88,7 +93,7 @@ If any step fails, see `docs/AUREVON_INTEGRATION_MAP.md` → "Common failure mod
 The bot keeps no local state beyond Discord's own audit log. Railway restarts are safe. However:
 
 - [ ] In Railway → service → **Settings** → confirm **Restart policy** = `on_failure`, max retries `10` (already set in `railway.json`)
-- [ ] Optional: enable **Healthcheck** path = leave null for now (bot has no HTTP server by default; would require adding one)
+- [ ] In Railway → service → **Settings** → **Healthcheck path** = `/healthz` (already set in `railway.json`). The bot serves `GET /healthz` on `PORT` and answers 200 only once it is logged in to Discord.
 - [ ] Watch the first 24h of logs for any unhandled rejections
 
 ## Re-running the slash command deploy
