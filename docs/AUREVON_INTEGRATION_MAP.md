@@ -7,7 +7,7 @@ How every system in this repo connects. Read this before changing webhooks, env 
 | System | Hosted on | Role |
 |---|---|---|
 | **aurevon-site** (this repo) | Vercel (`www.aurevonvc.com`) | Public marketing site, checkout pages, member portal, all serverless API + webhooks |
-| **Discord bot** (`discord/bot.js`) | Railway (persistent process) | Server moderation, marketing, tier role assignment, member analytics |
+| **Discord bot** (`discord/bot.js`) | Google Compute Engine VM (persistent process, `deploy/gcp/`) | Server moderation, marketing, tier role assignment, member analytics |
 | **Airtable** (`appI9X8vcRcK1QZ1l`) | Airtable Cloud | Source of truth: members, payments, NFT mints, customer auth, leads |
 | **Stripe** | Stripe | Payments for memberships + RE services |
 | **Crossmint** | Crossmint Cloud | Custodial NFT minting on Base (no wallet required from customer) |
@@ -62,7 +62,7 @@ Defined canonically in `api/_lib/entitlements.js`. Do not duplicate this elsewhe
 
 ## Env var ownership (which env var goes where)
 
-See `docs/nft-pipeline-setup.md` → "Environment variables by purpose" (Vercel, GitHub and Railway lists). It is the single setup source.
+See `docs/nft-pipeline-setup.md` → "Environment variables by purpose" (Vercel, GitHub and Discord bot lists). It is the single setup source. The bot's values live in the Google Secret Manager secret `aurevon-bot-env` (`deploy/gcp/README.md`).
 
 ## Webhook endpoints (configure in each provider's dashboard)
 
@@ -93,7 +93,7 @@ To run on demand: GitHub → Actions → Scheduled Health Monitor → Run workfl
 |---|---|---|
 | Crossmint webhook fires but Discord role not assigned | Customer's Discord ID not linked in Airtable Members | Have them complete `/discord-welcome.html` OAuth, or run `/verify-member` in server |
 | Stripe payment succeeds but no NFT mint | `CROSSMINT_API_KEY` missing in Vercel | Set in Vercel → Settings → Environment Variables → redeploy |
-| Bot online but `/sync-member` fails | `SUPABASE_URL` / `SUPABASE_SECRET_KEY` missing in Railway | Add to Railway → Variables → restart |
+| Bot online but `/sync-member` fails | `SUPABASE_URL` / `SUPABASE_SECRET_KEY` missing in `aurevon-bot-env` | Add a new secret version → run the Deploy Discord bot workflow |
 | Vercel build fails on deploy | YAML / merge conflict markers in `.github/workflows/*` | Validate with `python3 -c "import yaml; yaml.safe_load(open('PATH'))"` |
 | New tier added but no role assigned | New entitlement not in `entitlements.js` ENTITLEMENT_MAP | Add the SKU and the `discordRoleEnv` mapping |
 
@@ -102,7 +102,7 @@ To run on demand: GitHub → Actions → Scheduled Health Monitor → Run workfl
 1. Add the entitlement to `api/_lib/entitlements.js` → `ENTITLEMENT_MAP`
 2. Add the legacy mapping to `api/_lib/tiers.js` → `_BASE`
 3. Optionally add a Crossmint collection override env var (`collectionEnv`; templates are no longer used)
-4. Add the Discord role env var (`DISCORD_ROLE_<TIER>`) in both Vercel and Railway
+4. Add the Discord role env var (`DISCORD_ROLE_<TIER>`) in both Vercel and `aurevon-bot-env`
 5. Create the Discord role in the server, copy the ID
 6. Update `discord/bot.js` → `TIER_DEFS` map at the top
 7. Add the role to `/sync-member` and `/dm-tier` choices
@@ -112,7 +112,7 @@ To run on demand: GitHub → Actions → Scheduled Health Monitor → Run workfl
 
 If you create a new server, the following must change:
 
-- `DISCORD_GUILD_ID` (in both Vercel and Railway)
+- `DISCORD_GUILD_ID` (in both Vercel and `aurevon-bot-env`)
 - Every `DISCORD_ROLE_*` env var (new role IDs)
 - `DISCORD_INVITE_URL` (if used in marketing pages)
 - Re-run `npm run setup` inside `discord/` to scaffold channels/categories on the new server

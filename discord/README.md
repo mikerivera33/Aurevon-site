@@ -6,9 +6,9 @@
 
 ## Required configuration
 
-Gateway bot (`bot.js`) on Railway.
+Gateway bot (`bot.js`) on a Google Compute Engine VM. Deploys and logs: `deploy/gcp/README.md`.
 
-### Railway variables
+### Bot variables (Secret Manager secret `aurevon-bot-env`)
 
 | Variable | Value |
 |---|---|
@@ -26,7 +26,7 @@ Gateway bot (`bot.js`) on Railway.
 | `SUPABASE_SECRET_KEY` | Supabase secret key (same as Vercel) |
 | `SITE_URL` | `https://www.aurevonvc.com` |
 
-Optional: `ENTITLEMENT_GRACE_PERIOD_DAYS` (default `7`), `PORT` (default `8080`; Railway sets it).
+Optional: `ENTITLEMENT_GRACE_PERIOD_DAYS` (default `7`), `PORT` (default `8080`).
 
 ### Discord Developer Portal → Bot → Privileged Gateway Intents
 
@@ -40,7 +40,7 @@ The bot's role has **Manage Roles** and sits **above** the 5 tier roles (001 Gen
 
 ### Health check
 
-`GET /healthz` → `200 ok` when connected to Discord, `503` otherwise. `railway.json` sets `healthcheckPath: /healthz`.
+`GET /healthz` → `200 ok` when connected to Discord, `503` otherwise. On the VM no firewall rule opens the port, so it is reachable only from the VM itself.
 
 ### Role rules (`/sync-member`, `/sync-all`)
 

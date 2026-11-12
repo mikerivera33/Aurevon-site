@@ -3,7 +3,7 @@
 How a paid order becomes an NFT, an email and a Discord role, and everything
 the owner has to configure for that to work. This repo is public: this file
 names environment variables only. Never paste a value into it, into code or
-into chat. Values go only into the Vercel, Railway and GitHub settings fields
+into chat. Values go only into the Vercel, Google Secret Manager and GitHub settings fields
 named below.
 
 Generate a random secret with:
@@ -49,7 +49,7 @@ Generate a random secret with:
    revocations.
 7. Discord: the signed link in the email starts Discord OAuth, which grants
    the role for every pass the member holds. `/member-claim` emails a fresh
-   link. Errors land on `/discord-welcome.html?error=<code>`. The Railway bot
+   link. Errors land on `/discord-welcome.html?error=<code>`. The Discord bot
    keeps roles in step.
 
 ## Environment variables by purpose
@@ -76,10 +76,10 @@ GitHub → repo → Settings → Secrets and variables → Actions: `INTERNAL_AP
 (same value as Vercel) so `.github/workflows/health-check.yml` can read the
 full health report.
 
-Railway (Discord bot, `discord/bot.js`): `DISCORD_BOT_TOKEN`,
+Discord bot (`discord/bot.js`, Google Secret Manager secret `aurevon-bot-env`, one `KEY=value` per line): `DISCORD_BOT_TOKEN`,
 `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`, the five `DISCORD_ROLE_*` above plus
 `DISCORD_ROLE_VERIFIED`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SITE_URL`, `DISCORD_INVITE_URL`,
-optional `ENTITLEMENT_GRACE_PERIOD_DAYS`. Railway sets `PORT`.
+optional `ENTITLEMENT_GRACE_PERIOD_DAYS`.
 
 ## Stripe webhook events
 
@@ -188,25 +188,27 @@ secret too. Optionally set `DOMAIN` and `BASE_URL` to
 
 **O9. Discord.** Developer Portal → your application:
 1. General Information → Application ID → Vercel `DISCORD_CLIENT_ID` (must
-   equal Railway's). OAuth2 → Client Secret → Vercel `DISCORD_CLIENT_SECRET`.
+   equal the bot's). OAuth2 → Client Secret → Vercel `DISCORD_CLIENT_SECRET`.
 2. Bot → Privileged Gateway Intents: enable Server Members (and any the bot
-   README lists) → Save. Bot token → Vercel and Railway `DISCORD_BOT_TOKEN`.
+   README lists) → Save. Bot token → Vercel and `aurevon-bot-env` `DISCORD_BOT_TOKEN`.
 3. OAuth2 → Redirects → add
    `https://www.aurevonvc.com/api/discord?action=callback` → Save.
 4. Discord server → Server Settings → Roles: drag the bot's role above
    Genesis, Chrome, Insider, Ember, Obsidian and Verified, and confirm it has
    Manage Roles.
 5. With Developer Mode on, right-click each role → Copy Role ID, and set the
-   matching `DISCORD_ROLE_*` on Vercel and Railway (MONTHLY = Genesis,
+   matching `DISCORD_ROLE_*` on Vercel and in `aurevon-bot-env` (MONTHLY = Genesis,
    LIFETIME = Chrome, PRODUCT_A = Insider, PRODUCT_B = Ember, PRODUCT_C =
    Obsidian). Server ID → `DISCORD_GUILD_ID`. An invite link →
    `DISCORD_INVITE_URL`.
 
-**O10. Railway bot.** Railway → the bot service → Variables: set the Railway
-list above. Remove `AIRTABLE_*` once the database migration is confirmed.
-Settings → Healthcheck path `/healthz` (already in `railway.json`; it answers
-200 once the bot is logged in). Settings → Source: repo and branch `main`.
-Deploy and watch the log for the bot coming online.
+**O10. Discord bot (Google Cloud).** The bot runs on the Compute Engine VM
+`aurevon-discord-bot` (`deploy/gcp/README.md`). Google Cloud console → Secret
+Manager → `aurevon-bot-env` → New version: paste the bot list above, one
+`KEY=value` per line. Then GitHub → Actions → Deploy Discord bot → Run
+workflow (a push to `main` that touches `discord/**` does the same). The VM
+installs the bundle within about 2 minutes; the serial log shows
+`Aurevon Bot online`. Railway is no longer used.
 
 **O11. Redeploy and verify.** Env changes apply only to new deployments.
 1. Vercel → Deployments → latest production → Redeploy.

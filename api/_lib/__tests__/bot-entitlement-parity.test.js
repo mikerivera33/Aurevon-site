@@ -39,7 +39,7 @@ describe('bot entitlement table matches the site ENTITLEMENT_MAP', () => {
     }
   });
 
-  it('discord/entitlements.js stays dependency-free (Railway deploys discord/ alone)', () => {
+  it('discord/entitlements.js stays dependency-free (the bot is deployed from discord/ alone)', () => {
     const src = readFileSync(fileURLToPath(new URL('../../../discord/entitlements.js', import.meta.url)), 'utf8');
     expect(src).not.toMatch(/^\s*import\s/m);
     expect(src).not.toMatch(/\brequire\(/);

@@ -3,7 +3,7 @@
 > Complete every item on this list before announcing the site publicly.
 > Date: ________________  Deployed by: ________________  Version: ________________
 >
-> For the NFT pipeline (env vars, webhooks, Discord, Railway), `docs/nft-pipeline-setup.md` is the single setup source and wins over anything below.
+> For the NFT pipeline (env vars, webhooks, Discord, the bot on Google Cloud), `docs/nft-pipeline-setup.md` is the single setup source and wins over anything below.
 
 ---
 

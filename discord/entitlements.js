@@ -1,5 +1,5 @@
 /**
- * Entitlement table for the Railway gateway bot — a hand-copied subset of
+ * Entitlement table for the gateway bot (Google Compute Engine VM) — a hand-copied subset of
  * api/_lib/entitlements.js ENTITLEMENT_MAP (the bot deploys on its own and
  * cannot import from api/). Dependency-free, pure functions only.
  *

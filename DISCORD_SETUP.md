@@ -167,7 +167,7 @@ Save as `DISCORD_GUILD_ID` in Vercel.
 
 ## 9. Vercel Environment Variables
 
-The full list (Vercel and Railway) is in `docs/nft-pipeline-setup.md`, the single setup source. The Discord ones:
+The full list (Vercel and the bot's Google Cloud secret) is in `docs/nft-pipeline-setup.md`, the single setup source. The Discord ones:
 
 ```
 DISCORD_CLIENT_ID=

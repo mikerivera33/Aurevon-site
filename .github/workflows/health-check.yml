@@ -235,7 +235,7 @@ jobs:
           | API Health endpoint | HTTP $HTTP_STATUS |
           | All page routes (9 checked) | $( [ "$ALL_ROUTES" = "true" ] && echo "✅ All OK" || echo "❌ One or more failing" ) |
           | Vercel runtime logs | ⚠️ MCP token scope — check Vercel dashboard manually |
-          | Railway | ⚠️ No Railway MCP integration — check Railway dashboard manually |
+          | Discord bot (GCE) | ⚠️ Check the VM serial output — see deploy/gcp/README.md |
 
           ## GitHub Issues
           | Label | Count |
@@ -256,7 +256,7 @@ jobs:
 
           ## Gaps (manual checks needed)
           - **Vercel**: Runtime error logs and traffic analytics require direct Vercel dashboard access (MCP token is personal-scope only)
-          - **Railway**: No MCP integration available — check Railway dashboard for resource usage and logs
+          - **Discord bot**: runs on the Compute Engine VM `aurevon-discord-bot` — logs via `gcloud compute instances get-serial-port-output` (deploy/gcp/README.md)
 
           ---
           *Next scheduled check: ~8 hours · Workflow: [health-check.yml](https://github.com/${{ github.repository }}/actions/workflows/health-check.yml)*

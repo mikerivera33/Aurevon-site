@@ -73,7 +73,7 @@ Headings, facts, actions. No eyebrow labels, taglines, intro paragraphs under he
 - `payments.transaction_id` is UNIQUE: `createPayment` is the atomic webhook idempotency marker. A concurrent redelivery gets `err.code === 'DUPLICATE_PAYMENT'` and the webhook returns quietly — that is not an error.
 - Owner consoles (`aurevon-crm.html`, `operator.html`) read through `/api/admin/data` with `Authorization: Bearer <ADMIN_SECRET>`; only lead `Status`/`Notes`/`Analyst` are writable there. Owners can also edit rows in the Supabase Table Editor.
 - Deal intake: the form still posts to Formspree (owner email + attachments); `/api/intake/submit` re-verifies payment and saves the lead to Supabase.
-- `discord/bot.js` (Railway) reads/writes the same tables via Supabase REST with its own `SUPABASE_URL` + `SUPABASE_SECRET_KEY`.
+- `discord/bot.js` (Google Compute Engine VM, see `deploy/gcp/README.md`) reads/writes the same tables via Supabase REST with its own `SUPABASE_URL` + `SUPABASE_SECRET_KEY`.
 
 ## Archive index — code that's been removed but kept for re-activation
 
