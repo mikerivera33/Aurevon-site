@@ -100,22 +100,38 @@ export async function addMemberToGuild(discordId, oauthAccessToken, roleIds = []
 
 /**
  * Sync a member's entitlement roles.
- * Assigns targetRoleId. Optionally removes obsolete roles (other entitlement roles).
+ * Assigns every target role (each attempted even if an earlier one fails), then
+ * removes obsolete roles that are not also targets (best-effort, non-fatal).
+ * Throws the first assignment error, carrying `failedRoleIds`, when any failed.
  *
  * @param {string} discordId
- * @param {string} targetRoleId         — role to assign
- * @param {string[]} obsoleteRoleIds    — roles to remove (e.g. old tier)
+ * @param {string|string[]} targetRoleIds — role(s) to assign
+ * @param {string[]} obsoleteRoleIds      — roles to remove (e.g. a lapsed monthly)
+ * @returns {Promise<{ granted: string[] }>}
  */
-export async function syncMemberRoles(discordId, targetRoleId, obsoleteRoleIds = []) {
-  // Assign the target role first
-  await addRoleToMember(discordId, targetRoleId);
+export async function syncMemberRoles(discordId, targetRoleIds, obsoleteRoleIds = []) {
+  const targets = (Array.isArray(targetRoleIds) ? targetRoleIds : [targetRoleIds]).filter(Boolean);
+  const granted = [];
+  const failedRoleIds = [];
+  let firstError = null;
+  for (const rid of targets) {
+    try {
+      await addRoleToMember(discordId, rid);
+      granted.push(rid);
+    } catch (err) {
+      failedRoleIds.push(rid);
+      firstError ??= err;
+    }
+  }
 
-  // Remove any obsolete roles (best-effort, non-fatal)
-  for (const rid of obsoleteRoleIds) {
-    if (rid && rid !== targetRoleId) {
+  for (const rid of obsoleteRoleIds ?? []) {
+    if (rid && !targets.includes(rid)) {
       await removeRoleFromMember(discordId, rid).catch((err) =>
         console.warn(`[Discord Bot] Could not remove role ${rid}: ${err.message}`)
       );
     }
   }
+
+  if (firstError) throw Object.assign(firstError, { failedRoleIds, granted });
+  return { granted };
 }

@@ -290,11 +290,11 @@ fi
 section "6. Crossmint Connectivity"
 
 if require_env "CROSSMINT_API_KEY" && require_env "CROSSMINT_COLLECTION_ID"; then
-  CROSSMINT_ENV="${CROSSMINT_ENVIRONMENT:-staging}"
-  if [[ "$CROSSMINT_ENV" == "production" ]]; then
-    CROSSMINT_BASE="https://www.crossmint.com/api/2022-06-09"
-  else
+  # Same rule as the API: CROSSMINT_ENV=staging → staging, anything else → production.
+  if [[ "${CROSSMINT_ENV:-}" == "staging" ]]; then
     CROSSMINT_BASE="https://staging.crossmint.com/api/2022-06-09"
+  else
+    CROSSMINT_BASE="https://www.crossmint.com/api/2022-06-09"
   fi
 
   XMINT_RESPONSE=$(curl -sf --max-time 10 \

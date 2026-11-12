@@ -9,7 +9,8 @@
  *   - round-trip: verify derives the (normalized) email from a signed token,
  *   - tamper/forgery is rejected (signature mismatch, timing-safe),
  *   - expiry is enforced,
- *   - /api/discord?action=auth FAILS CLOSED for old ?email=-only links (no token),
+ *   - /api/discord?action=auth FAILS CLOSED for old ?email=-only links (no token)
+ *     — a 302 to the welcome page's error box, never to Discord OAuth,
  *   - a valid token redirects to Discord with the token as `state` (no ?email=).
  */
 import crypto from 'node:crypto';
@@ -84,18 +85,25 @@ describe('Discord access token — sign/verify (H2)', () => {
 });
 
 describe('/api/discord?action=auth — token gating (H2)', () => {
-  it('FAILS CLOSED for an old ?email=-only link (no token) with 400', async () => {
+  // Browser route (Task 8): failures are a 302 to the welcome page's error box,
+  // never to Discord OAuth and never a JSON body.
+  it('FAILS CLOSED for an old ?email=-only link (no token): 302 to ?error=invalid_link, not OAuth', async () => {
     const res = mockRes();
     await handler({ method: 'GET', query: { action: 'auth', email: 'victim@example.com' }, headers: {} }, res);
-    expect(res.statusCode).toBe(400);
-    expect(res.redirectedTo).toBeNull();
+    expect(res.statusCode).toBe(302);
+    expect(res.redirectedTo).toMatch(/\/discord-welcome\.html\?error=invalid_link$/);
+    expect(res.redirectedTo).not.toContain('discord.com');
+    expect(res.redirectedTo).not.toContain('victim');
+    expect(res.body).toBeNull();
   });
 
-  it('rejects an invalid/forged token with 403 (no redirect)', async () => {
+  it('rejects an invalid/forged token: 302 to ?error=invalid_link, not OAuth', async () => {
     const res = mockRes();
     await handler({ method: 'GET', query: { action: 'auth', token: 'garbage.token' }, headers: {} }, res);
-    expect(res.statusCode).toBe(403);
-    expect(res.redirectedTo).toBeNull();
+    expect(res.statusCode).toBe(302);
+    expect(res.redirectedTo).toMatch(/\/discord-welcome\.html\?error=invalid_link$/);
+    expect(res.redirectedTo).not.toContain('discord.com');
+    expect(res.body).toBeNull();
   });
 
   it('redirects to Discord OAuth with a valid token as state (never trusts ?email=)', async () => {

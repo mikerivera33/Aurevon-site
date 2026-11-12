@@ -5,23 +5,94 @@
  * Verification: re-POST the exact body back to PayPal IPN endpoint with
  * "cmd=_notify-validate" prepended — PayPal responds "VERIFIED" or "INVALID".
  *
- * Same downstream pipeline as Stripe: database → Crossmint → database → Resend.
+ * Same downstream pipeline as Stripe: Payments marker → fulfilNft (Crossmint → NFT_Mints → Resend).
+ *
+ * txn_type routing (missing txn_type = web_accept):
+ *   web_accept / express_checkout / cart / subscr_payment / recurring_payment → fulfilment
+ *     (a subscr_payment / recurring_payment whose subscription already has a
+ *      Payments row is a renewal: recorded, monthly billing extended, never minted)
+ *   subscr_cancel / subscr_eot / subscr_failed and the recurring-profile
+ *     cancel / expired / suspended types → monthly billing cancelled only
+ *   anything else (subscr_signup, adjustments, …) → logged, nothing written
  */
 
 import { waitUntil } from '@vercel/functions';
-import { TIER_NFT_MAP, getNextSerial, formatSerial, inferTierFromAmount } from '../_lib/tiers.js';
-import { mintToEmail } from '../_lib/crossmint.js';
-import { createPayment, createNftMint, findPaymentByTransactionId } from '../_lib/db.js';
-import { sendNftDelivery, sendPurchaseConfirmation } from '../_lib/email.js';
+import { TIER_NFT_MAP, inferTierFromAmount, canonicalTier, paypalItemTiers } from '../_lib/tiers.js';
+import { resolveEntitlementFromSku } from '../_lib/entitlements.js';
+import { fulfilNft } from '../_lib/fulfil.js';
+import {
+  createPayment, findPaymentByTransactionId, findPaymentBySubscriptionId,
+  listPaymentsByEmail, updateEntitlementState,
+} from '../_lib/db.js';
+import { sendPurchaseConfirmation } from '../_lib/email.js';
 import { sendAlert } from '../_lib/alert.js';
 
 const PAYPAL_IPN_VERIFY_URL_LIVE    = 'https://ipnpb.paypal.com/cgi-bin/webscr';
 const PAYPAL_IPN_VERIFY_URL_SANDBOX = 'https://ipnpb.sandbox.paypal.com/cgi-bin/webscr';
 
+const DAY_MS = 86_400_000;
+// A PayPal monthly renewal pays the next month; 31 days covers the longest one.
+const SUBSCRIPTION_PERIOD_DAYS = 31;
+
+// ---------------------------------------------------------------------------
+// txn_type routing
+// ---------------------------------------------------------------------------
+
+/** Payment types that may fulfil (mint / confirm). Everything else never does. */
+const FULFIL_TXN_TYPES = new Set(['web_accept', 'express_checkout', 'cart', 'subscr_payment', 'recurring_payment']);
+/** Recurring payments: the first one for a subscription fulfils, later ones are renewals. */
+const RECURRING_PAYMENT_TYPES = new Set(['subscr_payment', 'recurring_payment']);
+/** Subscription lifecycle types: billing state only, no Payments row, no txn_id needed. */
+const LIFECYCLE_TXN_TYPES = new Set([
+  'subscr_cancel', 'subscr_eot', 'subscr_failed',
+  'recurring_payment_profile_cancel', 'recurring_payment_expired',
+  'recurring_payment_suspended', 'recurring_payment_suspended_due_to_max_failed_payment',
+]);
+
+/**
+ * The IPN's txn_type, lower-cased. A missing txn_type is treated as
+ * `web_accept`: hosted NCP (no-code checkout) IPNs sometimes omit it.
+ */
+export function ipnTxnType(ipn) {
+  const t = String(ipn?.txn_type ?? '').trim().toLowerCase();
+  return t || 'web_accept';
+}
+
+/** Log-safe rendering of an IPN token (txn_type etc.) — no free text in logs. */
+function logToken(v) {
+  return String(v ?? '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) || '(blank)';
+}
+
+/** PayPal subscription ids are I-…/S-… style; anything else is treated as absent. */
+function cleanSubscrId(v) {
+  const s = String(v ?? '').trim();
+  return /^[A-Za-z0-9-]{1,64}$/.test(s) ? s : null;
+}
+
+/**
+ * The subscription an IPN belongs to: Subscribe-button IPNs (subscr_*) carry
+ * subscr_id → Token `subscr:<id>`; recurring-payment-profile IPNs
+ * (recurring_payment*) carry recurring_payment_id → Token `rpp:<id>`.
+ * @returns {{ kind: 'subscr'|'rpp', id: string, token: string }|null}
+ */
+function subscriptionOf(ipn, txnType) {
+  const kind = txnType.startsWith('recurring_payment') ? 'rpp' : 'subscr';
+  const id = cleanSubscrId(kind === 'rpp' ? ipn.recurring_payment_id : ipn.subscr_id);
+  return id ? { kind, id, token: `${kind}:${id}` } : null;
+}
+
 // ---------------------------------------------------------------------------
 // IPN Verification
 // ---------------------------------------------------------------------------
 
+const VERIFY_TIMEOUT_MS = 10_000;
+
+/**
+ * Ask PayPal whether this IPN is genuine.
+ * @returns {Promise<boolean>} true = VERIFIED, false = INVALID
+ * @throws on a network error / timeout or any other response (status page,
+ *   empty body …): the caller answers 500 so PayPal redelivers.
+ */
 async function verifyPayPalIPN(rawBody) {
   const verifyUrl = process.env.PAYPAL_MODE === 'sandbox'
     ? PAYPAL_IPN_VERIFY_URL_SANDBOX
@@ -34,11 +105,14 @@ async function verifyPayPalIPN(rawBody) {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: verifyBody,
+    signal: globalThis.AbortSignal?.timeout?.(VERIFY_TIMEOUT_MS),
   });
 
-  const result = await response.text();
-  console.log(`[PayPal IPN] Verification result: ${result}`);
-  return result.trim() === 'VERIFIED';
+  const result = String(await response.text()).trim();
+  console.log(`[PayPal IPN] Verification result: ${logToken(result)}`);
+  if (result === 'VERIFIED') return true;
+  if (result === 'INVALID') return false;
+  throw new Error(`unexpected verify response (HTTP ${response.status ?? '?'})`);
 }
 
 // ---------------------------------------------------------------------------
@@ -53,22 +127,17 @@ function parseIPN(rawBody) {
 // Infer tier from IPN data
 // ---------------------------------------------------------------------------
 
-// PayPal-eligible tiers (RE + Community). Restricting amount inference to these
-// avoids collisions with add-on / archived web3 tiers that share dollar amounts.
+// PayPal-eligible tiers (RE + Community). Restricting `custom` and amount
+// inference to these avoids collisions with add-on / archived web3 tiers that
+// share dollar amounts.
 const IPN_ELIGIBLE_TIERS = ['single', 'full', 'bogo', 'retainer', 'enterprise', 'comm_monthly', 'comm_lifetime'];
 
-const IPN_TIER_ALIASES = {
-  re_full: 'full',
-  re_bogo: 'bogo',
-  re_single: 'single',
-  re_retainer: 'retainer',
-  re_enterprise: 'enterprise',
-};
+/** Pass Type for a multi-item cart: add-ons, never an NFT tier. */
+export const ADDONS_PASS_TYPE = 'addons';
 
 function canonicalizeIpnTier(raw) {
   if (!raw) return null;
-  const key = String(raw).trim();
-  const canonical = IPN_TIER_ALIASES[key] || key;
+  const canonical = canonicalTier(String(raw).trim());
   return IPN_ELIGIBLE_TIERS.includes(canonical) ? canonical : null;
 }
 
@@ -96,17 +165,56 @@ function ipnCurrencyIsUsd(ipn) {
   return String(ipn.mc_currency ?? 'USD').trim().toUpperCase() === 'USD';
 }
 
+function rawCartCount(ipn) {
+  return String(ipn.num_cart_items ?? '').trim();
+}
+
+/** More than one line item (cart, or an express checkout with several items). */
+function isMultiItem(ipn) {
+  const n = Number.parseInt(rawCartCount(ipn), 10);
+  return Number.isFinite(n) && n > 1;
+}
+
+/**
+ * Amount inference only for a single-item payment: num_cart_items absent or
+ * '1' — and for a cart, num_cart_items must say '1' explicitly.
+ */
+function amountInferenceAllowed(ipn) {
+  const n = rawCartCount(ipn);
+  if (ipnTxnType(ipn) === 'cart') return n === '1';
+  return n === '' || n === '1';
+}
+
+/** PAYPAL_ITEM_TIERS[item_number] (item_number1 for a single-item cart). */
+function mappedTierFromItem(ipn) {
+  const { map } = paypalItemTiers();
+  let item = String(ipn.item_number ?? '').trim();
+  if (!item && rawCartCount(ipn) === '1') item = String(ipn.item_number1 ?? '').trim();
+  return item && Object.hasOwn(map, item) ? map[item] : null;
+}
+
+/**
+ * Tier for a payment IPN, or null. Every source must match the money: a forged
+ * Buy Now form aimed at PAYPAL_BUSINESS_EMAIL controls `custom` AND
+ * `item_number`, but not what was paid.
+ *
+ *   non-USD                      → null
+ *   more than one item           → 'addons' (never an NFT, whatever custom says)
+ *   custom tier                  → only if USD paid is within $1 of its price
+ *   PAYPAL_ITEM_TIERS[item]      → only if USD paid is within $1 of its price
+ *   amount inference             → only for a single item (num_cart_items absent or 1;
+ *                                  a cart must say num_cart_items=1)
+ */
 export function inferTierFromIPN(ipn) {
   // Catalog prices are USD. mc_gross is in mc_currency — a 2499 JPY/MXN/HUF
   // payment must not resolve as Enterprise. Missing currency stays USD so
   // hosted NCP IPNs that omit the field still match.
   if (!ipnCurrencyIsUsd(ipn)) return null;
 
+  // 2 × $125 Sensitivity add-ons = $250 must not resolve as Full Package.
+  if (isMultiItem(ipn)) return ADDONS_PASS_TYPE;
+
   const amount = parseFloat(ipn.mc_gross ?? '0');
-  const inferred = Number.isFinite(amount) && amount > 0
-    ? inferTierFromAmount(Math.round(amount * 100))
-    : null;
-  const inferredEligible = inferred && IPN_ELIGIBLE_TIERS.includes(inferred) ? inferred : null;
 
   // Anyone can host a PayPal Buy Now form aimed at PAYPAL_BUSINESS_EMAIL with
   // custom={"tier":"enterprise"} and amount=1. Trust custom only when the
@@ -114,17 +222,202 @@ export function inferTierFromIPN(ipn) {
   const claimed = claimedTierFromCustom(ipn.custom);
   if (claimed && amountMatchesTier(claimed, amount)) return claimed;
 
-  return inferredEligible;
+  // Same rule for the item_number map: item_number is form-controlled too.
+  const mapped = mappedTierFromItem(ipn);
+  if (mapped && amountMatchesTier(mapped, amount)) return mapped;
+
+  if (!amountInferenceAllowed(ipn)) return null;
+  const inferred = Number.isFinite(amount) && amount > 0
+    ? inferTierFromAmount(Math.round(amount * 100))
+    : null;
+  return inferred && IPN_ELIGIBLE_TIERS.includes(inferred) ? inferred : null;
+}
+
+// One alert per distinct bad PAYPAL_ITEM_TIERS value (the map is then ignored).
+let itemTiersAlertedFor = null;
+async function alertIfItemTiersInvalid() {
+  const cfg = paypalItemTiers();
+  if (!(cfg.invalid || cfg.dropped.length > 0) || itemTiersAlertedFor === cfg.raw) return;
+  itemTiersAlertedFor = cfg.raw;
+  const reason = cfg.invalid ? 'invalid_json' : 'unknown_tier';
+  console.error(`[PayPal IPN] PAYPAL_ITEM_TIERS ${reason} — ${cfg.invalid ? 'map ignored' : `dropped ${cfg.dropped.length} entr${cfg.dropped.length === 1 ? 'y' : 'ies'}`}`);
+  await sendAlert('paypal.item_tiers_invalid', {
+    reason,
+    ...(cfg.invalid ? {} : { dropped: cfg.dropped.slice(0, 20) }),
+  }).catch(() => {});
+}
+
+/** Fail-closed receiver gate. Returns true only for a payment/notice addressed to us. */
+async function receiverIsUs(receiver, alertDetail) {
+  // FAIL CLOSED: if PAYPAL_BUSINESS_EMAIL is unset we cannot prove the payment
+  // was made to us, so we refuse rather than trusting an unverifiable receiver.
+  // Compare case-insensitively — PayPal does not guarantee casing.
+  const businessEmail = process.env.PAYPAL_BUSINESS_EMAIL;
+  if (!businessEmail) {
+    console.error('[PayPal IPN] PAYPAL_BUSINESS_EMAIL not set — refusing to process (fail-closed). Set this env var in production.');
+    await sendAlert('paypal.business_email_unset', alertDetail);
+    return false;
+  }
+  if (String(receiver ?? '').trim().toLowerCase() !== businessEmail.trim().toLowerCase()) {
+    console.warn('[PayPal IPN] Receiver mismatch — IPN is not for PAYPAL_BUSINESS_EMAIL; ignoring');
+    return false;
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Subscription billing (monthly membership only)
+// ---------------------------------------------------------------------------
+
+const isMonthlyTier = (tier) => resolveEntitlementFromSku(tier) === 'monthly_membership';
+
+/**
+ * A paid Genesis (comm_monthly) payment — one-off, first subscription payment
+ * or renewal — keeps the member's billing active for one more period. Callers
+ * only call it for a monthly tier: Ember / Obsidian are permanent passes and
+ * their member row is never touched (a write would clobber a Genesis member's
+ * entitlement). Never throws.
+ */
+async function activateMonthlyBilling(email, { txnId, subscriptionId = null, source }) {
+  const expiresAt = new Date(Date.now() + SUBSCRIPTION_PERIOD_DAYS * DAY_MS).toISOString();
+  try {
+    await updateEntitlementState(email, {
+      entitlementType: 'monthly_membership', status: 'active', billingState: 'active', expiresAt,
+    });
+    console.log(`[PayPal IPN] Monthly billing active through ${expiresAt} (${source} ${txnId})`);
+  } catch (err) {
+    console.error(`[PayPal IPN] updateEntitlementState (${source}) failed: ${err.message}`);
+    await sendAlert('paypal.entitlement_write_failed', {
+      txnId, subscriptionId, source, error: err.message,
+    }).catch(() => {});
+  }
+}
+
+/**
+ * Another PayPal monthly subscription for the same email paid within the last
+ * period → hold (mirrors Stripe's monthly_change_held): cancelling an old
+ * subscription after starting a new one must not cancel the member.
+ * @returns {Promise<boolean>} true = hold (also when the scan fails)
+ */
+async function anotherMonthlySubscriptionActive(email, own, detail) {
+  try {
+    const cutoff = Date.now() - SUBSCRIPTION_PERIOD_DAYS * DAY_MS;
+    const payments = await listPaymentsByEmail(email, 50);
+    return (payments ?? []).some((p) => {
+      const token = String(p?.fields?.['Token'] ?? '');
+      if (!/^(subscr|rpp):/.test(token) || token === own) return false;
+      if (resolveEntitlementFromSku(canonicalTier(p.fields?.['Pass Type'] ?? '')) !== 'monthly_membership') return false;
+      const paidAt = Date.parse(p.fields?.['Payment Date'] ?? '');
+      return Number.isFinite(paidAt) && paidAt > cutoff;
+    });
+  } catch (err) {
+    console.error(`[PayPal IPN] ${detail.txnType}: payment scan failed: ${err.message} — holding`);
+    await sendAlert('paypal.subscription_lifecycle_failed', { ...detail, step: 'payment_scan', error: err.message }).catch(() => {});
+    return true;
+  }
+}
+
+/**
+ * subscr_cancel / subscr_eot / subscr_failed and the recurring-profile
+ * cancel / expired / suspended types — billing state only. A monthly (Genesis)
+ * subscription marks its member's billing cancelled; Discord role removal
+ * happens in the nightly reconcile. Ember / Obsidian subscriptions are
+ * permanent passes: log only.
+ *
+ * A subscription with no Payments row of its own is a no-op: billing is never
+ * cancelled for an email on the IPN's word (amount, payer_email) alone, and no
+ * member row is created for someone who never paid us through it.
+ * Idempotent; no txn_id required; no Payments row written.
+ */
+async function handleSubscriptionLifecycle(ipn, txnType) {
+  const sub = subscriptionOf(ipn, txnType);
+  const detail = { txnType, subscriptionId: sub?.token ?? null };
+  const tag = `[PayPal IPN] ${txnType}${sub ? ` ${sub.token}` : ''}`;
+
+  // Subscription notices may carry `business` instead of `receiver_email`.
+  if (!(await receiverIsUs(ipn.receiver_email || ipn.business, detail))) return;
+
+  if (!sub) {
+    console.log(`${tag}: no subscription id — nothing to change`);
+    return;
+  }
+
+  let row;
+  try {
+    row = await findPaymentBySubscriptionId(sub.id, sub.kind);
+  } catch (err) {
+    console.error(`${tag}: subscription lookup failed: ${err.message} — no change`);
+    await sendAlert('paypal.subscription_lifecycle_failed', { ...detail, step: 'subscription_lookup', error: err.message }).catch(() => {});
+    return;
+  }
+  if (!row) {
+    console.log(`${tag}: no Payments row for this subscription — not ours to change`);
+    return;
+  }
+  if (!isMonthlyTier(canonicalTier(row.fields?.['Pass Type'] ?? ''))) {
+    console.log(`${tag}: not a monthly membership (permanent pass or no NFT) — no billing change`);
+    return;
+  }
+
+  // The member is whoever this subscription's first payment was recorded for.
+  const email = String(row.fields?.['Customer Email'] || ipn.payer_email || '').trim();
+  if (!email) {
+    console.warn(`${tag}: no customer email on the subscription's Payments row`);
+    await sendAlert('paypal.subscription_lifecycle_failed', { ...detail, step: 'no_email' }).catch(() => {});
+    return;
+  }
+
+  if (await anotherMonthlySubscriptionActive(email, sub.token, detail)) {
+    console.log(`${tag}: another monthly subscription is paid up for this member — holding`);
+    await sendAlert('paypal.monthly_change_held', detail, { severity: 'info' }).catch(() => {});
+    return;
+  }
+
+  try {
+    await updateEntitlementState(email, { entitlementType: 'monthly_membership', billingState: 'cancelled' });
+    console.log(`${tag}: monthly billing marked cancelled (role removal in reconcile)`);
+  } catch (err) {
+    console.error(`${tag}: updateEntitlementState failed: ${err.message}`);
+    await sendAlert('paypal.entitlement_write_failed', { ...detail, source: txnType, error: err.message }).catch(() => {});
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Core pipeline (mirrors stripe handler)
+//
+// PayPal only redelivers an IPN it did not get a 200 for, so everything that
+// decides whether money is fulfilled happens BEFORE the answer:
+//   verify with PayPal → (payment types) idempotency lookup → gates → Payments
+//   marker → 200, then mint / email / billing in waitUntil.
+// A verify network error, an unexpected verify response, or a database failure
+// answers 500 so PayPal retries; INVALID answers 200 and writes nothing.
 // ---------------------------------------------------------------------------
 
-export async function handleVerifiedIPN(ipn) {
+const OK = Object.freeze({ status: 200, after: null });
+const RETRY = Object.freeze({ status: 500, after: null });
+
+/** Lifecycle notices (billing only) and ignored types (logged). Never a Payments row. */
+async function handleNonPaymentIPN(ipn, txnType) {
+  if (LIFECYCLE_TXN_TYPES.has(txnType)) {
+    await handleSubscriptionLifecycle(ipn, txnType);
+    return;
+  }
+  // subscr_signup, refunds/adjustments, new_case, masspay, … — never fulfil.
+  console.log(`[PayPal IPN] Ignoring txn_type=${logToken(txnType)} — no fulfilment`);
+}
+
+/**
+ * Payment IPN, up to and including the Payments idempotency marker. Every
+ * money-bounding gate (txn_id, payer email, Completed, receiver, USD, tier,
+ * subscription first-payment check) runs here, before the answer.
+ *
+ * @returns {Promise<{ status: 200|500, after: null|(() => Promise<void>), txnId?: string }>}
+ *   `after` (mint / email / billing) is set only once this run wrote the marker.
+ */
+async function recordPaymentIPN(ipn, txnType) {
   if (!ipn.txn_id) {
     console.error('[PayPal IPN] Verified IPN missing txn_id — refusing to process (fail-closed)');
-    return;
+    return OK;
   }
 
   const txnId = ipn.txn_id;
@@ -132,35 +425,23 @@ export async function handleVerifiedIPN(ipn) {
   const customerName = [ipn.first_name, ipn.last_name].filter(Boolean).join(' ') || 'Aurevon Member';
   const amount = parseFloat(ipn.mc_gross ?? '0');
   const paymentStatus = (ipn.payment_status ?? '').toLowerCase();
-  const now = new Date().toISOString();
 
   if (!customerEmail) {
     console.error(`[PayPal IPN] No payer_email in IPN txnId=${txnId} — aborting pipeline`);
-    return;
+    return OK;
   }
 
-  console.log(`[PayPal IPN] Processing txnId=${txnId} for ${customerEmail} amount=${amount} status=${paymentStatus}`);
+  console.log(`[PayPal IPN] Processing txnId=${txnId} txn_type=${txnType} amount=${amount} status=${paymentStatus}`);
 
   // Only process completed payments
   if (paymentStatus !== 'completed') {
     console.log(`[PayPal IPN] Skipping non-completed payment (status=${paymentStatus})`);
-    return;
+    return OK;
   }
 
-  // Validate receiver email to prevent fraud. FAIL CLOSED: if PAYPAL_BUSINESS_EMAIL
-  // is unset we cannot prove the payment was made to us, so we refuse to mint/grant
-  // rather than trusting an unverifiable receiver. Compare case-insensitively —
-  // PayPal does not guarantee casing on receiver_email.
-  const businessEmail = process.env.PAYPAL_BUSINESS_EMAIL;
-  if (!businessEmail) {
-    console.error('[PayPal IPN] PAYPAL_BUSINESS_EMAIL not set — refusing to process (fail-closed). Set this env var in production.');
-    await sendAlert('paypal.business_email_unset', { txnId });
-    return;
-  }
-  if ((ipn.receiver_email ?? '').toLowerCase() !== businessEmail.toLowerCase()) {
-    console.warn(`[PayPal IPN] Receiver mismatch: got ${ipn.receiver_email}, expected ${businessEmail}`);
-    return;
-  }
+  // Validate receiver email to prevent fraud (fail-closed, case-insensitive).
+  if (!(await receiverIsUs(ipn.receiver_email, { txnId }))) return OK;
+
   // Currency is checked only for a Completed payment to our own receiver, so
   // the alert below means real money arrived in a currency we don't price in.
   if (!ipnCurrencyIsUsd(ipn)) {
@@ -172,21 +453,47 @@ export async function handleVerifiedIPN(ipn) {
       currency: ipn.mc_currency ?? null,
       gross: ipn.mc_gross ?? null,
     }).catch(() => {});
-    return;
+    return OK;
   }
 
+  await alertIfItemTiersInvalid();
   const tier = inferTierFromIPN(ipn);
-  const token = `paid_${tier ?? 'unknown'}_${Date.now()}`;
+  const passType = canonicalTier(tier ?? 'unknown');
+
+  // Subscriptions: only the FIRST payment for a subscription fulfils. A
+  // renewal (new txn_id each period) is recorded and extends billing — no mint.
+  let sub = null;
+  let renewal = false;
+  if (RECURRING_PAYMENT_TYPES.has(txnType)) {
+    sub = subscriptionOf(ipn, txnType);
+    if (!sub) {
+      // Without the subscription id a renewal can't be told from a first
+      // payment, and minting every period is worse than a manual review.
+      console.error(`[PayPal IPN] ${txnType} ${txnId} has no usable subscription id — refusing to fulfil`);
+      await sendAlert('paypal.subscr_id_missing', { txnId, txnType, tier: passType }).catch(() => {});
+      return OK;
+    }
+    try {
+      renewal = Boolean(await findPaymentBySubscriptionId(sub.id, sub.kind));
+    } catch (err) {
+      // Fail closed: guessing "first payment" could mint again. 500 → PayPal retries.
+      console.error(`[PayPal IPN] subscription lookup failed for ${sub.token}: ${err.message} — aborting before marker`);
+      await sendAlert('paypal.subscription_lookup_failed', { txnId, subscriptionId: sub.token, error: err.message }).catch(() => {});
+      return RETRY;
+    }
+  }
+
+  const token = sub ? sub.token : `paid_${passType}_${Date.now()}`;
 
   // Write Payments row — this is the idempotency MARKER and must land before the
-  // irreversible Crossmint mint. If it fails we abort: minting without a persisted
-  // marker would let a later IPN redelivery double-mint (the dedup check below
-  // queries this table). No marker ⇒ no mint. (Mirrors the Stripe handler.)
+  // irreversible Crossmint mint. If it fails we answer 500: PayPal redelivers,
+  // and minting without a persisted marker would let a later redelivery
+  // double-mint. No marker ⇒ no mint. (Mirrors the Stripe handler.)
   try {
     await createPayment({
       transactionId: txnId,
       method: 'PayPal',
-      tier: tier ?? 'unknown',
+      tier: passType,
       amount,
       customerEmail,
       customerName,
@@ -197,150 +504,144 @@ export async function handleVerifiedIPN(ipn) {
     if (err.code === 'DUPLICATE_PAYMENT') {
       // A concurrent IPN for this txn already wrote the marker and owns fulfilment.
       console.log(`[PayPal IPN] txn ${txnId} already being processed — skipping duplicate`);
-      return;
+      return OK;
     }
     console.error(`[PayPal IPN] createPayment (idempotency marker) failed: ${err.message} — aborting before mint`);
-    await sendAlert('paypal.payment_marker_failed', { txnId, tier: tier ?? 'unknown', error: err.message });
+    await sendAlert('paypal.payment_marker_failed', { txnId, tier: passType, error: err.message });
+    return RETRY;
+  }
+
+  const ctx = { ipn, txnType, txnId, customerEmail, customerName, tier, passType, sub, renewal };
+  return { status: 200, after: () => fulfilPaymentIPN(ctx), txnId };
+}
+
+/** After the marker: monthly billing, renewal bookkeeping, mint / confirmation. */
+async function fulfilPaymentIPN({ ipn, txnType, txnId, customerEmail, customerName, tier, passType, sub, renewal }) {
+  // Genesis billing (+31 days) for EVERY paid comm_monthly payment — one-off,
+  // first subscription payment or renewal — and BEFORE fulfilNft so nothing
+  // the mint path does can skip it.
+  const monthly = isMonthlyTier(passType);
+  if (monthly) {
+    const source = renewal ? `${txnType}.renewal` : (sub ? `${txnType}.first` : txnType);
+    await activateMonthlyBilling(customerEmail, { txnId, subscriptionId: sub?.token ?? null, source });
+  }
+
+  if (renewal) {
+    // Recorded above (own txn_id). No mint, no NFT email, no confirmation.
+    if (tier === null) {
+      // Money arrived for a known subscription at a price that matches no tier.
+      console.warn(`[PayPal IPN] Renewal ${txnId} for ${sub.token}: amount matches no tier — billing not extended`);
+      await sendAlert('paypal.subscription_renewal_unmatched', { txnId, subscriptionId: sub.token, gross: ipn.mc_gross ?? null }).catch(() => {});
+      return;
+    }
+    if (!monthly) console.log(`[PayPal IPN] Renewal ${txnId} tier=${passType}: permanent pass — no billing write`);
+    console.log(`[PayPal IPN] Renewal ${txnId} for subscription ${sub.token} recorded — no mint`);
     return;
   }
 
-  const tierConfig = tier ? (TIER_NFT_MAP[tier] ?? null) : null;
-  const nftType = tierConfig?.nft ?? null;
-  const templateKey = tierConfig?.template ?? null;
-  const serialPrefix = tierConfig?.serialPrefix ?? null;
-  const collectionName = tierConfig?.collectionName ?? null;
+  if (tier === null) {
+    // Settled money that matches no tier: recorded above, but nothing to
+    // fulfil and no "Item: …" email for a product we can't name. The owner
+    // reviews it by hand.
+    console.warn(`[PayPal IPN] txnId=${txnId} resolved to no tier — recorded, no fulfilment, no email`);
+    await sendAlert('paypal.tier_unresolved', { txnId, gross: ipn.mc_gross ?? null, currency: ipn.mc_currency ?? null },
+      { severity: 'high', dedupeKey: txnId }).catch(() => {});
+    return;
+  }
 
-  // No NFT tier
-  if (!nftType) {
-    console.log(`[PayPal IPN] Tier "${tier}" has no NFT. Sending purchase confirmation.`);
+  // NFT fulfilment (mint → NFT_Mints row → delivery email) or, for tiers
+  // without an NFT (bogo / single / add-ons), a purchase confirmation.
+  const result = await fulfilNft({ transactionId: txnId, email: customerEmail, customerName, tier: passType, provider: 'paypal' });
+  if (result.reason === 'no_nft') {
+    console.log(`[PayPal IPN] Tier "${passType}" has no NFT. Sending purchase confirmation.`);
     try {
-      await sendPurchaseConfirmation({ email: customerEmail, customerName, tier: tier ?? 'unknown' });
+      await sendPurchaseConfirmation({ email: customerEmail, customerName, tier: passType, transactionId: txnId });
     } catch (err) {
       console.error(`[PayPal IPN] Confirmation email failed: ${err.message}`);
     }
     return;
   }
 
-  // Get next serial number for this collection
-  let serial = null;
-  if (serialPrefix) {
-    try {
-      serial = await getNextSerial(serialPrefix);
-      console.log(`[PayPal IPN] Assigned serial ${serial} for tier "${tier}"`);
-    } catch (err) {
-      console.error(`[PayPal IPN] getNextSerial failed: ${err.message}. Continuing without serial.`);
-    }
-  }
-
-  // Mint NFT
-  let mintId = null;
-  let imageUrl = null;
-  let mintStatus;
-  let mintNotes = '';
-
-  try {
-    const result = await mintToEmail({
-      email: customerEmail,
-      nftType,
-      customerName,
-      templateKey,
-      serial,
-      collectionName,
-      tierKey: tier,
-      // Idempotency key = PayPal txn_id. If this mint succeeds but the NFT_Mints
-      // write below fails, orphan-recovery → retry-mints re-calls Crossmint with
-      // THIS SAME key, returning the existing NFT instead of double-minting.
-      idempotencyKey: txnId,
-    });
-    if (!result.ok) throw new Error(result.error ?? 'Crossmint API returned ok:false');
-    mintId = result.actionId;
-    imageUrl = result.imageUrl ?? null;
-    mintStatus = 'Sent';
-    console.log(`[PayPal IPN] Mint succeeded: mintId=${mintId}, serial=${serial}`);
-  } catch (err) {
-    mintStatus = 'Failed';
-    mintNotes = `Crossmint error: ${err.message}`;
-    console.error(`[PayPal IPN] Crossmint mint failed: ${err.message}`);
-    await sendAlert('paypal.mint_failed', { txnId, tier, nftType, error: err.message });
-  }
-
-  // Write NFT_Mints row — use serial as reference; retry on collision (race condition guard)
-  const reference = serial ?? `MINT_${txnId.slice(-8)}_${nftType.replace(/\s+/g, '_')}`;
-  let insertedSerial = serial;
-  let mintRowWritten = false;
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const ref = attempt === 0 ? reference : (() => {
-      if (!insertedSerial) {
-        // Null-serial tier (no serialPrefix): append retry index to avoid identical retries
-        return `${reference}_r${attempt}`;
-      }
-      const parts = insertedSerial.split('_');
-      const prefix = parts[0];
-      const num = parseInt(parts[1] ?? '0', 10) + 1;
-      insertedSerial = formatSerial(prefix, num);
-      return insertedSerial;
-    })();
-
-    try {
-      await createNftMint({
-        reference: ref,
-        email: customerEmail,
-        nftType,
-        tierSource: tier,
-        status: mintStatus,
-        sentDate: now,
-        emailDelivered: mintStatus === 'Sent',
-        notes: mintNotes,
-        mintId: mintId ?? '',
-        retryCount: 0,
-      });
-      if (!insertedSerial) insertedSerial = ref; // track actual ref for null-serial tiers
-      mintRowWritten = true;
-      console.log(`[PayPal IPN] NFT_Mints record created with reference=${ref}`);
-      break;
-    } catch (err) {
-      const isDuplicate = err.message.includes('422') || err.message.toLowerCase().includes('already exists') || err.message.toLowerCase().includes('duplicate');
-      if (isDuplicate && attempt < 2) {
-        console.warn(`[PayPal IPN] Reference collision on "${ref}" (attempt ${attempt + 1}) — incrementing serial and retrying`);
-      } else {
-        console.error(`[PayPal IPN] createNftMint failed (attempt ${attempt + 1}): ${err.message}`);
-        break;
-      }
-    }
-  }
-
-  // Minted on-chain but no NFT_Mints row landed → orphan (self-heals via recovery +
-  // idempotent key, but must be visible, not silent).
-  if (!mintRowWritten) {
-    await sendAlert('paypal.mint_row_dropped', { txnId, tier, nftType, minted: mintStatus === 'Sent' });
-  }
-
-  // Parse edition number from serial for email
-  let edition = null;
-  if (insertedSerial) {
-    const parts = insertedSerial.split('_');
-    if (parts[1]) edition = parseInt(parts[1], 10);
-  }
-
-  // Send delivery email
-  try {
-    await sendNftDelivery({
-      email: customerEmail,
-      customerName,
-      nftType,
-      mintId: mintId ?? 'pending',
-      nftImageUrl: imageUrl,
-      discordInviteUrl: process.env.DISCORD_INVITE_URL,
-      tier,
-      serial: insertedSerial,
-      edition,
-    });
-  } catch (err) {
-    console.error(`[PayPal IPN] Resend email failed: ${err.message}`);
-  }
-
   console.log(`[PayPal IPN] Pipeline complete for txnId=${txnId}`);
+}
+
+/**
+ * An already-verified IPN, start to finish (direct callers and tests): the
+ * marker phase, then the post-marker work awaited inline.
+ */
+export async function handleVerifiedIPN(ipn) {
+  const txnType = ipnTxnType(ipn);
+  if (!FULFIL_TXN_TYPES.has(txnType)) {
+    await handleNonPaymentIPN(ipn, txnType);
+    return;
+  }
+  const outcome = await recordPaymentIPN(ipn, txnType);
+  if (outcome.after) await outcome.after();
+}
+
+/**
+ * Everything that must happen before PayPal gets its answer.
+ * @returns {Promise<{ status: 200|500, after: null|(() => Promise<void>), txnId?: string }>}
+ */
+export async function acceptIPN(rawBody) {
+  const ipn = parseIPN(rawBody);
+  const txnType = ipnTxnType(ipn);
+  const txnId = ipn.txn_id || null;
+
+  let verified;
+  try {
+    verified = await verifyPayPalIPN(rawBody);
+  } catch (err) {
+    // Network error, timeout or a response that is neither VERIFIED nor
+    // INVALID: we can't tell, so PayPal must retry.
+    console.error(`[PayPal IPN] Verification request failed (txn_type=${logToken(txnType)}): ${err.message}`);
+    await sendAlert('paypal.verify_failed', { txnId, txnType: logToken(txnType), error: err.message },
+      { severity: 'high', dedupeKey: txnId ?? undefined }).catch(() => {});
+    return RETRY;
+  }
+
+  if (!verified) {
+    console.warn('[PayPal IPN] IPN verification returned INVALID — discarding');
+    await sendAlert('paypal.ipn_invalid', { txnId, txnType: logToken(txnType) },
+      { severity: 'warn', dedupeKey: txnId ?? undefined }).catch(() => {});
+    return OK;
+  }
+
+  console.log(`[PayPal IPN] Verified. txn_type=${logToken(txnType)} txn_id=${ipn.txn_id}, payment_status=${ipn.payment_status}`);
+
+  // Lifecycle notices (no txn_id) and ignored types (subscr_signup, …) never
+  // write a Payments row: ack, then process.
+  if (!FULFIL_TXN_TYPES.has(txnType)) {
+    return { status: 200, after: () => handleNonPaymentIPN(ipn, txnType), txnId };
+  }
+
+  if (!txnId) {
+    console.error('[PayPal IPN] Verified IPN missing txn_id — refusing to process (fail-closed)');
+    return OK;
+  }
+
+  // Idempotency check — a redelivery of a recorded txn_id is a no-op (the
+  // UNIQUE Transaction ID in Payments also blocks a concurrent duplicate at
+  // createPayment). A lookup failure answers 500 so PayPal retries.
+  try {
+    const prior = await findPaymentByTransactionId(txnId);
+    if (prior) {
+      console.log(`[PayPal IPN] Duplicate txn_id ${txnId} — skipping`);
+      return OK;
+    }
+  } catch (err) {
+    console.error(`[PayPal IPN] Idempotency check failed: ${err.message} — aborting`);
+    await sendAlert('paypal.idempotency_lookup_failed', { txnId, error: err.message });
+    return RETRY;
+  }
+
+  return recordPaymentIPN(ipn, txnType);
+}
+
+/** acceptIPN, then the post-ack work awaited inline (direct callers and tests). */
+export async function processIPN(rawBody) {
+  const outcome = await acceptIPN(rawBody);
+  if (outcome.after) await outcome.after();
 }
 
 // ---------------------------------------------------------------------------
@@ -366,59 +667,28 @@ export default async function handler(req, res) {
     return res.status(400).send('Failed to read body');
   }
 
-  // PayPal expects HTTP 200 to acknowledge receipt immediately.
+  // Verify + marker BEFORE answering: a 500 makes PayPal redeliver.
+  let outcome;
+  try {
+    outcome = await acceptIPN(rawBody);
+  } catch (err) {
+    console.error(`[PayPal IPN] Unhandled error before ack: ${err.message}`, err.stack);
+    await sendAlert('paypal.pipeline_crashed', { stage: 'accept', error: err.message }, { severity: 'critical' }).catch(() => {});
+    outcome = RETRY;
+  }
+
+  if (outcome.status !== 200) return res.status(outcome.status).send('Retry');
   res.status(200).send('OK');
 
-  // Register the post-ack pipeline with waitUntil so Vercel keeps the function
-  // alive until it settles. Without this, work after res.end() can be frozen and
-  // the verify→mint→email pipeline silently dropped (the durability bug this
-  // branch targets; the Stripe handler already uses waitUntil for the same reason).
-  waitUntil(processIPN(rawBody).catch((err) => {
-    console.error(`[PayPal IPN] Unhandled pipeline error: ${err.message}`, err.stack);
-  }));
-}
-
-export async function processIPN(rawBody) {
-  // Verify with PayPal
-  let verified;
-  try {
-    verified = await verifyPayPalIPN(rawBody);
-  } catch (err) {
-    console.error(`[PayPal IPN] Verification request failed: ${err.message}`);
-    return;
+  // Mint / email / billing after the ack. waitUntil keeps the function alive
+  // until it settles; without it work after res.end() can be frozen.
+  if (outcome.after) {
+    waitUntil(outcome.after().catch(async (err) => {
+      console.error(`[PayPal IPN] Unhandled pipeline error: ${err.message}`, err.stack);
+      await sendAlert('paypal.pipeline_crashed', { txnId: outcome.txnId ?? null, error: err.message },
+        { severity: 'critical' }).catch(() => {});
+    }));
   }
-
-  if (!verified) {
-    console.warn('[PayPal IPN] IPN verification returned INVALID — discarding');
-    return;
-  }
-
-  const ipn = parseIPN(rawBody);
-  console.log(`[PayPal IPN] Verified. txn_id=${ipn.txn_id}, payment_status=${ipn.payment_status}`);
-
-  // Idempotency check — skip if this txn_id has already been processed (the
-  // UNIQUE Transaction ID in Payments also blocks a concurrent duplicate at
-  // createPayment). Lookup failure is fail-closed: the
-  // handler has already answered 200, so PayPal will NOT redeliver — the alert
-  // below is what surfaces the payment for manual recovery.
-  const txnId = ipn.txn_id;
-  if (!txnId) {
-    console.error('[PayPal IPN] Verified IPN missing txn_id — refusing to process (fail-closed)');
-    return;
-  }
-  try {
-    const prior = await findPaymentByTransactionId(txnId);
-    if (prior) {
-      console.log(`[PayPal IPN] Duplicate txn_id ${txnId} — skipping`);
-      return;
-    }
-  } catch (err) {
-    console.error(`[PayPal IPN] Idempotency check failed: ${err.message} — aborting`);
-    await sendAlert('paypal.idempotency_lookup_failed', { txnId, error: err.message });
-    return;
-  }
-
-  await handleVerifiedIPN(ipn);
 }
 
 export const config = {

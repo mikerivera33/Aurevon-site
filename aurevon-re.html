@@ -1291,7 +1291,7 @@ targets.forEach(t => spy.observe(t));
 
     var html = '';
     if(method === 'stripe'){
-      html = '<div class="aurevon-pay-info"><span class="pmlogo">💳 Stripe Checkout</span><strong>Pay securely with your debit or credit card.</strong> Stripe processes your payment in seconds. After confirmation, you will be auto-redirected to ' + (isMembership ? 'your membership confirmation page' : 'the deal intake form') + '.</div>';
+      html = '<div class="aurevon-pay-info"><span class="pmlogo">💳 Stripe Checkout</span><strong>Pay securely with your debit or credit card.</strong> Stripe processes your payment in seconds. ' + (isMembership ? 'After payment you see your membership confirmation.' : 'After payment you go to the deal intake form.' + (/^(re_)?(full|retainer|enterprise)$/.test(String(currentTier)) ? ' Your NFT arrives by email.' : '')) + '</div>';
       html += '<a class="aurevon-pay-cta" href="' + (stripeUrl || '#') + '"' + redirectAttr + ' data-action="goto">Pay $' + currentAmount + ' with Card →</a>';
     } else if(method === 'paypal'){
       html = '<div class="aurevon-pay-info"><span class="pmlogo">🅿 PayPal</span><strong>Pay with your PayPal balance, bank, or any major card.</strong> No PayPal account? You can still check out as a guest. After payment confirmation, you will be auto-redirected.</div>';

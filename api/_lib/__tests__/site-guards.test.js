@@ -21,15 +21,38 @@
 //      `Token Expires` (no `Used` field). Writing `Magic Link Token` /
 //      `Token Expiry` / `Used` makes every Airtable write 422 → the login-link
 //      request 500s and portal login is dead. This guard pins the field names.
+//
+//   5. Retired NFT copy and config names never come back: no "Apex" pass in
+//      public HTML, no retired Crossmint template-alias env names
+//      (CROSSMINT_ + TPL_*) anywhere, no webmail button on the membership
+//      confirmation, no "24 hours" mint promise on /aurevon-web3.
+//
+// Repo walks skip generated / tooling trees (SKIP_DIRS) so a local coverage
+// report or agent scratch files never make these guards flaky.
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TIER_NFT_MAP } from '../tiers.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
+
+// Never scanned: dependencies, VCS, coverage output, agent tooling.
+const SKIP_DIRS = new Set(['node_modules', '.git', 'coverage', '.superpowers', '.claude']);
+const BINARY_EXT = /\.(png|jpe?g|gif|webp|avif|ico|mp4|webm|mov|glb|gltf|woff2?|ttf|otf|pdf|zip)$/i;
+
+/** Repo-relative paths of every file under `dir`, skipping SKIP_DIRS (+ `extraSkip`). */
+function walk(dir = '', extraSkip = [], out = []) {
+  for (const name of readdirSync(join(ROOT, dir))) {
+    if (SKIP_DIRS.has(name) || extraSkip.includes(name)) continue;
+    const rel = dir ? `${dir}/${name}` : name;
+    if (statSync(join(ROOT, rel)).isDirectory()) walk(rel, extraSkip, out);
+    else out.push(rel);
+  }
+  return out;
+}
 
 describe('vercel.json rewrites', () => {
   const vercel = JSON.parse(read('vercel.json'));
@@ -199,5 +222,125 @@ describe('portal.html matches /api/portal contract', () => {
   it('does not start Discord OAuth with a bare ?email= (H2 hole; use /member-claim)', () => {
     expect(html).not.toMatch(/\/api\/discord\/auth\?email=/);
     expect(html).toMatch(/discordUrl = '\/member-claim'/);
+  });
+});
+
+describe('discord-welcome.html — browser-safe Discord errors (Task 8)', () => {
+  const html = read('discord-welcome.html');
+
+  it('never reads an ?invite= param (open-redirect to any URL)', () => {
+    expect(html).not.toContain("params.get('invite')");
+    expect(html).not.toMatch(/\.get\(\s*['"]invite['"]\s*\)/);
+  });
+
+  it('builds the success button from a numeric ?server= id, else the static invite', () => {
+    expect(html).toContain('/^\\d{5,25}$/.test(server)');
+    expect(html).toContain("'https://discord.com/channels/' + server");
+  });
+
+  it('shows the exact copy for every error code the API redirects with', () => {
+    for (const copy of [
+      "invalid_link: 'This link has expired. Get a new one.'",
+      "link_used: 'This link was already used. Get a new one.'",
+      "no_nft: \"We can't find a membership for this email yet. If you just paid, your NFT is still being prepared — check your inbox or contact mike@aurevonvc.com.\"",
+      "\"We couldn't link Discord. Your payment and NFT are safe. Try again or contact mike@aurevonvc.com.\"",
+      'auth_failed: couldNotLink',
+      'role_failed: couldNotLink',
+      "denied: 'You cancelled. Open your email and try the link again.'",
+    ]) expect(html).toContain(copy);
+  });
+
+  it('error box has one primary "Email me a new link" button to /member-claim and no "member portal" wording', () => {
+    const box = html.match(/<div id="error-content"[\s\S]*?<\/div>/)[0];
+    expect(box.match(/<a /g)).toHaveLength(1);
+    expect(box).toMatch(/<a id="error-action" href="\/member-claim" class="btn-primary">Email me a new link<\/a>/);
+    expect(html).not.toMatch(/member portal/i);
+  });
+
+  it('every error code the API can send has copy on the page', () => {
+    const api = read('api/discord.js');
+    const codes = api.match(/WELCOME_ERRORS = new Set\(\[([^\]]+)\]\)/)[1].match(/'([a-z_]+)'/g).map((c) => c.slice(1, -1));
+    expect(codes.sort()).toEqual(['auth_failed', 'denied', 'invalid_link', 'link_used', 'no_nft', 'role_failed']);
+    for (const code of codes) expect(html).toMatch(new RegExp(`\\b${code}:`));
+  });
+});
+
+describe('member-claim.html — new-link page (Task 8)', () => {
+  const html = read('member-claim.html');
+
+  it('meta / og / twitter descriptions name the page’s one job', () => {
+    const want = 'Get a new Discord access link for your Aurevon membership.';
+    expect(html).toContain(`<meta name="description" content="${want}">`);
+    expect(html).toContain(`<meta property="og:description" content="${want}">`);
+    expect(html).toContain(`<meta name="twitter:description" content="${want}">`);
+    expect(html).not.toMatch(/member portal/i);
+  });
+
+  it('prefills the email input from ?email= via .value only (never markup)', () => {
+    expect(html).toMatch(/new URLSearchParams\(window\.location\.search\)\.get\('email'\)/);
+    expect(html).toMatch(/getElementById\('email'\)\.value = prefill/);
+    expect(html).not.toMatch(/innerHTML/);
+  });
+});
+
+describe('retired NFT copy and config names (Task 12)', () => {
+  // docs/ is .vercelignore'd, so only shipped HTML counts as public.
+  const publicHtml = walk('', ['docs']).filter((f) => f.endsWith('.html'));
+
+  it('scans the site HTML (and not tooling trees)', () => {
+    expect(publicHtml.length).toBeGreaterThanOrEqual(20);
+    expect(publicHtml.some((f) => /^(coverage|\.superpowers|\.claude|node_modules)\//.test(f))).toBe(false);
+  });
+
+  it('no "Apex" pass naming in public HTML', () => {
+    const offenders = publicHtml.filter((f) => /\bapex\b/i.test(read(f)));
+    expect(offenders).toEqual([]);
+  });
+
+  it('no retired CROSSMINT_ + TPL_ env name anywhere in the repo', () => {
+    const needle = ['CROSSMINT', 'TPL_'].join('_');
+    const offenders = walk().filter((f) => !BINARY_EXT.test(f) && read(f).includes(needle));
+    expect(offenders).toEqual([]);
+  });
+
+  it('membership confirmation has no mail.google.com button', () => {
+    expect(read('membership_confirmation.html')).not.toContain('mail.google.com');
+  });
+
+  it('aurevon-web3.html makes no "24 hours" promise near "mint"', () => {
+    const html = read('aurevon-web3.html');
+    expect(html).not.toMatch(/24 hours[\s\S]{0,80}mint/i);
+    expect(html).not.toMatch(/mint[\s\S]{0,80}24 hours/i);
+  });
+});
+
+describe('setup docs and scripts match the code (Task 12 fix round 1)', () => {
+  // docs/nft-pipeline-setup.md is the single setup source. These strings were
+  // wrong instructions (role env names, OAuth redirect, Crossmint env/events,
+  // Stripe events); a line saying the thing is "no longer" used is allowed.
+  const WRONG = [
+    'DISCORD_ROLE_INSIDER',
+    '/api/discord/callback',
+    'CROSSMINT_ENVIRONMENT',
+    'nft.minted',
+    'payment_intent.succeeded',
+  ];
+  const files = walk().filter((f) => /\.(md|sh)$/.test(f));
+
+  it('scans the repo docs and scripts', () => {
+    expect(files).toContain('README.md');
+    expect(files).toContain('docs/nft-pipeline-setup.md');
+    expect(files).toContain('scripts/set-vercel-env.sh');
+  });
+
+  it('no stale setup string outside a "no longer" note', () => {
+    const offenders = [];
+    for (const f of files) {
+      read(f).split('\n').forEach((line, i) => {
+        if (/no longer/i.test(line)) return;
+        for (const w of WRONG) if (line.includes(w)) offenders.push(`${f}:${i + 1}: ${w}`);
+      });
+    }
+    expect(offenders).toEqual([]);
   });
 });
