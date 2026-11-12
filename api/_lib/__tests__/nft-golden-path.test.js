@@ -75,7 +75,7 @@ describe.each(['stripe', 'paypal', 'manual'])('%s golden path', (provider) => {
       if (provider === 'manual') {
         expect(db.createPayment).not.toHaveBeenCalled();
         expect(res.statusCode).toBe(200);
-        expect(res.body).toEqual({ ok: true, minted: true, nftType, serial: `${prefix}_001` });
+        expect(res.body).toEqual({ ok: true, minted: true, nftType, serial: `${prefix}_001`, transactionId: id, recorded: true });
       } else {
         expect(db.createPayment).toHaveBeenCalledTimes(1);
         expect(db.createPayment).toHaveBeenCalledWith(expect.objectContaining({ transactionId: id, tier, status: 'Succeeded' }));
@@ -131,7 +131,7 @@ describe.each(['stripe', 'paypal', 'manual'])('%s golden path', (provider) => {
       expect(crossmintCalls(store)).toHaveLength(1);
       expect(resendCalls(store)).toHaveLength(1);
       expect(store.mints).toHaveLength(1);
-      if (provider === 'manual') expect(again.body).toEqual({ ok: true, minted: true, nftType, serial: `${prefix}_001` });
+      if (provider === 'manual') expect(again.body).toEqual({ ok: true, minted: true, nftType, serial: `${prefix}_001`, transactionId: id, recorded: true });
       else expect(db.createPayment).toHaveBeenCalledTimes(1);
     });
   });

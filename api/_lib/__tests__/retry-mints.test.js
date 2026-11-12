@@ -231,6 +231,17 @@ describe('handleRetryMints', () => {
     expect(crossmint.mintToEmail).toHaveBeenCalledTimes(1); // not listed again
   });
 
+  it('a run that never attempted the row (failed lookup inside fulfilNft) does not spend the last retry', async () => {
+    failedRow('recBlip', { Email: 'blip@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Retry Count': 7, 'Payment Transaction ID': 'cs_live_B' });
+    payment('cs_live_B');
+    db.findMintByPaymentId.mockRejectedValueOnce(new Error('db blip'));
+
+    await handleRetryMints();
+
+    expect(alerted('retry_mints.gave_up')).toHaveLength(0);
+    expect(row('recBlip').fields).toEqual(expect.objectContaining({ 'Mint Status': 'Failed', 'Retry Count': 7 }));
+  });
+
   it('a retry that reaches 7 stays queued: no gave_up yet', async () => {
     failedRow('recNearly', { Email: 'n@example.com', 'NFT Type': 'Aurevon Ember', 'Tier Source': 'retainer', 'Retry Count': 6, 'Payment Transaction ID': 'cs_live_N' });
     crossmint.mintToEmail.mockResolvedValue({ ok: false, error: 'Crossmint 500' });

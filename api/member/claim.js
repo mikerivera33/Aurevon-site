@@ -127,9 +127,13 @@ async function handleMint(req, res) {
   // the transaction id, NFT_Mints row, delivery email. A body `serial` is no
   // longer honoured (serials come from the atomic counter only).
   if (!recipientEmail) return res.status(400).json({ error: 'recipientEmail is required (the mint is recorded and emailed)' });
+  // The key this mint runs under goes back in every reply: repeating the call
+  // with the SAME transactionId is a no-op on Crossmint and re-writes a row
+  // that was dropped; a new key would mint a second token.
+  const transactionId = body.transactionId ?? `manual-${crypto.randomUUID()}`;
   try {
     const result = await fulfilNft({
-      transactionId: body.transactionId ?? `manual-${crypto.randomUUID()}`,
+      transactionId,
       email: recipientEmail,
       walletAddress: walletAddress || null,
       customerName: body.customerName ?? 'Aurevon Member',
@@ -137,11 +141,13 @@ async function handleMint(req, res) {
       provider: 'manual',
       source: 'manual',
     });
-    const reply = { ok: result.minted, minted: result.minted, nftType: result.nftType, serial: result.serial ?? null };
+    const recorded = Boolean(result.rowId);
+    const reply = { ok: result.minted, minted: result.minted, nftType: result.nftType, serial: result.serial ?? null, transactionId, recorded };
     if (!result.minted) return res.status(502).json({ ...reply, error: 'Crossmint error' });
+    if (!recorded) reply.warning = 'Minted, but the mint row was not saved. Repeat this call with the same transactionId to record it.';
     return res.status(200).json(reply);
   } catch (err) {
-    return res.status(500).json({ error: 'Mint failed', message: err.message });
+    return res.status(500).json({ error: 'Mint failed', message: err.message, transactionId });
   }
 }
 
@@ -944,7 +950,10 @@ export async function handleRetryMints({ budgetMs = RETRY_MINTS_BUDGET_MS, clock
     } else {
       stats.failed++;
       firstFailedId ??= row.id;
-      if (retryCount + 1 >= MAX_MINT_RETRIES) await giveUp(row.id, 'retry cap reached');
+      // `existing` here means fulfilNft never attempted this row (its dedupe
+      // lookup failed, or another run holds it): Retry Count did not move, so
+      // this run does not spend the row's last retry.
+      if (!result.existing && retryCount + 1 >= MAX_MINT_RETRIES) await giveUp(row.id, 'retry cap reached');
     }
   }
 

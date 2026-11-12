@@ -222,9 +222,34 @@ describe('fulfilNft recovery paths', () => {
 
     const res = await fulfilNft({ transactionId: 'cs_test_race3', email: BUYER, tier: 'retainer', provider: 'stripe' });
 
-    expect(res).toEqual(expect.objectContaining({ existing: true, rowId: 'mint_winner2' }));
+    // The row it hands back is Failed: the result must not claim a mint.
+    expect(res).toEqual(expect.objectContaining({ minted: false, existing: true, rowId: 'mint_winner2' }));
     expect(crossmintCalls(store)).toHaveLength(1);
     expect(alerted('stripe.mint_row_dropped')).toHaveLength(0);
+    expect(resendCalls(store)).toHaveLength(0);
+  });
+
+  it('a failed mint lookup over an existing Failed row reports minted:false (never success)', async () => {
+    store.mints.push({ id: 'mint_failed', fields: { 'Reference': 'EMBER_004', 'Payment Transaction ID': 'cs_test_blip', 'Mint Status': 'Failed', 'Retry Count': 2 } });
+    db.findMintByPaymentId.mockRejectedValueOnce(new Error('db blip')); // the dedupe lookup fails once
+
+    const res = await fulfilNft({ transactionId: 'cs_test_blip', email: BUYER, tier: 'retainer', provider: 'retry' });
+
+    expect(alerted('retry.mint_lookup_failed')).toHaveLength(1);
+    expect(res).toEqual(expect.objectContaining({ minted: false, existing: true, rowId: 'mint_failed' }));
+    // The stored row is untouched and nothing is emailed for this run.
+    expect(store.mints).toHaveLength(1);
+    expect(store.mints[0].fields).toEqual(expect.objectContaining({ 'Mint Status': 'Failed', 'Retry Count': 2 }));
+    expect(resendCalls(store)).toHaveLength(0);
+  });
+
+  it('a concurrent row that cannot be read back reports minted:false', async () => {
+    db.createNftMint.mockImplementationOnce(async () => { throw Object.assign(new Error('dup payment'), { code: 'DUPLICATE_PAYMENT_MINT' }); });
+    db.findMintByPaymentId.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('db blip'));
+
+    const res = await fulfilNft({ transactionId: 'cs_test_unread', email: BUYER, tier: 'retainer', provider: 'stripe' });
+
+    expect(res).toEqual(expect.objectContaining({ minted: false, existing: true, rowId: null }));
     expect(resendCalls(store)).toHaveLength(0);
   });
 

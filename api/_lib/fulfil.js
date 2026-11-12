@@ -69,9 +69,12 @@ export function nextRetryAt(retryCount, now = new Date()) {
   return new Date(new Date(now).getTime() + delay).toISOString();
 }
 
+// The row another run (or an earlier one) wrote for this payment. `minted`
+// is that row's truth: a Failed row, or one that could not be read back, is
+// not a mint — callers (retry-mints, the manual mint reply) act on it.
 function existingResult(row, entitlementKey, nftType) {
   return {
-    minted: true,
+    minted: Boolean(row) && row.fields?.['Mint Status'] !== 'Failed',
     existing: true,
     entitlementKey,
     nftType,
