@@ -12,8 +12,9 @@
  * Stripe sessions are retrieved live so we don't race the webhook's Payments
  * write. PayPal (and Stripe when the secret is unset) fall back to the
  * Payments row written by the webhook. Unpaid async Checkout
- * (`payment_status !== 'paid'`) is rejected — same rule as the Stripe
- * fulfillment guard.
+ * (`payment_status === 'unpaid'`) is rejected. Settled sessions
+ * (`paid` or `no_payment_required` for a $0 / 100% promo) unlock — same
+ * rule as the Stripe fulfillment guard (`isSettledCheckout`).
  */
 
 import Stripe from 'stripe';
@@ -29,6 +30,11 @@ export function isIntakeTier(tier) {
 
 export const STRIPE_SESSION_RE = /^cs_(test|live)_[A-Za-z0-9]+$/;
 export const PAYPAL_TXN_RE = /^[A-Za-z0-9]{8,32}$/;
+
+/** Stripe marks a session settled as "paid", or "no_payment_required" for $0 / 100% promo. */
+export function isSettledStripeSession(session) {
+  return session?.payment_status === 'paid' || session?.payment_status === 'no_payment_required';
+}
 
 function succeededPayment(record) {
   if (!record) return null;
@@ -80,7 +86,7 @@ async function verifyPaid(input) {
       try {
         const stripe = new Stripe(secret, { apiVersion: '2023-10-16' });
         const session = await stripe.checkout.sessions.retrieve(sessionId);
-        if (session.payment_status === 'paid') {
+        if (isSettledStripeSession(session)) {
           return { ok: true, tier: session.metadata?.tier ?? null, method: 'stripe' };
         }
         return { ok: false, status: 402, error: 'unpaid' };
