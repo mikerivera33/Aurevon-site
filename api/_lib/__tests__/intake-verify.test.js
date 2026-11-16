@@ -90,13 +90,22 @@ describe('verifyIntakePayment', () => {
     expect(result).toEqual({ ok: false, status: 402, error: 'unpaid' });
   });
 
-  it('rejects no_payment_required (same class as unpaid async Checkout)', async () => {
+  it('unlocks a $0 / 100% promo checkout (no_payment_required) for underwriting', async () => {
     retrieve.mockResolvedValueOnce({
       payment_status: 'no_payment_required',
       metadata: { tier: 're_full' },
     });
     const result = await verifyIntakePayment({ sessionId: 'cs_test_free' });
-    expect(result).toEqual({ ok: false, status: 402, error: 'unpaid' });
+    expect(result).toEqual({ ok: true, tier: 're_full', method: 'stripe' });
+  });
+
+  it('still refuses a 100% promo on a non-underwriting tier', async () => {
+    retrieve.mockResolvedValueOnce({
+      payment_status: 'no_payment_required',
+      metadata: { tier: 'comm_monthly' },
+    });
+    expect(await verifyIntakePayment({ sessionId: 'cs_test_freecomm' }))
+      .toEqual({ ok: false, status: 403, error: 'not_intake_purchase' });
   });
 
   it('falls back to a Succeeded Payments row when Stripe retrieve fails', async () => {
