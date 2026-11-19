@@ -5,6 +5,7 @@
  * (Entitlement Type/Status/Expires At, Billing State), so cancelled monthly members
  * kept their Discord role forever. The Stripe webhook now handles:
  *   - invoice.payment_succeeded  → stamp/renew monthly entitlement (active + expiry)
+ *   - invoice.payment_failed     → stamp Billing State past_due (paid-through = period.start)
  *   - customer.subscription.updated → record billing state (past_due / cancelled)
  * Only comm_monthly (recurring, revocable) is tracked; product-tier subs are permanent.
  */
@@ -34,13 +35,15 @@ vi.mock('stripe', () => ({
   },
 }));
 
-import { handleInvoicePaymentSucceeded, handleSubscriptionUpdated, handleSubscriptionDeleted } from '../../webhooks/stripe.js';
+import { handleInvoicePaymentSucceeded, handleInvoicePaymentFailed, handleSubscriptionUpdated, handleSubscriptionDeleted } from '../../webhooks/stripe.js';
 import * as airtable from '../airtable.js';
 import * as discordBot from '../discord-bot.js';
 import * as alert from '../alert.js';
 
 const PERIOD_END = 1893456000; // unix seconds (future)
 const PERIOD_END_ISO = new Date(PERIOD_END * 1000).toISOString();
+const PERIOD_START = PERIOD_END - 30 * 86400;
+const PERIOD_START_ISO = new Date(PERIOD_START * 1000).toISOString();
 
 describe('handleInvoicePaymentSucceeded', () => {
   beforeEach(() => {
@@ -75,6 +78,104 @@ describe('handleInvoicePaymentSucceeded', () => {
   it('skips when a monthly invoice has no customer email', async () => {
     await handleInvoicePaymentSucceeded({ amount_paid: 2999, lines: { data: [{ period: { end: PERIOD_END } }] } });
     expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleInvoicePaymentFailed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    customersList.mockReset().mockResolvedValue({ data: [] });
+    subscriptionsList.mockReset().mockResolvedValue({ data: [] });
+  });
+
+  it('stamps Billing State past_due from amount_due (amount_paid is 0 on a failed invoice)', async () => {
+    await handleInvoicePaymentFailed({
+      amount_paid: 0,
+      amount_due: 2999,
+      customer_email: 'monthly@example.com',
+      subscription: 'sub_monthly',
+      lines: { data: [{ period: { start: PERIOD_START, end: PERIOD_END } }] },
+    });
+    expect(airtable.updateEntitlementState).toHaveBeenCalledWith('monthly@example.com', {
+      billingState: 'past_due',
+      expiresAt: PERIOD_START_ISO,
+    });
+  });
+
+  it('does not yank Discord immediately — reconcile revokes after grace', async () => {
+    await handleInvoicePaymentFailed({
+      amount_due: 2999,
+      customer_email: 'monthly@example.com',
+      subscription: 'sub_monthly',
+      lines: { data: [{ period: { start: PERIOD_START, end: PERIOD_END } }] },
+    });
+    expect(discordBot.removeRoleFromMember).not.toHaveBeenCalled();
+    expect(airtable.updateDiscordSyncStatus).not.toHaveBeenCalled();
+  });
+
+  it('does NOT write billing state for a failed retainer invoice', async () => {
+    await handleInvoicePaymentFailed({
+      amount_paid: 0,
+      amount_due: 149900,
+      customer_email: 'retainer@example.com',
+      subscription: 'sub_retainer',
+    });
+    expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
+  });
+
+  it('skips and alerts when a monthly failed invoice has no customer email', async () => {
+    await handleInvoicePaymentFailed({ amount_due: 2999, id: 'in_no_email', subscription: 'sub_x' });
+    expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
+    expect(alert.sendAlert).toHaveBeenCalledWith(
+      'stripe.invoice_payment_failed_no_email',
+      expect.objectContaining({ invoiceId: 'in_no_email', subscriptionId: 'sub_x' }),
+    );
+  });
+
+  it('resolves email from Stripe Customer when customer_email is missing', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_x';
+    customersRetrieve.mockResolvedValue({ email: 'from-customer@example.com' });
+    await handleInvoicePaymentFailed({
+      amount_due: 2999,
+      customer: 'cus_monthly',
+      subscription: 'sub_monthly',
+      lines: { data: [{ period: { start: PERIOD_START, end: PERIOD_END } }] },
+    });
+    expect(customersRetrieve).toHaveBeenCalledWith('cus_monthly');
+    expect(airtable.updateEntitlementState).toHaveBeenCalledWith('from-customer@example.com', {
+      billingState: 'past_due',
+      expiresAt: PERIOD_START_ISO,
+    });
+  });
+
+  it('does not stamp past_due when another monthly subscription for the email is active', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_x';
+    customersRetrieve.mockResolvedValue({ email: 'member@example.com' });
+    customersList.mockResolvedValueOnce({ data: [{ id: 'cus_real' }] });
+    subscriptionsList.mockResolvedValueOnce({
+      data: [{ id: 'sub_real', status: 'active', items: { data: [{ price: { unit_amount: 2999 } }] } }],
+    });
+    await handleInvoicePaymentFailed({
+      amount_due: 2999,
+      customer: 'cus_other',
+      subscription: 'sub_other',
+      lines: { data: [{ period: { start: PERIOD_START, end: PERIOD_END } }] },
+    });
+    expect(airtable.updateEntitlementState).not.toHaveBeenCalled();
+  });
+
+  it('identifies monthly from invoice.total when amount_due is missing', async () => {
+    await handleInvoicePaymentFailed({
+      amount_paid: 0,
+      total: 2999,
+      customer_email: 'monthly@example.com',
+      subscription: 'sub_monthly',
+      lines: { data: [{ period: { start: PERIOD_START, end: PERIOD_END } }] },
+    });
+    expect(airtable.updateEntitlementState).toHaveBeenCalledWith('monthly@example.com', {
+      billingState: 'past_due',
+      expiresAt: PERIOD_START_ISO,
+    });
   });
 });
 

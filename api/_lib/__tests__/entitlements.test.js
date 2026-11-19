@@ -152,6 +152,28 @@ describe('shouldRevokeAccess', () => {
       gracePeriodDays: 7,
     })).toBe(true);
   });
+
+  it('revokes a past_due monthly member after grace (failed renewal)', () => {
+    const past = new Date(Date.now() - 10 * 86_400_000).toISOString();
+    expect(shouldRevokeAccess({
+      membershipMode: 'recurring',
+      revokeOnCancel: true,
+      billingState: 'past_due',
+      endsAt: past,
+      gracePeriodDays: 7,
+    })).toBe(true);
+  });
+
+  it('does not revoke past_due within the paid-through grace window', () => {
+    const recent = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    expect(shouldRevokeAccess({
+      membershipMode: 'recurring',
+      revokeOnCancel: true,
+      billingState: 'past_due',
+      endsAt: recent,
+      gracePeriodDays: 7,
+    })).toBe(false);
+  });
 });
 
 describe('mayGrantPaidAccess', () => {
