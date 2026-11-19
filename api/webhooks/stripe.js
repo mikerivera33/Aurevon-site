@@ -572,6 +572,76 @@ export async function handleInvoicePaymentSucceeded(invoice) {
   }
 }
 
+// A monthly renewal invoice failed. Production is subscribed to this event
+// (verified 2026-11-02) but customer.subscription.updated is not, and
+// shouldRevokeAccess returns false while Billing State stays `active` from
+// checkout. Without this stamp, a declined card leaves Genesis Discord up
+// indefinitely. Do not yank the role here — the daily reconcile revokes after
+// the paid-through date + grace, matching subscription.updated. Paid-through
+// is the failed invoice's period.start (end of the last paid period), not
+// period.end (the unpaid month).
+export async function handleInvoicePaymentFailed(invoice) {
+  // Failed invoices have amount_paid=0; identify the SKU from what was due.
+  const amountDue = invoice.amount_due ?? invoice.total ?? 0;
+  const tier = inferTierFromAmount(amountDue);
+  const entitlementKey = tier ? resolveEntitlementFromSku(tier) : null;
+  if (entitlementKey !== 'monthly_membership') {
+    console.log(`[Stripe] invoice.payment_failed amount_due=${amountDue} tier=${tier} — not monthly membership, no billing-state write`);
+    return;
+  }
+  const email = await resolveInvoiceEmail(invoice);
+  if (!email) {
+    console.warn('[Stripe] invoice.payment_failed (monthly) but no customer email — skipping billing-state write');
+    await sendAlert('stripe.invoice_payment_failed_no_email', {
+      invoiceId: invoice?.id ?? null,
+      subscriptionId: invoiceSubscriptionId(invoice),
+    }).catch(() => {});
+    return;
+  }
+  const subId = invoiceSubscriptionId(invoice);
+  if (await shouldHoldMonthlyChange(email, { id: subId }, 'invoice.payment_failed')) {
+    return;
+  }
+  const periodStartUnix = invoice.lines?.data?.[0]?.period?.start ?? invoice.period_start ?? null;
+  // listOutOfSyncEntitlements requires Entitlement Expires At; checkout does
+  // not write it, and invoice.payment_succeeded may not be subscribed. Fall
+  // back to now so a missing period still enters the revoke window after grace.
+  const expiresAt = new Date((periodStartUnix ?? Math.floor(Date.now() / 1000)) * 1000).toISOString();
+  try {
+    await updateEntitlementState(email, {
+      billingState: 'past_due',
+      expiresAt,
+    });
+    console.log(`[Stripe] Billing state → past_due (invoice.payment_failed, paid through ${expiresAt})`);
+  } catch (err) {
+    console.error(`[Stripe] updateEntitlementState (invoice.payment_failed) failed: ${err.message}`);
+    await sendAlert('stripe.entitlement_write_failed', { source: 'invoice.payment_failed', error: err.message });
+  }
+}
+
+function invoiceSubscriptionId(invoice) {
+  const value = invoice?.subscription;
+  if (typeof value === 'string') return value;
+  return value?.id ?? null;
+}
+
+async function resolveInvoiceEmail(invoice) {
+  const customer = invoice?.customer;
+  if (customer && typeof customer === 'object' && !customer.deleted && customer.email) {
+    return customer.email;
+  }
+  const customerId = typeof customer === 'string' ? customer : customer?.id ?? null;
+  if (customerId && process.env.STRIPE_SECRET_KEY) {
+    try {
+      const retrieved = await stripeClient().customers.retrieve(customerId);
+      if (retrieved && !retrieved.deleted && retrieved.email) return retrieved.email;
+    } catch (err) {
+      console.error(`[Stripe] Could not resolve invoice customer email for ${customerId}: ${err.message}`);
+    }
+  }
+  return invoice?.customer_email ?? invoice?.subscription_details?.metadata?.email ?? null;
+}
+
 // Subscription status changed (past_due / unpaid / canceled / reactivated). Records
 // the billing state the revocation backstop reads, and refreshes the paid-through
 // date. Only monthly membership is tracked (metadata.tier set at checkout).
@@ -693,7 +763,11 @@ export default async function handler(req, res) {
                 })
         );
   } else if (event.type === 'invoice.payment_failed') {
-        console.log(`[Stripe] invoice.payment_failed for subscription ${event.data.object.subscription} — logged only`);
+        waitUntil(
+                handleInvoicePaymentFailed(event.data.object).catch((err) => {
+                        console.error(`[Stripe] Unhandled invoice.payment_failed error: ${err.message}`, err.stack);
+                })
+        );
   } else {
         console.log(`[Stripe] Ignoring event type="${event.type}"`);
   }
